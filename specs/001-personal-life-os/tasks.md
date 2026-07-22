@@ -49,29 +49,29 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Foundational tests and contracts (write first)
 
-- [ ] T009 [P] Add automated validation for OpenAPI, AsyncAPI, and all JSON Schemas in `backend/tests/contract/test_design_contracts.py`
-- [ ] T010 [P] Add empty-database upgrade, current-head, and model-drift tests in `backend/tests/integration/test_migrations.py`
-- [ ] T011 [P] Add authentication, refresh rotation, CSRF, generic login error, and cross-user ownership tests in `backend/tests/integration/test_auth.py`
-- [ ] T012 [P] Add outbox crash-boundary, duplicate delivery, lease recovery, and idempotency tests in `backend/tests/integration/test_outbox.py`
-- [ ] T013 [P] Add durable job transition, SSE replay, expired-cursor snapshot, Redis-outage, and user-isolation tests in `backend/tests/integration/test_job_events.py`
-- [ ] T014 [P] Add frontend auth refresh, logout clearing, EventSource dedupe, and reconnect store tests in `frontend/tests/component/foundation.spec.ts`
+- [X] T009 [P] Add automated validation for OpenAPI, AsyncAPI, and all JSON Schemas in `backend/tests/contract/test_design_contracts.py`
+- [X] T010 [P] Add empty-database upgrade, current-head, and model-drift tests in `backend/tests/integration/test_migrations.py`
+- [X] T011 [P] Add authentication, refresh rotation, CSRF, generic login error, and cross-user ownership tests in `backend/tests/integration/test_auth.py`
+- [X] T012 [P] Add outbox crash-boundary, duplicate delivery, lease recovery, and idempotency tests in `backend/tests/integration/test_outbox.py`
+- [X] T013 [P] Add durable job transition, SSE replay, expired-cursor snapshot, Redis-outage, and user-isolation tests in `backend/tests/integration/test_job_events.py`
+- [X] T014 [P] Add frontend auth refresh, logout clearing, EventSource dedupe, and reconnect store tests in `frontend/tests/component/foundation.spec.ts`
 
 ### Foundational implementation
 
-- [ ] T015 Implement typed settings, secret-file loading, environment validation, and dependency health states in `backend/app/core/config.py`
-- [ ] T016 [P] Implement RFC 9457 errors, W3C trace propagation, safe structured logging, and request limits in `backend/app/core/errors.py` and `backend/app/core/observability.py`
-- [ ] T017 Implement SQLAlchemy engine/session transaction boundaries and declarative base conventions in `backend/app/db/session.py` and `backend/app/db/base.py`
-- [ ] T018 Implement foundational models for users, refresh sessions, categories, tags, outbox, consumer receipts, idempotency, jobs, job events, and activity logs in `backend/app/models/foundation.py`
-- [ ] T019 Create and review the foundational Alembic migration with citext, constraints, indexes, and downgrade policy in `backend/alembic/versions/0001_foundation.py`
-- [ ] T020 Implement Argon2id password verification, JWT issue/validation, refresh-family rotation, revocation, CSRF, and login throttling in `backend/app/modules/auth/service.py`
-- [ ] T021 Implement login/refresh/logout/me routes and ownership-aware current-user dependencies in `backend/app/modules/auth/router.py` and `backend/app/api/dependencies.py`
-- [ ] T022 [P] Define provider-neutral LLM, speech, storage, and mail protocols plus stable errors in `backend/app/services/llm/base.py`, `backend/app/services/speech/base.py`, `backend/app/services/storage/base.py`, and `backend/app/services/mail/base.py`
-- [ ] T023 Implement streamed local private storage, temporary/final object keys, hash validation, and authorized X-Accel responses in `backend/app/services/storage/providers/local.py`
-- [ ] T024 Implement Celery configuration, explicit queue routes, quorum/confirm settings, retry policy, and trace headers in `backend/app/workers/celery_app.py`
-- [ ] T025 Implement transactional outbox append/claim/lease/confirm/reconcile logic and standalone process entry point in `backend/app/services/outbox/publisher.py`
-- [ ] T026 Implement durable async job state machine, append-only event writes, Redis wakeups, DB polling fallback, and SSE response in `backend/app/modules/jobs/service.py` and `backend/app/modules/jobs/sse.py`
-- [ ] T027 Implement typed fetch, Problem Details mapping, CSRF/refresh retry, auth store, and route guards in `frontend/src/api/client.ts`, `frontend/src/stores/auth.ts`, and `frontend/src/router/index.ts`
-- [ ] T028 Implement responsive desktop/mobile app shell, semantic theme tokens, navigation, safe-area handling, global EventSource, and base jobs store in `frontend/src/app/AppShell.vue`, `frontend/src/styles/tokens.css`, and `frontend/src/stores/jobs.ts`
+- [X] T015 Implement typed settings, secret-file loading, environment validation, and dependency health states in `backend/app/core/config.py`
+- [X] T016 [P] Implement RFC 9457 errors, W3C trace propagation, safe structured logging, and request limits in `backend/app/core/errors.py` and `backend/app/core/observability.py`
+- [X] T017 Implement SQLAlchemy engine/session transaction boundaries and declarative base conventions in `backend/app/db/session.py` and `backend/app/db/base.py`
+- [X] T018 Implement foundational models for users, refresh sessions, categories, tags, outbox, consumer receipts, idempotency, jobs, job events, and activity logs in `backend/app/models/foundation.py`
+- [X] T019 Create and review the foundational Alembic migration with citext, constraints, indexes, and downgrade policy in `backend/alembic/versions/0001_foundation.py`
+- [X] T020 Implement Argon2id password verification, JWT issue/validation, refresh-family rotation, revocation, CSRF, and login throttling in `backend/app/modules/auth/service.py`
+- [X] T021 Implement login/refresh/logout/me routes and ownership-aware current-user dependencies in `backend/app/modules/auth/router.py` and `backend/app/api/dependencies.py`
+- [X] T022 [P] Define provider-neutral LLM, speech, storage, and mail protocols plus stable errors in `backend/app/services/llm/base.py`, `backend/app/services/speech/base.py`, `backend/app/services/storage/base.py`, and `backend/app/services/mail/base.py`
+- [X] T023 Implement streamed local private storage, temporary/final object keys, hash validation, and authorized X-Accel responses in `backend/app/services/storage/providers/local.py`
+- [X] T024 Implement Celery configuration, explicit queue routes, quorum/confirm settings, retry policy, and trace headers in `backend/app/workers/celery_app.py`
+- [X] T025 Implement transactional outbox append/claim/lease/confirm/reconcile logic and standalone process entry point in `backend/app/services/outbox/publisher.py`
+- [X] T026 Implement durable async job state machine, append-only event writes, Redis wakeups, DB polling fallback, and SSE response in `backend/app/modules/jobs/service.py` and `backend/app/modules/jobs/sse.py`
+- [X] T027 Implement typed fetch, Problem Details mapping, CSRF/refresh retry, auth store, and route guards in `frontend/src/api/client.ts`, `frontend/src/stores/auth.ts`, and `frontend/src/router/index.ts`
+- [X] T028 Implement responsive desktop/mobile app shell, semantic theme tokens, navigation, safe-area handling, global EventSource, and base jobs store in `frontend/src/app/AppShell.vue`, `frontend/src/styles/tokens.css`, and `frontend/src/stores/jobs.ts`
 
 **Checkpoint**: Authentication and SSE work against real PostgreSQL/Redis; broker outage still permits an authenticated base transaction plus pending outbox row.
 

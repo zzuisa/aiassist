@@ -18,6 +18,29 @@ export default tseslint.config(
     },
   },
   {
+    // Browser + DOM globals for app code (fetch, window, EventSource, …).
+    files: ['src/**/*.{ts,vue}', 'tests/**/*.ts'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        fetch: 'readonly',
+        EventSource: 'readonly',
+        Response: 'readonly',
+        Request: 'readonly',
+        Headers: 'readonly',
+        URLSearchParams: 'readonly',
+        AbortSignal: 'readonly',
+        MessageEvent: 'readonly',
+        Event: 'readonly',
+        BodyInit: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
