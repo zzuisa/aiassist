@@ -84,6 +84,13 @@ celery.conf.update(
     task_annotations={"*": {"max_retries": 5}},
 )
 
-# Import task modules so they register. Guarded so importing the app object in
-# tests without all feature modules present does not explode.
-celery.autodiscover_tasks(["app.workers.tasks"])
+# Register task modules explicitly (autodiscover expects an app-per-package).
+celery.conf.imports = (
+    "app.workers.tasks.notifications",
+    "app.workers.tasks.habits",
+    "app.workers.tasks.maintenance",
+)
+
+
+# Load the Beat schedule (safe: celery is already configured above).
+import app.workers.beat_schedule  # noqa: E402,F401

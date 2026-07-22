@@ -7,6 +7,7 @@ sections (habits/suggestions/recent_captures) are filled in by their stories.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
@@ -25,6 +26,36 @@ from app.modules.tasks import service as task_service
 from app.modules.tasks.schemas import TaskOut
 
 router = APIRouter(tags=["today"])
+
+
+def _today_habits(db: Session, user_id: uuid.UUID, local_date: date) -> list[dict]:
+    """Today's active habits with their log/task status, for the dashboard."""
+    from app.models.habits import Habit, HabitLog
+    from app.modules.habits.recurrence import occurs_on
+
+    habits = db.scalars(
+        select(Habit).where(
+            Habit.user_id == user_id, Habit.status == "active", Habit.deleted_at.is_(None)
+        )
+    ).all()
+    result: list[dict] = []
+    for h in habits:
+        if not occurs_on(h.recurrence_rule, local_date):
+            continue
+        log = db.scalar(
+            select(HabitLog).where(
+                HabitLog.user_id == user_id,
+                HabitLog.habit_id == h.id,
+                HabitLog.local_date == local_date,
+            )
+        )
+        result.append(
+            {
+                "habit": {"id": str(h.id), "name": h.name, "priority": h.priority},
+                "log": {"status": log.status} if log else None,
+            }
+        )
+    return result
 
 
 def _day_bounds(local_date: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
@@ -89,7 +120,7 @@ def get_today(
         "current_task": to_out(current) if current else None,
         "timeline": [to_out(t) for t in timeline],
         "todos": [to_out(t) for t in todos],
-        "habits": [],  # US3
+        "habits": _today_habits(db, user.id, local_today),
         "overdue": [to_out(t) for t in overdue],
         "conflicts": [],  # US2
         "suggestions": [],  # US2/US9

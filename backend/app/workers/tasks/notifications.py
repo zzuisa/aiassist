@@ -62,3 +62,17 @@ def send_email(self, notification_id: str) -> None:  # type: ignore[no-untyped-d
 def send_critical_reminder(notification_id: str) -> None:
     # Critical reminders reuse the same delivery path but on the critical queue.
     send_email.run(notification_id)
+
+
+@celery.task(name="app.workers.tasks.notifications.scan_due_reminders")
+def scan_due_reminders() -> int:
+    """Claim due reminders and dispatch them (Beat-triggered every minute)."""
+    from app.modules.notifications import reminder_service
+
+    dispatched = 0
+    with session_scope() as s:
+        due = reminder_service.claim_due_reminders(s)
+        for reminder in due:
+            reminder_service.dispatch_reminder(s, reminder)
+            dispatched += 1
+    return dispatched

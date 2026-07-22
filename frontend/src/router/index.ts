@@ -20,6 +20,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/modules/calendar/CalendarPage.vue'),
       },
       {
+        path: 'habits',
+        name: 'habits',
+        component: () => import('@/modules/habits/HabitsPage.vue'),
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),

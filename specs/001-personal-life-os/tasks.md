@@ -148,19 +148,19 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 3
 
-- [ ] T054 [P] [US3] Add recurrence, local-date/DST generation, duplicate scheduler, check-in, skip, and streak tests in `backend/tests/integration/test_habits.py`
-- [ ] T055 [P] [US3] Add habit card, timer, skip reason, statistics, and heatmap component tests in `frontend/tests/component/habits.spec.ts`
-- [ ] T056 [US3] Add create → generate → check in → skip → statistics Playwright journey in `frontend/tests/e2e/habits.spec.ts`
+- [X] T054 [P] [US3] Add recurrence, local-date/DST generation, duplicate scheduler, check-in, skip, and streak tests in `backend/tests/integration/test_habits.py`
+- [X] T055 [P] [US3] Add habit card, timer, skip reason, statistics, and heatmap component tests in `frontend/tests/component/habits.spec.ts`
+- [X] T056 [US3] Add create → generate → check in → skip → statistics Playwright journey in `frontend/tests/e2e/habits.spec.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T057 [P] [US3] Implement habit and habit-log models, recurrence validation, and task relation in `backend/app/models/habits.py`
-- [ ] T058 [US3] Create habits Alembic migration with `(user_id, habit_id, local_date)` uniqueness in `backend/alembic/versions/0004_habits.py`
-- [ ] T059 [US3] Implement habit CRUD, timer/check-in/skip, statistics, and idempotent task generation in `backend/app/modules/habits/service.py`
-- [ ] T060 [US3] Implement Beat scan and schedule-queue habit generation tasks in `backend/app/workers/tasks/habits.py` and `backend/app/workers/beat_schedule.py`
-- [ ] T141 [US3] Implement plain recurring-task templates and idempotent occurrence generation per `data-model.md` (`recurrence_parent_id` + `occurrence_date` uniqueness, `task_recurrence:{template_id}:{local_date}` idempotency key, lookahead window, fixed-event inheritance) in `backend/app/modules/tasks/recurrence.py` and `backend/app/workers/tasks/recurrence.py`, with tests in `backend/tests/integration/test_task_recurrence.py`
-- [ ] T061 [US3] Implement habit CRUD/check-in/skip/stats endpoints and Today integration in `backend/app/modules/habits/router.py`
-- [ ] T062 [US3] Implement habit cards, timer, skip sheet, statistics, heatmap, and editor in `frontend/src/modules/habits/`
+- [X] T057 [P] [US3] Implement habit and habit-log models, recurrence validation, and task relation in `backend/app/models/habits.py`
+- [X] T058 [US3] Create habits Alembic migration with `(user_id, habit_id, local_date)` uniqueness in `backend/alembic/versions/0004_habits.py`
+- [X] T059 [US3] Implement habit CRUD, timer/check-in/skip, statistics, and idempotent task generation in `backend/app/modules/habits/service.py`
+- [X] T060 [US3] Implement Beat scan and schedule-queue habit generation tasks in `backend/app/workers/tasks/habits.py` and `backend/app/workers/beat_schedule.py`
+- [X] T141 [US3] Implement plain recurring-task templates and idempotent occurrence generation per `data-model.md` (`recurrence_parent_id` + `occurrence_date` uniqueness, `task_recurrence:{template_id}:{local_date}` idempotency key, lookahead window, fixed-event inheritance) in `backend/app/modules/tasks/recurrence.py` and `backend/app/workers/tasks/recurrence.py`, with tests in `backend/tests/integration/test_task_recurrence.py`
+- [X] T061 [US3] Implement habit CRUD/check-in/skip/stats endpoints and Today integration in `backend/app/modules/habits/router.py`
+- [X] T062 [US3] Implement habit cards, timer, skip sheet, statistics, heatmap, and editor in `frontend/src/modules/habits/`
 
 **Checkpoint**: Habit generation is idempotent across duplicate Beat/worker executions and respects user timezone.
 
