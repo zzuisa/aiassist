@@ -1,0 +1,252 @@
+# AI Assist — single-host Docker Compose V2 deployment.
+# All middleware versions come from specs/001-personal-life-os/deployment.md §7.
+# Only the internal nginx gateway publishes a port, bound to 127.0.0.1.
+
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  image: aiassist-backend:local
+  restart: unless-stopped
+  env_file: [.env]
+  environment:
+    POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    JWT_SIGNING_KEY_FILE: /run/secrets/jwt_signing_key
+    RABBITMQ_PASSWORD_FILE: /run/secrets/rabbitmq_password
+    SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+    LLM_PROVIDER_KEY_FILE: /run/secrets/llm_provider_key
+  secrets:
+    - postgres_password
+    - jwt_signing_key
+    - rabbitmq_password
+    - smtp_password
+    - llm_provider_key
+  networks: [internal]
+
+services:
+  postgres:
+    image: postgres:18.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aiassist}
+      POSTGRES_USER: ${POSTGRES_USER:-aiassist}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aiassist} -d ${POSTGRES_DB:-aiassist}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [internal]
+
+  redis:
+    image: redis:8.8.0
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks: [internal]
+
+  rabbitmq:
+    image: rabbitmq:4.3.2-management
+    restart: unless-stopped
+    hostname: aiassist-rabbit
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-aiassist}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-aiassist}
+      # deploy.sh exports RABBITMQ_DEFAULT_PASS from deploy/secrets/rabbitmq_password
+      # at launch time so the value never lands in Git or the compose file.
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?set by deploy.sh from the secret file}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./deploy/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/10-aiassist.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running", "&&", "rabbitmq-diagnostics", "-q", "check_local_alarms"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks: [internal]
+
+  migrate:
+    <<: *backend-image
+    restart: "no"
+    command: ["python", "-m", "app.cli.main", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    <<: *backend-image
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+    volumes:
+      - assets:/data/assets
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.cli.main", "healthcheck", "--url", "http://localhost:8000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  outbox-publisher:
+    <<: *backend-image
+    command: ["python", "-m", "app.cli.main", "outbox-publisher"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker-fast:
+    <<: *backend-image
+    command:
+      ["celery", "-A", "app.workers.celery_app.celery", "worker",
+       "-Q", "critical,notification,schedule,search", "-c", "4",
+       "--prefetch-multiplier", "1", "-n", "fast@%h"]
+    volumes:
+      - assets:/data/assets
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker-heavy:
+    <<: *backend-image
+    command:
+      ["celery", "-A", "app.workers.celery_app.celery", "worker",
+       "-Q", "voice,image,llm,maintenance", "-c", "1",
+       "--prefetch-multiplier", "1", "--max-tasks-per-child", "20", "-n", "heavy@%h"]
+    volumes:
+      - assets:/data/assets
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  celery-beat:
+    <<: *backend-image
+    command:
+      ["celery", "-A", "app.workers.celery_app.celery", "beat",
+       "--schedule", "/tmp/celerybeat-schedule", "-l", "info"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_URL: ${VITE_BASE_URL:-/}
+    image: aiassist-frontend:local
+    restart: unless-stopped
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  nginx:
+    image: nginx:1.30.4-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18080:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - assets:/data/assets:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks: [internal]
+
+  backup:
+    <<: *backend-image
+    profiles: [tools]
+    restart: "no"
+    command: ["/bin/sh", "/app/deploy/scripts/backup.sh"]
+    volumes:
+      - assets:/data/assets:ro
+      - ./backups:/data/backups
+      - ./deploy/scripts:/app/deploy/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    profiles: [s3]
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/s3_access_key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/s3_secret_key
+    secrets: [s3_access_key, s3_secret_key]
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  assets:
+  minio-data:
+
+secrets:
+  postgres_password:
+    file: ./deploy/secrets/postgres_password
+  jwt_signing_key:
+    file: ./deploy/secrets/jwt_signing_key
+  rabbitmq_password:
+    file: ./deploy/secrets/rabbitmq_password
+  smtp_password:
+    file: ./deploy/secrets/smtp_password
+  llm_provider_key:
+    file: ./deploy/secrets/llm_provider_key
+  s3_access_key:
+    file: ./deploy/secrets/s3_access_key
+  s3_secret_key:
+    file: ./deploy/secrets/s3_secret_key

@@ -1,0 +1,50 @@
+{
+  "name": "aiassist-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fullcalendar/core": "6.1.21",
+    "@fullcalendar/daygrid": "6.1.21",
+    "@fullcalendar/interaction": "6.1.21",
+    "@fullcalendar/list": "6.1.21",
+    "@fullcalendar/timegrid": "6.1.21",
+    "@fullcalendar/vue3": "6.1.21",
+    "naive-ui": "2.44.1",
+    "pinia": "4.0.2",
+    "vue": "3.5.40",
+    "vue-router": "5.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@playwright/test": "1.61.1",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "@vue/test-utils": "2.4.11",
+    "@vue/tsconfig": "0.8.1",
+    "eslint": "9.20.0",
+    "eslint-plugin-vue": "10.0.0",
+    "jiti": "^2.4.2",
+    "jsdom": "26.0.0",
+    "typescript": "5.7.3",
+    "typescript-eslint": "8.24.0",
+    "vite": "8.1.5",
+    "vite-plugin-pwa": "1.3.0",
+    "vitest": "4.1.10",
+    "vue-eslint-parser": "10.1.0",
+    "vue-tsc": "3.3.8"
+  }
+}

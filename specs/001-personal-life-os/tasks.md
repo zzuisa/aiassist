@@ -28,14 +28,14 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 **Purpose**: Create reproducible frontend, backend, test, and deployment skeletons without business behavior.
 
-- [ ] T001 Create the planned repository directories and placeholder package markers in `backend/app/`, `backend/tests/`, `frontend/src/`, `frontend/tests/`, and `deploy/`
-- [ ] T002 Initialize Python 3.12 backend metadata, bounded dependencies, lock workflow, and CLI entry points in `backend/pyproject.toml`
-- [ ] T003 Initialize Vue/TypeScript/Vite/Pinia/Router/Naive UI/FullCalendar/PWA dependencies and npm scripts in `frontend/package.json`
-- [ ] T004 [P] Configure strict TypeScript, Vite aliases, Vitest, and vue-tsc in `frontend/tsconfig.json`, `frontend/vite.config.ts`, and `frontend/vitest.config.ts`
-- [ ] T005 [P] Configure Ruff, mypy/pyright policy, pytest markers, and coverage thresholds in `backend/pyproject.toml`
-- [ ] T006 Create non-secret configuration inventory and secret-file examples in `.env.example` and `deploy/secrets/README.md`
-- [ ] T007 Create baseline Compose networks, named volumes, healthcheck placeholders, and optional `s3` profile in `compose.yaml`
-- [ ] T008 [P] Create CI jobs for lint, typecheck, contract validation, unit tests, integration tests, and image builds in `.github/workflows/ci.yml`
+- [X] T001 Create the planned repository directories and placeholder package markers in `backend/app/`, `backend/tests/`, `frontend/src/`, `frontend/tests/`, and `deploy/`
+- [X] T002 Initialize Python 3.12 backend metadata, bounded dependencies, lock workflow, and CLI entry points in `backend/pyproject.toml`
+- [X] T003 Initialize Vue/TypeScript/Vite/Pinia/Router/Naive UI/FullCalendar/PWA dependencies and npm scripts in `frontend/package.json`
+- [X] T004 [P] Configure strict TypeScript, Vite aliases, Vitest, and vue-tsc in `frontend/tsconfig.json`, `frontend/vite.config.ts`, and `frontend/vitest.config.ts`
+- [X] T005 [P] Configure Ruff, mypy/pyright policy, pytest markers, and coverage thresholds in `backend/pyproject.toml`
+- [X] T006 Create non-secret configuration inventory and secret-file examples in `.env.example` and `deploy/secrets/README.md`
+- [X] T007 Create baseline Compose networks, named volumes, healthcheck placeholders, and optional `s3` profile in `compose.yaml`
+- [X] T008 [P] Create CI jobs for lint, typecheck, contract validation, unit tests, integration tests, and image builds in `.github/workflows/ci.yml`
 
 **Checkpoint**: Both projects install from lockfiles; `docker compose config --quiet` and empty test commands pass.
 
