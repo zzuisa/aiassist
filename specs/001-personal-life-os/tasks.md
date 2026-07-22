@@ -85,20 +85,20 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 1
 
-- [ ] T029 [P] [US1] Add task CRUD, validation, optimistic version, completion, deletion, and ownership contract tests in `backend/tests/contract/test_tasks_api.py`
-- [ ] T030 [P] [US1] Add current-task selection, Today aggregation, and AI/broker unavailable durability tests in `backend/tests/integration/test_today_tasks.py`
-- [ ] T031 [P] [US1] Add task list, quick input, detail drawer, unsaved-input retention, and state token component tests in `frontend/tests/component/tasks.spec.ts`
-- [ ] T032 [US1] Add login → quick task → edit → complete → reload Playwright journey in `frontend/tests/e2e/tasks-today.spec.ts`
+- [X] T029 [P] [US1] Add task CRUD, validation, optimistic version, completion, deletion, and ownership contract tests in `backend/tests/contract/test_tasks_api.py`
+- [X] T030 [P] [US1] Add current-task selection, Today aggregation, and AI/broker unavailable durability tests in `backend/tests/integration/test_today_tasks.py`
+- [X] T031 [P] [US1] Add task list, quick input, detail drawer, unsaved-input retention, and state token component tests in `frontend/tests/component/tasks.spec.ts`
+- [X] T032 [US1] Add login → quick task → edit → complete → reload Playwright journey in `frontend/tests/e2e/tasks-today.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T033 [P] [US1] Implement task, reminder stub, and task-tag models with fixed-event checks and habit-source uniqueness in `backend/app/models/tasks.py`
-- [ ] T034 [US1] Create task/task-tag Alembic migration and query indexes in `backend/alembic/versions/0002_tasks.py`
-- [ ] T035 [US1] Implement task create/update/complete/delete, optimistic concurrency, current-task ranking, and activity/outbox writes in `backend/app/modules/tasks/service.py`
-- [ ] T036 [US1] Implement task CRUD endpoints and version-conflict Problem Details in `backend/app/modules/tasks/router.py`
-- [ ] T037 [US1] Implement Today aggregation query with task, timeline, overdue, placeholder habit/suggestion/capture/job sections in `backend/app/modules/tasks/today.py`
-- [ ] T038 [P] [US1] Implement tasks store, filters, list cards, quick input, and detail drawer in `frontend/src/modules/tasks/` and `frontend/src/stores/tasks.ts`
-- [ ] T039 [US1] Implement the mobile-first Today page and one-current-task presentation in `frontend/src/modules/today/TodayPage.vue`
+- [X] T033 [P] [US1] Implement task, reminder stub, and task-tag models with fixed-event checks and habit-source uniqueness in `backend/app/models/tasks.py`
+- [X] T034 [US1] Create task/task-tag Alembic migration and query indexes in `backend/alembic/versions/0002_tasks.py`
+- [X] T035 [US1] Implement task create/update/complete/delete, optimistic concurrency, current-task ranking, and activity/outbox writes in `backend/app/modules/tasks/service.py`
+- [X] T036 [US1] Implement task CRUD endpoints and version-conflict Problem Details in `backend/app/modules/tasks/router.py`
+- [X] T037 [US1] Implement Today aggregation query with task, timeline, overdue, placeholder habit/suggestion/capture/job sections in `backend/app/modules/tasks/today.py`
+- [X] T038 [P] [US1] Implement tasks store, filters, list cards, quick input, and detail drawer in `frontend/src/modules/tasks/` and `frontend/src/stores/tasks.ts`
+- [X] T039 [US1] Implement the mobile-first Today page and one-current-task presentation in `frontend/src/modules/today/TodayPage.vue`
 
 ### User settings (FR-004, FR-090; reconciled in Phase 0)
 
