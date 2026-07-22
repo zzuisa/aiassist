@@ -40,7 +40,16 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] User content is durably persisted before AI or other long-running work starts.
+- [ ] AI mutations are previewed/confirmed, reversible, and never move fixed events.
+- [ ] Design remains a modular monolith deployable through Docker Compose.
+- [ ] AI, speech, mail, and storage integrations use provider-neutral gateways.
+- [ ] Async state is durable; outbox, idempotency, retries, DLQ, and trace IDs are covered.
+- [ ] Ownership checks, private defaults, protected assets, and safe logs are specified.
+- [ ] REST, SSE, messages, and AI outputs have versioned contracts and schema validation.
+- [ ] Tests precede implementation and cover dependency-failure/data-survival paths.
+- [ ] User-visible job status and operator observability are included without leaking
+  infrastructure vocabulary.
 
 ## Project Structure
 

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/schedule-preview.v1.json",
+  "title": "Schedule Preview v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "suggestions", "unresolved_conflicts"],
+  "properties": {
+    "summary": {"type": "string", "maxLength": 2000},
+    "suggestions": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "suggestion_id", "task_id", "task_version", "recommendation", "old_start", "old_end",
+          "new_start", "new_end", "reason", "conflicting_task_ids", "selectable"
+        ],
+        "properties": {
+          "suggestion_id": {"type": "string", "maxLength": 80},
+          "task_id": {"type": "string", "format": "uuid"},
+          "task_version": {"type": "integer", "minimum": 1},
+          "recommendation": {"enum": ["move", "defer", "split", "keep"]},
+          "old_start": {"type": ["string", "null"], "format": "date-time"},
+          "old_end": {"type": ["string", "null"], "format": "date-time"},
+          "new_start": {"type": ["string", "null"], "format": "date-time"},
+          "new_end": {"type": ["string", "null"], "format": "date-time"},
+          "reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "conflicting_task_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "format": "uuid"}},
+          "selectable": {"type": "boolean"},
+          "split_parts": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["title", "minutes"],
+              "properties": {
+                "title": {"type": "string", "maxLength": 240},
+                "minutes": {"type": "integer", "minimum": 1, "maximum": 1440}
+              }
+            }
+          }
+        }
+      }
+    },
+    "unresolved_conflicts": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_ids", "reason"],
+        "properties": {
+          "task_ids": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "format": "uuid"}},
+          "reason": {"type": "string", "maxLength": 500}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,309 @@
+asyncapi: 3.0.0
+info:
+  title: AI Assist Commands and Events
+  version: 1.0.0
+  description: >-
+    RabbitMQ contract for the modular monolith. Payloads contain identifiers and
+    bounded parameters only. Binary files, secrets, provider tokens, server paths,
+    complete prompts, and unbounded private text are forbidden.
+defaultContentType: application/json
+servers:
+  production:
+    host: rabbitmq:5672
+    protocol: amqp
+    description: Internal Compose network only
+channels:
+  critical:
+    address: critical
+    messages:
+      criticalCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [notification.critical.*, recovery.critical.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  notification:
+    address: notification
+    messages:
+      notificationCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [notification.email.*, notification.in_app.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  schedule:
+    address: schedule
+    messages:
+      scheduleCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [habit.generate.*, reminder.scan.*, schedule.preview.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  search:
+    address: search
+    messages:
+      searchCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [search.index.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  voice:
+    address: voice
+    messages:
+      voiceCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [voice.transcribe.*, voice.parse.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  image:
+    address: image
+    messages:
+      imageCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [image.hash.*, image.thumbnail.*, image.preview.*, image.metadata.*, image.ocr.*, image.analyze.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  llm:
+    address: llm
+    messages:
+      llmCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [llm.structured.*, llm.blog.*, llm.assistant.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  maintenance:
+    address: maintenance
+    messages:
+      maintenanceCommand: {$ref: '#/components/messages/Command'}
+    x-rabbitmq:
+      exchange: aiassist.commands
+      exchangeType: topic
+      routingKeys: [maintenance.cleanup.*, maintenance.reconcile.*]
+      durable: true
+      queueType: quorum
+      deadLetterExchange: aiassist.dlx
+  domainEvents:
+    address: aiassist.events
+    messages:
+      domainEvent: {$ref: '#/components/messages/Event'}
+    x-rabbitmq:
+      exchange: aiassist.events
+      exchangeType: topic
+      routingKeys: [capture.*, task.*, habit.*, post.*, job.*]
+      durable: true
+  deadLetters:
+    address: aiassist.dlx
+    messages:
+      deadLetter: {$ref: '#/components/messages/Envelope'}
+    x-rabbitmq:
+      exchange: aiassist.dlx
+      exchangeType: topic
+      operatorReplayOnly: true
+operations:
+  consumeCritical:
+    action: receive
+    channel: {$ref: '#/channels/critical'}
+    summary: worker-fast consumes important reminder and recovery commands
+  consumeNotification:
+    action: receive
+    channel: {$ref: '#/channels/notification'}
+  consumeSchedule:
+    action: receive
+    channel: {$ref: '#/channels/schedule'}
+  consumeSearch:
+    action: receive
+    channel: {$ref: '#/channels/search'}
+  consumeVoice:
+    action: receive
+    channel: {$ref: '#/channels/voice'}
+  consumeImage:
+    action: receive
+    channel: {$ref: '#/channels/image'}
+  consumeLlm:
+    action: receive
+    channel: {$ref: '#/channels/llm'}
+  consumeMaintenance:
+    action: receive
+    channel: {$ref: '#/channels/maintenance'}
+  publishDomainEvents:
+    action: send
+    channel: {$ref: '#/channels/domainEvents'}
+components:
+  messages:
+    Envelope:
+      name: MessageEnvelope
+      title: Versioned command/event envelope
+      payload: {$ref: '#/components/schemas/Envelope'}
+    Command:
+      name: Command
+      title: Imperative message with exactly one responsible handler
+      payload:
+        allOf:
+          - {$ref: '#/components/schemas/Envelope'}
+          - type: object
+            properties:
+              message_kind: {const: command}
+    Event:
+      name: Event
+      title: Past-tense domain fact
+      payload:
+        allOf:
+          - {$ref: '#/components/schemas/Envelope'}
+          - type: object
+            properties:
+              message_kind: {const: event}
+  schemas:
+    Envelope:
+      type: object
+      additionalProperties: false
+      required:
+        - event_id
+        - message_kind
+        - event_type
+        - event_version
+        - occurred_at
+        - user_id
+        - entity_type
+        - entity_id
+        - trace_id
+        - correlation_id
+        - idempotency_key
+        - payload
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique message and outbox ID; Celery task_id uses the same value
+        message_kind:
+          type: string
+          enum: [command, event]
+        event_type:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'
+        event_version:
+          type: integer
+          minimum: 1
+        occurred_at:
+          type: string
+          format: date-time
+        user_id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+          maxLength: 64
+        entity_id:
+          type: string
+          format: uuid
+        trace_id:
+          type: string
+          pattern: '^[a-f0-9]{32}$'
+        correlation_id:
+          type: string
+          format: uuid
+        causation_id:
+          type: [string, 'null']
+          format: uuid
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 240
+        payload:
+          type: object
+          maxProperties: 30
+      examples:
+        - event_id: 6e63979c-c2b4-40d4-b5f6-9bc69e78aca1
+          message_kind: command
+          event_type: image.generate_thumbnail
+          event_version: 1
+          occurred_at: '2026-07-22T10:30:00Z'
+          user_id: 348b7327-d04f-4bc8-91dd-a82104fda38b
+          entity_type: capture
+          entity_id: 994ebd37-c5c0-4a46-a40b-b71aa478966a
+          trace_id: 0af7651916cd43dd8448eb211c80319c
+          correlation_id: 252950db-47c1-46bd-9431-c08e3de848fe
+          causation_id: null
+          idempotency_key: capture:994ebd37-c5c0-4a46-a40b-b71aa478966a:thumbnail:v1
+          payload:
+            asset_id: 6712e3e6-cdf5-4ac0-a34c-5ac965d47df1
+            variant: thumbnail
+            processor_version: v1
+    VoiceTranscribePayload:
+      type: object
+      additionalProperties: false
+      required: [voice_record_id, asset_id, provider_route]
+      properties:
+        voice_record_id: {type: string, format: uuid}
+        asset_id: {type: string, format: uuid}
+        provider_route: {type: string, maxLength: 64}
+        language_hint: {type: [string, 'null'], maxLength: 16}
+    ImageProcessPayload:
+      type: object
+      additionalProperties: false
+      required: [capture_id, asset_id, pipeline_version]
+      properties:
+        capture_id: {type: string, format: uuid}
+        asset_id: {type: string, format: uuid}
+        pipeline_version: {type: string, maxLength: 32}
+        steps:
+          type: array
+          maxItems: 12
+          items: {type: string, enum: [hash, exif, orient, sanitize, thumbnail, preview, ocr, classify, tags]}
+    LlmScenarioPayload:
+      type: object
+      additionalProperties: false
+      required: [scenario, entity_refs, schema_version]
+      properties:
+        scenario: {type: string, maxLength: 64}
+        entity_refs:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [type, id, version]
+            properties:
+              type: {type: string}
+              id: {type: string, format: uuid}
+              version: {type: integer, minimum: 1}
+        schema_version: {type: string, maxLength: 64}
+        bounded_instruction: {type: [string, 'null'], maxLength: 2000}
+    NotificationPayload:
+      type: object
+      additionalProperties: false
+      required: [notification_id, delivery_id, channel]
+      properties:
+        notification_id: {type: string, format: uuid}
+        delivery_id: {type: string, format: uuid}
+        channel: {type: string, enum: [in_app, email]}
+        scheduled_for: {type: string, format: date-time}
+
+x-processing-rules:
+  validation: Strict Pydantic model selected by event_type and event_version; unknown fields rejected
+  acknowledgements: Ack only after durable business state commit
+  retries: Transient errors only; exponential backoff with jitter and scenario-specific cap
+  terminal_failure: Commit async_jobs.failed before reject-without-requeue to DLQ
+  idempotency: PostgreSQL business unique constraints plus consumer_receipts/idempotency_records
+  locks: Redis token lock may reduce concurrency but is not a correctness boundary
+  trace: Preserve W3C trace ID plus correlation and causation IDs
+  security: Resolve private payload from PostgreSQL/object storage after ownership validation

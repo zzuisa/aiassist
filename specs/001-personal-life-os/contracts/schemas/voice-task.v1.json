@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/voice-task.v1.json",
+  "title": "Voice Task Candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "content_type",
+    "description",
+    "local_date",
+    "local_time",
+    "timezone",
+    "duration_minutes",
+    "priority",
+    "important",
+    "reminder",
+    "recurring",
+    "recurrence_rule",
+    "original_text"
+  ],
+  "properties": {
+    "title": {"type": "string", "minLength": 1, "maxLength": 240},
+    "content_type": {"enum": ["task", "fixed_event", "reminder", "note"]},
+    "description": {"type": ["string", "null"], "maxLength": 10000},
+    "local_date": {"type": ["string", "null"], "format": "date"},
+    "local_time": {"type": ["string", "null"], "format": "time"},
+    "timezone": {"type": "string", "minLength": 1, "maxLength": 64},
+    "duration_minutes": {"type": ["integer", "null"], "minimum": 0, "maximum": 10080},
+    "priority": {"type": "integer", "minimum": 0, "maximum": 4},
+    "important": {"type": "boolean"},
+    "reminder": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["channel", "offset_minutes"],
+          "properties": {
+            "channel": {"enum": ["in_app", "email"]},
+            "offset_minutes": {"type": "integer", "minimum": 0, "maximum": 525600}
+          }
+        }
+      ]
+    },
+    "recurring": {"type": "boolean"},
+    "recurrence_rule": {"type": ["string", "null"], "maxLength": 500},
+    "original_text": {"type": "string", "minLength": 1, "maxLength": 50000}
+  }
+}
