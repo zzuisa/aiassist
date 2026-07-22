@@ -23,7 +23,9 @@ FastAPI 线程池执行，SSE 本身异步但每次数据库查询使用短 Sess
 ## 2. 版本基线与锁定政策
 
 **Decision**: 实现基线为 Python 3.12.x、FastAPI 0.139.x、Pydantic 2.12.x、SQLAlchemy 2.0.x、
-Alembic 1.18.x、Celery 5.6.x、PostgreSQL 18.x、RabbitMQ 4.2.x、Redis 8.x；前端使用 Node 24 LTS、
+Alembic 1.18.x、Celery 5.6.x、PostgreSQL 18.4、RabbitMQ 4.3.2、Redis 8.8.0、Nginx 1.30.4；
+中间件版本以 [deployment.md 第 7 节](deployment.md#7-固定版本清单) 为唯一基线，本文与 plan.md
+不再单独维护第二份中间件版本号；前端使用 Node 24 LTS、
 Vue 3.5.x、TypeScript 7.0.x、Vite 8.1.x、Pinia 4.0.x、Vue Router 5.2.x、Naive UI 2.44.x、
 FullCalendar Vue 3 7.0.x、vite-plugin-pwa 1.3.x、Vitest 4.1.x 和 Playwright 1.61.x。
 

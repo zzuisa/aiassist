@@ -23,8 +23,9 @@ Redis 仅承担临时缓存、锁和事件唤醒。
 **Primary Dependencies**: FastAPI、Pydantic 2、SQLAlchemy 2、Alembic、Celery、Psycopg 3、
 Vue 3、Vite、Pinia、Vue Router、Naive UI、FullCalendar、vite-plugin-pwa
 
-**Storage**: PostgreSQL 18 业务数据、全文检索和 SSE 事件；本地私有目录（默认）或 S3 兼容对象存储；
-Redis 临时缓存、锁和 SSE 唤醒
+**Storage**: PostgreSQL 18.4 业务数据、全文检索和 SSE 事件；本地私有目录（默认）或 S3 兼容对象存储；
+Redis 8.8.0 临时缓存、锁和 SSE 唤醒；RabbitMQ 4.3.2 可靠异步消息。中间件版本基线以
+[deployment.md 第 7 节](deployment.md#7-固定版本清单) 为准
 
 **Testing**: pytest、pytest-asyncio、HTTPX、Testcontainers；Vitest、Vue Test Utils、Playwright；
 Schemathesis 或等价 OpenAPI 契约验证

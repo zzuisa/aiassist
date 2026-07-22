@@ -1,0 +1,52 @@
+# --- Secrets and local configuration (never commit) ---
+.env
+.env.*
+!.env.example
+deploy/secrets/*
+!deploy/secrets/README.md
+!deploy/secrets/.gitkeep
+*.pem
+*.key
+*.p12
+id_rsa*
+
+# --- Runtime data (uploads, backups, logs) ---
+data/
+backups/
+logs/
+*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.vite/
+*.tsbuildinfo
+
+# --- Editors / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json

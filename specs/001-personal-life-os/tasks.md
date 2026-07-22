@@ -6,6 +6,24 @@
 
 **Format**: `[ID] [P?] [Story?] Description with exact file path`
 
+## Phase 0: Implementation contract reconciliation (completed)
+
+Non-destructive specification pass run before coding. It did not widen MVP scope.
+
+- [X] R1 用户设置：`contracts/openapi.yaml` 增加 `GET/PATCH /settings` 与 `POST /settings/password`，
+  `UserSettings`/`UserSettingsPatch`/`NotificationPreferences`/`DependencyState` schema；`data-model.md`
+  固定 `users.notification_preferences` 结构；新增任务 T142–T144。
+- [X] R2 普通重复任务：`data-model.md` 增加 `tasks.recurrence_parent_id`、`tasks.occurrence_date`、
+  唯一约束 `(user_id, recurrence_parent_id, occurrence_date)` 和「Recurring plain tasks」生成/去重/执行
+  规则；新增任务 T141。
+- [X] R3 存储描述：`design.md` 第 5/12/14/15 节移除以 MinIO 为默认的陈旧表述，统一为「本地私有目录默认、
+  S3 兼容适配器可选」。
+- [X] R4 `entity_relations` 职责：由 T081（`backend/app/models/relations.py`）单一拥有，T112 只负责
+  post/revision/post_tag 并复用该模型。
+- [X] R5 中间件版本基线：`deployment.md` 第 7 节为唯一来源（PostgreSQL 18.4、RabbitMQ 4.3.2、
+  Redis 8.8.0、Nginx 1.30.4）；`plan.md` 与 `research.md` 改为引用该表。
+- [X] R6 仓库卫生：新增根 `.gitignore`，禁止提交 `.env`、secret 文件、构建产物、缓存和运行时上传目录。
+
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Create reproducible frontend, backend, test, and deployment skeletons without business behavior.
@@ -82,7 +100,13 @@
 - [ ] T038 [P] [US1] Implement tasks store, filters, list cards, quick input, and detail drawer in `frontend/src/modules/tasks/` and `frontend/src/stores/tasks.ts`
 - [ ] T039 [US1] Implement the mobile-first Today page and one-current-task presentation in `frontend/src/modules/today/TodayPage.vue`
 
-**Checkpoint**: US1 is deployable independently and satisfies durable text capture without AI.
+### User settings (FR-004, FR-090; reconciled in Phase 0)
+
+- [ ] T142 [P] [US1] Add settings contract tests for get/patch, IANA timezone validation, strict notification preferences, password change with other-session revocation, and cross-user isolation in `backend/tests/contract/test_settings_api.py`
+- [ ] T143 [US1] Implement settings service and `GET/PATCH /settings` plus `POST /settings/password` (Argon2id verify, refresh-family revocation, activity log, non-secret dependency states) in `backend/app/modules/settings/service.py` and `backend/app/modules/settings/router.py`
+- [ ] T144 [US1] Implement the `/settings` page with account, timezone, locale, notification preference and provider-configured-only sections in `frontend/src/modules/settings/SettingsPage.vue` and `frontend/tests/component/settings.spec.ts`
+
+**Checkpoint**: US1 is deployable independently and satisfies durable text capture without AI; settings changes take effect in timezone-dependent aggregation.
 
 ---
 
@@ -134,6 +158,7 @@
 - [ ] T058 [US3] Create habits Alembic migration with `(user_id, habit_id, local_date)` uniqueness in `backend/alembic/versions/0004_habits.py`
 - [ ] T059 [US3] Implement habit CRUD, timer/check-in/skip, statistics, and idempotent task generation in `backend/app/modules/habits/service.py`
 - [ ] T060 [US3] Implement Beat scan and schedule-queue habit generation tasks in `backend/app/workers/tasks/habits.py` and `backend/app/workers/beat_schedule.py`
+- [ ] T141 [US3] Implement plain recurring-task templates and idempotent occurrence generation per `data-model.md` (`recurrence_parent_id` + `occurrence_date` uniqueness, `task_recurrence:{template_id}:{local_date}` idempotency key, lookahead window, fixed-event inheritance) in `backend/app/modules/tasks/recurrence.py` and `backend/app/workers/tasks/recurrence.py`, with tests in `backend/tests/integration/test_task_recurrence.py`
 - [ ] T061 [US3] Implement habit CRUD/check-in/skip/stats endpoints and Today integration in `backend/app/modules/habits/router.py`
 - [ ] T062 [US3] Implement habit cards, timer, skip sheet, statistics, heatmap, and editor in `frontend/src/modules/habits/`
 
@@ -186,7 +211,7 @@
 
 ### Implementation for User Story 5
 
-- [ ] T081 [P] [US5] Implement capture, asset, AI-tag, relation, and provenance-aware fields in `backend/app/models/captures.py` and `backend/app/models/relations.py`
+- [ ] T081 [P] [US5] Implement capture, asset, AI-tag and provenance-aware fields in `backend/app/models/captures.py`, plus the single shared `entity_relations` model and same-user relation service used by every module in `backend/app/models/relations.py`
 - [ ] T082 [US5] Create capture/assets/relations Alembic migration with hash, storage, filter, and same-user constraints in `backend/alembic/versions/0006_captures.py`
 - [ ] T083 [US5] Implement streaming upload validation, temporary/final object compensation, protected access, and orphan reconciliation in `backend/app/modules/captures/upload_service.py`
 - [ ] T084 [US5] Implement capture create/update/filter/detail/convert, user-over-AI merge rules, and relation checks in `backend/app/modules/captures/service.py`
@@ -265,7 +290,7 @@
 
 ### Implementation for User Story 8
 
-- [ ] T112 [P] [US8] Implement post, immutable revision, post-tag, and generic entity-relation models in `backend/app/models/posts.py`
+- [ ] T112 [P] [US8] Implement post, immutable revision, and post-tag models in `backend/app/models/posts.py`; reuse the `entity_relations` model owned by T081 (`backend/app/models/relations.py`) instead of redefining it
 - [ ] T113 [US8] Create posts/revisions/tags/relations migration with public slug constraints in `backend/alembic/versions/0008_posts.py`
 - [ ] T114 [US8] Implement draft CRUD, user revisions, source conversion, diff/apply conflict, publish/unpublish, and activity/outbox rules in `backend/app/modules/posts/service.py`
 - [ ] T115 [US8] Implement sanitized Markdown-to-HTML rendering, public post, protected/public derivative policy, and RSS generation in `backend/app/modules/posts/rendering.py`
