@@ -118,23 +118,23 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 2
 
-- [ ] T040 [P] [US2] Add week calendar, reminder, preview, apply, partial-conflict, and fixed-event OpenAPI tests in `backend/tests/contract/test_calendar_api.py`
-- [ ] T041 [P] [US2] Add schedule conflict, stale version, fixed event, DST, preview expiry, and undo domain tests in `backend/tests/unit/test_scheduling.py`
-- [ ] T042 [P] [US2] Add due-reminder claim, duplicate scan, SMTP 4xx/5xx, critical routing, and send-attempt tests in `backend/tests/integration/test_reminders.py`
-- [ ] T043 [P] [US2] Add FullCalendar drag/resize revert, fixed-event, touch fallback, and preview overlay component tests in `frontend/tests/component/calendar.spec.ts`
+- [X] T040 [P] [US2] Add week calendar, reminder, preview, apply, partial-conflict, and fixed-event OpenAPI tests in `backend/tests/contract/test_calendar_api.py`
+- [X] T041 [P] [US2] Add schedule conflict, stale version, fixed event, DST, preview expiry, and undo domain tests in `backend/tests/unit/test_scheduling.py`
+- [X] T042 [P] [US2] Add due-reminder claim, duplicate scan, SMTP 4xx/5xx, critical routing, and send-attempt tests in `backend/tests/integration/test_reminders.py`
+- [X] T043 [P] [US2] Add FullCalendar drag/resize revert, fixed-event, touch fallback, and preview overlay component tests in `frontend/tests/component/calendar.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Implement reminders, schedule previews, notifications, and delivery-attempt models in `backend/app/models/scheduling.py` and `backend/app/models/notifications.py`
-- [ ] T045 [US2] Create reminder/preview/notification Alembic migration with due and idempotency indexes in `backend/alembic/versions/0003_scheduling_notifications.py`
-- [ ] T046 [P] [US2] Implement week queries, interval conflict detection, fixed-event rules, and manual undo activity in `backend/app/modules/tasks/calendar_service.py`
-- [ ] T047 [US2] Implement grounded schedule preview generation, source-version snapshots, expiry, selective apply, and rejection details in `backend/app/modules/tasks/schedule_service.py`
-- [ ] T048 [P] [US2] Implement due reminder scanning, unique delivery creation, critical/notification outbox routing, and task-time rescheduling in `backend/app/modules/notifications/reminder_service.py`
-- [ ] T049 [US2] Implement SMTP MailGateway with required TLS, stable errors, bounded retry, and delivery audit in `backend/app/services/mail/providers/smtp.py` and `backend/app/workers/tasks/notifications.py`
-- [ ] T050 [US2] Implement calendar, schedule-preview/apply, and reminder endpoints in `backend/app/modules/tasks/calendar_router.py`
-- [ ] T051 [US2] Implement FullCalendar week/day mobile modes, unscheduled drawer, drag/resize pending state, revert, and conflict UI in `frontend/src/modules/calendar/CalendarPage.vue`
-- [ ] T052 [US2] Implement concrete schedule preview drawer, selective/batch apply, stale feedback, reminder editor, and notification badges in `frontend/src/modules/calendar/SchedulePreviewDrawer.vue`
-- [ ] T053 [US2] Add end-to-end fixed-event, drag rollback, selective preview apply, and critical reminder flow in `frontend/tests/e2e/calendar-reminders.spec.ts`
+- [X] T044 [US2] Implement reminders, schedule previews, notifications, and delivery-attempt models in `backend/app/models/scheduling.py` and `backend/app/models/notifications.py`
+- [X] T045 [US2] Create reminder/preview/notification Alembic migration with due and idempotency indexes in `backend/alembic/versions/0003_scheduling_notifications.py`
+- [X] T046 [P] [US2] Implement week queries, interval conflict detection, fixed-event rules, and manual undo activity in `backend/app/modules/tasks/calendar_service.py`
+- [X] T047 [US2] Implement grounded schedule preview generation, source-version snapshots, expiry, selective apply, and rejection details in `backend/app/modules/tasks/schedule_service.py`
+- [X] T048 [P] [US2] Implement due reminder scanning, unique delivery creation, critical/notification outbox routing, and task-time rescheduling in `backend/app/modules/notifications/reminder_service.py`
+- [X] T049 [US2] Implement SMTP MailGateway with required TLS, stable errors, bounded retry, and delivery audit in `backend/app/services/mail/providers/smtp.py` and `backend/app/workers/tasks/notifications.py`
+- [X] T050 [US2] Implement calendar, schedule-preview/apply, and reminder endpoints in `backend/app/modules/tasks/calendar_router.py`
+- [X] T051 [US2] Implement FullCalendar week/day mobile modes, unscheduled drawer, drag/resize pending state, revert, and conflict UI in `frontend/src/modules/calendar/CalendarPage.vue`
+- [X] T052 [US2] Implement concrete schedule preview drawer, selective/batch apply, stale feedback, reminder editor, and notification badges in `frontend/src/modules/calendar/SchedulePreviewDrawer.vue`
+- [X] T053 [US2] Add end-to-end fixed-event, drag rollback, selective preview apply, and critical reminder flow in `frontend/tests/e2e/calendar-reminders.spec.ts`
 
 **Checkpoint**: Calendar changes are version-safe; preview and apply are separate; fixed events have zero AI moves.
 

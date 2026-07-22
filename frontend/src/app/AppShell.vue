@@ -10,6 +10,7 @@ const route = useRoute()
 
 const primaryNav = [
   { to: '/today', label: '今日', icon: '📅' },
+  { to: '/calendar', label: '日历', icon: '🗓️' },
   { to: '/settings', label: '设置', icon: '⚙️' },
 ]
 

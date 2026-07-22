@@ -13,6 +13,8 @@ from app.core.observability import TraceContextMiddleware, configure_logging
 from app.db.session import get_db
 from app.modules.auth.router import router as auth_router
 from app.modules.jobs.router import router as jobs_router
+from app.modules.notifications.router import router as notifications_router
+from app.modules.tasks.calendar_router import router as calendar_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.tasks.today import router as today_router
 
@@ -55,7 +57,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=API_PREFIX)
     app.include_router(jobs_router, prefix=API_PREFIX)
     app.include_router(tasks_router, prefix=API_PREFIX)
+    app.include_router(calendar_router, prefix=API_PREFIX)
     app.include_router(today_router, prefix=API_PREFIX)
+    app.include_router(notifications_router, prefix=API_PREFIX)
 
     return app
 

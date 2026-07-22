@@ -15,6 +15,11 @@ const routes: RouteRecordRaw[] = [
       { path: '', redirect: '/today' },
       { path: 'today', name: 'today', component: () => import('@/modules/today/TodayPage.vue') },
       {
+        path: 'calendar',
+        name: 'calendar',
+        component: () => import('@/modules/calendar/CalendarPage.vue'),
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),
