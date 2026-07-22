@@ -1,0 +1,1344 @@
+openapi: 3.1.0
+info:
+  title: AI Assist Personal Life OS API
+  version: 1.0.0
+  description: >-
+    MVP REST contract. Private operations use same-origin HttpOnly access cookies.
+    Unsafe methods also require the X-CSRF-Token header. All responses include
+    X-Trace-Id. Timestamps are RFC 3339 and entity IDs are UUID strings.
+servers:
+  - url: /api/v1
+security:
+  - cookieAuth: []
+tags:
+  - {name: auth}
+  - {name: today}
+  - {name: tasks}
+  - {name: habits}
+  - {name: uploads}
+  - {name: voice}
+  - {name: captures}
+  - {name: posts}
+  - {name: search}
+  - {name: assistant}
+  - {name: jobs}
+  - {name: notifications}
+  - {name: realtime}
+  - {name: public}
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Authenticate and set access/refresh cookies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string, format: email}
+                password: {type: string, minLength: 12}
+      responses:
+        '200':
+          description: Authenticated; cookies and CSRF token returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, csrf_token]
+                properties:
+                  user: {$ref: '#/components/schemas/User'}
+                  csrf_token: {type: string}
+        '401': {$ref: '#/components/responses/Problem'}
+  /auth/refresh:
+    post:
+      tags: [auth]
+      security:
+        - refreshCookie: []
+          csrfHeader: []
+      summary: Rotate refresh token family and issue access cookie
+      responses:
+        '204': {description: Cookies rotated}
+        '401': {$ref: '#/components/responses/Problem'}
+  /auth/logout:
+    post:
+      tags: [auth]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Revoke current refresh session and clear cookies
+      responses:
+        '204': {description: Logged out}
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Return current user and preferences
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+  /today:
+    get:
+      tags: [today]
+      summary: Get today's aggregate dashboard in the user's timezone
+      parameters:
+        - in: query
+          name: date
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Dashboard snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [date, stats, current_task, timeline, todos, habits, overdue, conflicts, suggestions, recent_captures, jobs]
+                properties:
+                  date: {type: string, format: date}
+                  stats: {type: object, additionalProperties: true}
+                  current_task: {oneOf: [{$ref: '#/components/schemas/Task'}, {type: 'null'}]}
+                  timeline: {type: array, items: {$ref: '#/components/schemas/Task'}}
+                  todos: {type: array, items: {$ref: '#/components/schemas/Task'}}
+                  habits: {type: array, items: {$ref: '#/components/schemas/HabitToday'}}
+                  overdue: {type: array, items: {$ref: '#/components/schemas/Task'}}
+                  conflicts: {type: array, items: {$ref: '#/components/schemas/Conflict'}}
+                  suggestions: {type: array, items: {$ref: '#/components/schemas/SuggestionSummary'}}
+                  recent_captures: {type: array, items: {$ref: '#/components/schemas/Capture'}}
+                  jobs: {type: array, items: {$ref: '#/components/schemas/AsyncJob'}}
+  /tasks:
+    get:
+      tags: [tasks]
+      summary: List current user's tasks
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - in: query
+          name: status
+          schema: {type: string}
+        - in: query
+          name: from
+          schema: {type: string, format: date-time}
+        - in: query
+          name: to
+          schema: {type: string, format: date-time}
+      responses:
+        '200': {$ref: '#/components/responses/TaskPage'}
+    post:
+      tags: [tasks]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Create a task synchronously
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TaskCreate'}
+      responses:
+        '201':
+          description: Created and durably persisted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Task'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /tasks/{task_id}:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      tags: [tasks]
+      summary: Get a task owned by the current user
+      responses:
+        '200':
+          description: Task
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Task'}
+        '404': {$ref: '#/components/responses/Problem'}
+    patch:
+      tags: [tasks]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Update a task using optimistic version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - {$ref: '#/components/schemas/TaskPatch'}
+                - type: object
+                  required: [version]
+                  properties: {version: {type: integer, minimum: 1}}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Task'}
+        '409': {$ref: '#/components/responses/Problem'}
+    delete:
+      tags: [tasks]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Soft-delete task and cancel pending reminders
+      responses:
+        '204': {description: Deleted}
+  /tasks/{task_id}/complete:
+    post:
+      tags: [tasks]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters:
+        - {$ref: '#/components/parameters/TaskId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: {type: integer}
+                actual_minutes: {type: integer, minimum: 0}
+      responses:
+        '200':
+          description: Completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Task'}
+  /calendar/week:
+    get:
+      tags: [tasks]
+      summary: Get scheduled and unscheduled tasks for a local week
+      parameters:
+        - in: query
+          name: starts_on
+          required: true
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Week calendar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [starts_on, events, unscheduled, conflicts]
+                properties:
+                  starts_on: {type: string, format: date}
+                  events: {type: array, items: {$ref: '#/components/schemas/Task'}}
+                  unscheduled: {type: array, items: {$ref: '#/components/schemas/Task'}}
+                  conflicts: {type: array, items: {$ref: '#/components/schemas/Conflict'}}
+  /schedule-previews:
+    post:
+      tags: [tasks]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Generate an asynchronous schedule adjustment preview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope_start, scope_end]
+              properties:
+                scope_start: {type: string, format: date-time}
+                scope_end: {type: string, format: date-time}
+                task_ids: {type: array, items: {type: string, format: uuid}, maxItems: 200}
+                instruction: {type: string, maxLength: 1000}
+      responses:
+        '202':
+          description: Preview job accepted; no task has been changed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [preview_id, job]
+                properties:
+                  preview_id: {type: string, format: uuid}
+                  job: {$ref: '#/components/schemas/AsyncJob'}
+  /schedule-previews/{preview_id}:
+    get:
+      tags: [tasks]
+      summary: Get concrete schedule suggestions
+      parameters:
+        - {$ref: '#/components/parameters/PreviewId'}
+      responses:
+        '200':
+          description: Preview
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SchedulePreview'}
+  /schedule-previews/{preview_id}/apply:
+    post:
+      tags: [tasks]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Apply selected suggestions after version and fixed-event checks
+      parameters:
+        - {$ref: '#/components/parameters/PreviewId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [suggestion_ids]
+              properties:
+                suggestion_ids: {type: array, minItems: 1, uniqueItems: true, items: {type: string}}
+      responses:
+        '200':
+          description: Per-item application result; conflicts are not overwritten
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [applied, rejected, activity_id]
+                properties:
+                  applied: {type: array, items: {type: string}}
+                  rejected: {type: array, items: {$ref: '#/components/schemas/RejectedSuggestion'}}
+                  activity_id: {type: string, format: uuid}
+        '409': {$ref: '#/components/responses/Problem'}
+  /habits:
+    get:
+      tags: [habits]
+      summary: List habits
+      responses:
+        '200':
+          description: Habits
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Habit'}}
+    post:
+      tags: [habits]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Create habit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HabitCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Habit'}
+  /habits/{habit_id}:
+    parameters:
+      - {$ref: '#/components/parameters/HabitId'}
+    get:
+      tags: [habits]
+      summary: Get habit
+      responses:
+        '200': {description: Habit, content: {application/json: {schema: {$ref: '#/components/schemas/Habit'}}}}
+    patch:
+      tags: [habits]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Update habit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HabitCreate'}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/Habit'}}}}
+    delete:
+      tags: [habits]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Archive habit
+      responses: {'204': {description: Archived}}
+  /habits/{habit_id}/check-ins:
+    post:
+      tags: [habits]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters:
+        - {$ref: '#/components/parameters/HabitId'}
+      summary: Create or replace the local-date check-in idempotently
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HabitCheckIn'}
+      responses:
+        '200': {description: Check-in, content: {application/json: {schema: {$ref: '#/components/schemas/HabitLog'}}}}
+  /habits/{habit_id}/skip:
+    post:
+      tags: [habits]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters:
+        - {$ref: '#/components/parameters/HabitId'}
+      summary: Skip habit for a local date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [local_date, reason]
+              properties:
+                local_date: {type: string, format: date}
+                reason: {type: string, enum: [no_time, too_tired, forgot, unrealistic_plan, not_suitable, other]}
+                note: {type: string, maxLength: 500}
+      responses:
+        '200': {description: Skipped, content: {application/json: {schema: {$ref: '#/components/schemas/HabitLog'}}}}
+  /habits/stats:
+    get:
+      tags: [habits]
+      summary: Get habit streaks, rates, and heatmap
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema: {type: string, format: date}
+        - in: query
+          name: to
+          required: true
+          schema: {type: string, format: date}
+      responses:
+        '200': {description: Statistics, content: {application/json: {schema: {type: object, additionalProperties: true}}}}
+  /uploads:
+    post:
+      tags: [uploads]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Create a private upload session before bytes are sent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, filename, media_type, byte_size]
+              properties:
+                purpose: {type: string, enum: [capture, voice, post_cover, attachment]}
+                filename: {type: string, maxLength: 255}
+                media_type: {type: string, maxLength: 120}
+                byte_size: {type: integer, minimum: 1}
+                sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
+      responses:
+        '201':
+          description: Upload session; upload_url may be same-origin or signed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UploadSession'}
+  /uploads/{upload_id}/content:
+    put:
+      tags: [uploads]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Stream bytes to the configured storage adapter
+      parameters:
+        - {$ref: '#/components/parameters/UploadId'}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '204': {description: Bytes stored in temporary private location}
+        '413': {$ref: '#/components/responses/Problem'}
+        '415': {$ref: '#/components/responses/Problem'}
+  /uploads/{upload_id}/complete:
+    post:
+      tags: [uploads]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Validate and mark upload ready for entity attachment
+      parameters:
+        - {$ref: '#/components/parameters/UploadId'}
+      responses:
+        '200': {description: Upload finalized, content: {application/json: {schema: {$ref: '#/components/schemas/UploadSession'}}}}
+  /voice-records:
+    post:
+      tags: [voice]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Create voice record from a completed upload and enqueue processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [upload_id]
+              properties:
+                upload_id: {type: string, format: uuid}
+                locale_hint: {type: string}
+      responses:
+        '202': {description: Saved before processing, content: {application/json: {schema: {$ref: '#/components/schemas/VoiceRecord'}}}}
+  /voice-records/{voice_id}:
+    get:
+      tags: [voice]
+      parameters:
+        - {$ref: '#/components/parameters/VoiceId'}
+      summary: Get transcript and candidate confirmation card
+      responses:
+        '200': {description: Voice record, content: {application/json: {schema: {$ref: '#/components/schemas/VoiceRecord'}}}}
+  /voice-records/{voice_id}/retry:
+    post:
+      tags: [voice]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/VoiceId'}]
+      summary: Retry safely from last successful checkpoint
+      responses:
+        '202': {description: Retry queued, content: {application/json: {schema: {$ref: '#/components/schemas/AsyncJob'}}}}
+  /voice-records/{voice_id}/confirm:
+    post:
+      tags: [voice]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/VoiceId'}]
+      summary: Confirm edited candidate and create one formal entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [candidate, schema_version]
+              properties:
+                schema_version: {type: string, const: 'voice-task.v1'}
+                candidate: {$ref: '#/components/schemas/VoiceTaskCandidate'}
+      responses:
+        '201':
+          description: Formal entity created once
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entity_type, entity_id]
+                properties:
+                  entity_type: {type: string, enum: [task, fixed_event, reminder, note]}
+                  entity_id: {type: string, format: uuid}
+        '409': {$ref: '#/components/responses/Problem'}
+  /captures:
+    get:
+      tags: [captures]
+      summary: List captures with filters
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - in: query
+          name: type
+          schema: {type: string}
+        - in: query
+          name: state
+          schema: {type: string, enum: [recent, pending, wishlist, owned, blog_material, duplicate, needs_input]}
+      responses:
+        '200': {description: Capture page, content: {application/json: {schema: {$ref: '#/components/schemas/CapturePage'}}}}
+    post:
+      tags: [captures]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Persist private capture and original assets, then enqueue processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptureCreate'}
+      responses:
+        '202': {description: Capture durably saved, content: {application/json: {schema: {$ref: '#/components/schemas/Capture'}}}}
+  /captures/{capture_id}:
+    parameters: [{$ref: '#/components/parameters/CaptureId'}]
+    get:
+      tags: [captures]
+      summary: Get capture details and provenance
+      responses:
+        '200': {description: Capture, content: {application/json: {schema: {$ref: '#/components/schemas/Capture'}}}}
+    patch:
+      tags: [captures]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Update user-owned fields without overwriting provenance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CapturePatch'}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/Capture'}}}}
+    delete:
+      tags: [captures]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Soft-delete capture and schedule unreferenced asset cleanup
+      responses: {'204': {description: Deleted}}
+  /captures/{capture_id}/assets/{asset_id}/access:
+    get:
+      tags: [captures]
+      summary: Authorize asset and return short-lived access URL
+      parameters:
+        - {$ref: '#/components/parameters/CaptureId'}
+        - in: path
+          name: asset_id
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Short-lived URL or same-origin protected URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, expires_at]
+                properties:
+                  url: {type: string, format: uri-reference}
+                  expires_at: {type: string, format: date-time}
+  /captures/{capture_id}/convert:
+    post:
+      tags: [captures]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/CaptureId'}]
+      summary: Convert or relate capture to another entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type]
+              properties:
+                target_type: {type: string, enum: [task, purchase, restock_reminder, blog_material, habit]}
+                overrides: {type: object, additionalProperties: true}
+      responses:
+        '201': {description: Entity and relation created, content: {application/json: {schema: {$ref: '#/components/schemas/EntityRef'}}}}
+  /posts:
+    get:
+      tags: [posts]
+      summary: List current user's posts
+      responses:
+        '200': {description: Posts, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/Post'}}}}}
+    post:
+      tags: [posts]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Create private Markdown draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PostCreate'}
+      responses:
+        '201': {description: Draft, content: {application/json: {schema: {$ref: '#/components/schemas/Post'}}}}
+  /posts/{post_id}:
+    parameters: [{$ref: '#/components/parameters/PostId'}]
+    get:
+      tags: [posts]
+      summary: Get post and current revision
+      responses:
+        '200': {description: Post, content: {application/json: {schema: {$ref: '#/components/schemas/Post'}}}}
+    patch:
+      tags: [posts]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Save user-authored revision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PostCreate'}
+      responses:
+        '200': {description: Saved, content: {application/json: {schema: {$ref: '#/components/schemas/Post'}}}}
+    delete:
+      tags: [posts]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Delete a non-public post
+      responses: {'204': {description: Deleted}}
+  /posts/{post_id}/generate:
+    post:
+      tags: [posts]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/PostId'}]
+      summary: Generate a new AI suggestion revision without changing current text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scenario]
+              properties:
+                scenario: {type: string, enum: [generate_blog, optimize_blog, translate_blog]}
+                source_refs: {type: array, items: {$ref: '#/components/schemas/EntityRef'}, maxItems: 50}
+                instruction: {type: string, maxLength: 2000}
+      responses:
+        '202': {description: Generation queued, content: {application/json: {schema: {$ref: '#/components/schemas/AsyncJob'}}}}
+  /posts/{post_id}/revisions/{revision_id}/diff:
+    get:
+      tags: [posts]
+      parameters:
+        - {$ref: '#/components/parameters/PostId'}
+        - in: path
+          name: revision_id
+          required: true
+          schema: {type: string, format: uuid}
+      summary: Compare candidate revision with current text
+      responses:
+        '200': {description: Diff, content: {application/json: {schema: {type: object, properties: {base_revision_id: {type: string}, candidate_revision_id: {type: string}, unified_diff: {type: string}}}}}}
+  /posts/{post_id}/revisions/{revision_id}/apply:
+    post:
+      tags: [posts]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters:
+        - {$ref: '#/components/parameters/PostId'}
+        - in: path
+          name: revision_id
+          required: true
+          schema: {type: string, format: uuid}
+      summary: Apply candidate after base revision conflict check
+      responses:
+        '200': {description: Applied, content: {application/json: {schema: {$ref: '#/components/schemas/Post'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+  /posts/{post_id}/publish:
+    post:
+      tags: [posts]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/PostId'}]
+      summary: Explicitly publish or unpublish a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [published, version]
+              properties:
+                published: {type: boolean}
+                version: {type: integer}
+      responses:
+        '200': {description: Visibility changed, content: {application/json: {schema: {$ref: '#/components/schemas/Post'}}}}
+  /search:
+    get:
+      tags: [search]
+      summary: Search private content and permitted public posts
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 200}
+        - in: query
+          name: types
+          schema: {type: array, items: {type: string}}
+          style: form
+          explode: false
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Results grouped by type
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [query, groups, index_pending_count]
+                properties:
+                  query: {type: string}
+                  groups: {type: array, items: {$ref: '#/components/schemas/SearchGroup'}}
+                  index_pending_count: {type: integer, minimum: 0}
+  /assistant/runs:
+    post:
+      tags: [assistant]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Start an authorized assistant operation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [intent]
+              properties:
+                intent: {type: string, enum: [plan_today, adjust_week, find_capture, find_post, analyze_habit, split_task, generate_steps, summarize_day, create_blog]}
+                instruction: {type: string, maxLength: 4000}
+                scope_refs: {type: array, items: {$ref: '#/components/schemas/EntityRef'}, maxItems: 100}
+      responses:
+        '202': {description: Run queued, content: {application/json: {schema: {$ref: '#/components/schemas/AssistantRun'}}}}
+  /assistant/runs/{run_id}:
+    get:
+      tags: [assistant]
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      summary: Get structured cards and grounded entity references
+      responses:
+        '200': {description: Run, content: {application/json: {schema: {$ref: '#/components/schemas/AssistantRun'}}}}
+  /assistant/runs/{run_id}/actions/{action_id}:
+    post:
+      tags: [assistant]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters:
+        - {$ref: '#/components/parameters/RunId'}
+        - in: path
+          name: action_id
+          required: true
+          schema: {type: string}
+      summary: Execute one explicit, version-checked action
+      responses:
+        '200': {description: Action result, content: {application/json: {schema: {type: object, additionalProperties: true}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+  /jobs:
+    get:
+      tags: [jobs]
+      summary: List active, waiting-user, and recent failed jobs
+      parameters:
+        - in: query
+          name: status
+          schema: {type: array, items: {$ref: '#/components/schemas/JobStatus'}}
+          style: form
+          explode: false
+      responses:
+        '200': {description: Jobs, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/AsyncJob'}}}}}
+  /jobs/{job_id}:
+    get:
+      tags: [jobs]
+      parameters: [{$ref: '#/components/parameters/JobId'}]
+      summary: Get durable job status
+      responses:
+        '200': {description: Job, content: {application/json: {schema: {$ref: '#/components/schemas/AsyncJob'}}}}
+  /jobs/{job_id}/retry:
+    post:
+      tags: [jobs]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/JobId'}]
+      summary: Create a safe retry attempt if job type permits
+      responses:
+        '202': {description: Queued, content: {application/json: {schema: {$ref: '#/components/schemas/AsyncJob'}}}}
+  /jobs/{job_id}/cancel:
+    post:
+      tags: [jobs]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters: [{$ref: '#/components/parameters/JobId'}]
+      summary: Request cancellation without deleting saved user content
+      responses:
+        '202': {description: Cancellation requested, content: {application/json: {schema: {$ref: '#/components/schemas/AsyncJob'}}}}
+  /notifications:
+    get:
+      tags: [notifications]
+      summary: List notifications
+      responses:
+        '200': {description: Notifications, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/Notification'}}}}}
+  /notifications/{notification_id}/read:
+    post:
+      tags: [notifications]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      parameters:
+        - in: path
+          name: notification_id
+          required: true
+          schema: {type: string, format: uuid}
+      summary: Mark notification read idempotently
+      responses: {'204': {description: Marked read}}
+  /events/jobs:
+    get:
+      tags: [realtime]
+      summary: Stream job and notification events; see sse.md
+      parameters:
+        - in: header
+          name: Last-Event-ID
+          schema: {type: string}
+      responses:
+        '200':
+          description: text/event-stream beginning with jobs.snapshot
+          content:
+            text/event-stream:
+              schema: {type: string}
+        '204': {description: Authentication is no longer valid; stop reconnecting}
+  /public/posts/{slug}:
+    get:
+      tags: [public]
+      security: []
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: {type: string}
+      summary: Get an explicitly published post
+      responses:
+        '200': {description: Public post, content: {application/json: {schema: {$ref: '#/components/schemas/PublicPost'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+  /public/rss.xml:
+    get:
+      tags: [public]
+      security: []
+      summary: RSS feed of published posts
+      responses:
+        '200':
+          description: RSS XML
+          content:
+            application/rss+xml:
+              schema: {type: string}
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-aiassist_access
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-aiassist_refresh
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  parameters:
+    Cursor: {in: query, name: cursor, schema: {type: string}}
+    TaskId: {in: path, name: task_id, required: true, schema: {type: string, format: uuid}}
+    HabitId: {in: path, name: habit_id, required: true, schema: {type: string, format: uuid}}
+    CaptureId: {in: path, name: capture_id, required: true, schema: {type: string, format: uuid}}
+    PostId: {in: path, name: post_id, required: true, schema: {type: string, format: uuid}}
+    PreviewId: {in: path, name: preview_id, required: true, schema: {type: string, format: uuid}}
+    UploadId: {in: path, name: upload_id, required: true, schema: {type: string, format: uuid}}
+    VoiceId: {in: path, name: voice_id, required: true, schema: {type: string, format: uuid}}
+    JobId: {in: path, name: job_id, required: true, schema: {type: string, format: uuid}}
+    RunId: {in: path, name: run_id, required: true, schema: {type: string, format: uuid}}
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    TaskPage:
+      description: Task page
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [items]
+            properties:
+              items: {type: array, items: {$ref: '#/components/schemas/Task'}}
+              next_cursor: {type: [string, 'null']}
+  schemas:
+    User:
+      type: object
+      required: [id, email, display_name, timezone, locale]
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        display_name: {type: string}
+        timezone: {type: string}
+        locale: {type: string}
+        notification_preferences: {type: object, additionalProperties: true}
+    TaskCreate:
+      type: object
+      required: [title, type]
+      properties:
+        type: {type: string, enum: [task, fixed_event, habit_task, reminder, note]}
+        title: {type: string, minLength: 1, maxLength: 240}
+        description: {type: string, maxLength: 20000}
+        status: {type: string, enum: [todo, in_progress, completed, cancelled], default: todo}
+        priority: {type: integer, minimum: 0, maximum: 4}
+        importance: {type: integer, minimum: 0, maximum: 4}
+        start_at: {type: [string, 'null'], format: date-time}
+        due_at: {type: [string, 'null'], format: date-time}
+        estimated_minutes: {type: [integer, 'null'], minimum: 0}
+        category_id: {type: [string, 'null'], format: uuid}
+        tag_ids: {type: array, items: {type: string, format: uuid}, uniqueItems: true}
+        is_fixed: {type: boolean, default: false}
+        is_ai_adjustable: {type: boolean, default: true}
+        is_splittable: {type: boolean, default: false}
+        energy_level: {type: [string, 'null'], enum: [low, medium, high, null]}
+        recurrence_rule: {type: [string, 'null']}
+        reminders: {type: array, items: {$ref: '#/components/schemas/ReminderCreate'}}
+    TaskPatch:
+      type: object
+      properties:
+        title: {type: string, minLength: 1, maxLength: 240}
+        description: {type: string, maxLength: 20000}
+        status: {type: string, enum: [todo, in_progress, completed, cancelled]}
+        priority: {type: integer, minimum: 0, maximum: 4}
+        importance: {type: integer, minimum: 0, maximum: 4}
+        start_at: {type: [string, 'null'], format: date-time}
+        due_at: {type: [string, 'null'], format: date-time}
+        estimated_minutes: {type: [integer, 'null'], minimum: 0}
+        actual_minutes: {type: [integer, 'null'], minimum: 0}
+        is_fixed: {type: boolean}
+        is_ai_adjustable: {type: boolean}
+        is_splittable: {type: boolean}
+        tag_ids: {type: array, items: {type: string, format: uuid}, uniqueItems: true}
+    Task:
+      allOf:
+        - {$ref: '#/components/schemas/TaskCreate'}
+        - type: object
+          required: [id, status, version, created_at, updated_at]
+          properties:
+            id: {type: string, format: uuid}
+            actual_minutes: {type: [integer, 'null']}
+            source_type: {type: [string, 'null']}
+            source_id: {type: [string, 'null'], format: uuid}
+            version: {type: integer}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+    ReminderCreate:
+      type: object
+      required: [channel]
+      properties:
+        channel: {type: string, enum: [in_app, email]}
+        trigger_at: {type: [string, 'null'], format: date-time}
+        offset_minutes: {type: [integer, 'null']}
+        is_critical: {type: boolean, default: false}
+    Conflict:
+      type: object
+      required: [task_id, conflicting_task_id, overlap_minutes]
+      properties:
+        task_id: {type: string, format: uuid}
+        conflicting_task_id: {type: string, format: uuid}
+        overlap_minutes: {type: integer, minimum: 1}
+        fixed: {type: boolean}
+    SuggestionSummary:
+      type: object
+      properties:
+        preview_id: {type: string, format: uuid}
+        title: {type: string}
+        reason: {type: string}
+    SchedulePreview:
+      type: object
+      required: [id, status, suggestions, expires_at]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [processing, ready, partially_applied, applied, expired, failed]}
+        suggestions: {type: array, items: {$ref: '#/components/schemas/ScheduleSuggestion'}}
+        explanation: {type: string}
+        expires_at: {type: string, format: date-time}
+    ScheduleSuggestion:
+      type: object
+      required: [suggestion_id, task_id, task_version, old_start, old_end, new_start, new_end, reason, selectable]
+      properties:
+        suggestion_id: {type: string}
+        task_id: {type: string, format: uuid}
+        task_version: {type: integer}
+        old_start: {type: [string, 'null'], format: date-time}
+        old_end: {type: [string, 'null'], format: date-time}
+        new_start: {type: string, format: date-time}
+        new_end: {type: string, format: date-time}
+        conflicts: {type: array, items: {$ref: '#/components/schemas/Conflict'}}
+        reason: {type: string}
+        recommendation: {type: string, enum: [move, defer, split, keep]}
+        selectable: {type: boolean}
+    RejectedSuggestion:
+      type: object
+      properties:
+        suggestion_id: {type: string}
+        code: {type: string, enum: [fixed_event, version_conflict, preview_expired, invalid_time]}
+        detail: {type: string}
+    HabitCreate:
+      type: object
+      required: [name, recurrence_rule]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+        description: {type: string, maxLength: 5000}
+        recurrence_rule: {type: string}
+        suggested_time_local: {type: [string, 'null'], format: time}
+        target_minutes: {type: [integer, 'null'], minimum: 0}
+        minimum_amount: {type: [number, 'null'], minimum: 0}
+        unit: {type: [string, 'null']}
+        priority: {type: integer, minimum: 0, maximum: 4}
+        auto_create_task: {type: boolean, default: true}
+        is_ai_adjustable: {type: boolean, default: true}
+    Habit:
+      allOf:
+        - {$ref: '#/components/schemas/HabitCreate'}
+        - type: object
+          required: [id, status, version]
+          properties:
+            id: {type: string, format: uuid}
+            status: {type: string, enum: [active, paused, archived]}
+            version: {type: integer}
+    HabitToday:
+      type: object
+      properties:
+        habit: {$ref: '#/components/schemas/Habit'}
+        log: {oneOf: [{$ref: '#/components/schemas/HabitLog'}, {type: 'null'}]}
+        task: {oneOf: [{$ref: '#/components/schemas/Task'}, {type: 'null'}]}
+    HabitCheckIn:
+      type: object
+      required: [local_date, status]
+      properties:
+        local_date: {type: string, format: date}
+        status: {type: string, enum: [completed, partial]}
+        amount: {type: [number, 'null'], minimum: 0}
+        duration_seconds: {type: [integer, 'null'], minimum: 0}
+    HabitLog:
+      allOf:
+        - {$ref: '#/components/schemas/HabitCheckIn'}
+        - type: object
+          required: [id, habit_id]
+          properties:
+            id: {type: string, format: uuid}
+            habit_id: {type: string, format: uuid}
+            skip_reason: {type: [string, 'null']}
+            skip_note: {type: [string, 'null']}
+    UploadSession:
+      type: object
+      required: [id, status, upload_url, expires_at]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [created, uploaded, completed, expired, aborted]}
+        upload_url: {type: string, format: uri-reference}
+        required_headers: {type: object, additionalProperties: {type: string}}
+        expires_at: {type: string, format: date-time}
+    VoiceTaskCandidate:
+      type: object
+      required: [title, content_type, important, recurring, original_text]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 240}
+        content_type: {type: string, enum: [task, fixed_event, reminder, note]}
+        description: {type: string}
+        local_date: {type: [string, 'null'], format: date}
+        local_time: {type: [string, 'null'], format: time}
+        duration_minutes: {type: [integer, 'null'], minimum: 0}
+        priority: {type: integer, minimum: 0, maximum: 4}
+        important: {type: boolean}
+        reminder: {oneOf: [{$ref: '#/components/schemas/ReminderCreate'}, {type: 'null'}]}
+        recurring: {type: boolean}
+        recurrence_rule: {type: [string, 'null']}
+        original_text: {type: string}
+    VoiceRecord:
+      type: object
+      required: [id, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [uploaded, transcribing, parsing, waiting_user, confirmed, discarded, failed]}
+        transcript: {type: [string, 'null']}
+        candidate: {oneOf: [{$ref: '#/components/schemas/VoiceTaskCandidate'}, {type: 'null'}]}
+        schema_version: {type: [string, 'null']}
+        job_id: {type: [string, 'null'], format: uuid}
+        created_at: {type: string, format: date-time}
+    ProvenancedValue:
+      type: object
+      required: [value, source]
+      properties:
+        value: {}
+        source: {type: string, enum: [user, ai, extracted]}
+        confidence: {type: [number, 'null'], minimum: 0, maximum: 1}
+        llm_log_id: {type: [string, 'null'], format: uuid}
+    CaptureCreate:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [item, inspiration, note, image, document, link, location, purchase, blog_material]}
+        title: {type: [string, 'null'], maxLength: 240}
+        description: {type: [string, 'null'], maxLength: 20000}
+        upload_ids: {type: array, items: {type: string, format: uuid}, maxItems: 20}
+        url: {type: [string, 'null'], format: uri}
+    CapturePatch:
+      type: object
+      required: [version]
+      properties:
+        version: {type: integer}
+        title: {type: [string, 'null'], maxLength: 240}
+        description: {type: [string, 'null'], maxLength: 20000}
+        category_id: {type: [string, 'null'], format: uuid}
+        tag_ids: {type: array, items: {type: string, format: uuid}}
+        brand: {type: [string, 'null']}
+        model: {type: [string, 'null']}
+        material: {type: [string, 'null']}
+        color: {type: [string, 'null']}
+        storage_location: {type: [string, 'null']}
+        usage_status: {type: [string, 'null']}
+    Capture:
+      type: object
+      required: [id, type, processing_status, private, version, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string}
+        private: {type: boolean, const: true}
+        fields: {type: object, additionalProperties: {$ref: '#/components/schemas/ProvenancedValue'}}
+        assets: {type: array, items: {$ref: '#/components/schemas/Asset'}}
+        processing_status: {type: string, enum: [pending, processing, ready, needs_input, failed]}
+        possible_duplicate_of: {type: [string, 'null'], format: uuid}
+        version: {type: integer}
+        created_at: {type: string, format: date-time}
+    CapturePage:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Capture'}}
+        next_cursor: {type: [string, 'null']}
+    Asset:
+      type: object
+      required: [id, role, media_type, status]
+      properties:
+        id: {type: string, format: uuid}
+        role: {type: string, enum: [original, thumbnail, preview, attachment, audio]}
+        media_type: {type: string}
+        byte_size: {type: integer}
+        width: {type: [integer, 'null']}
+        height: {type: [integer, 'null']}
+        status: {type: string, enum: [uploading, ready, failed, deleted]}
+    PostCreate:
+      type: object
+      required: [title, markdown]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 240}
+        markdown: {type: string, maxLength: 200000}
+        category_id: {type: [string, 'null'], format: uuid}
+        tag_ids: {type: array, items: {type: string, format: uuid}}
+        cover_asset_id: {type: [string, 'null'], format: uuid}
+        seo_title: {type: [string, 'null'], maxLength: 70}
+        seo_description: {type: [string, 'null'], maxLength: 180}
+        source_refs: {type: array, items: {$ref: '#/components/schemas/EntityRef'}}
+        version: {type: [integer, 'null']}
+    Post:
+      type: object
+      required: [id, title, markdown, status, version, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        markdown: {type: string}
+        status: {type: string, enum: [draft, private, published]}
+        slug: {type: [string, 'null']}
+        version: {type: integer}
+        current_revision_id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        published_at: {type: [string, 'null'], format: date-time}
+    PublicPost:
+      type: object
+      required: [slug, title, html, published_at]
+      properties:
+        slug: {type: string}
+        title: {type: string}
+        html: {type: string, description: Sanitized server-rendered HTML}
+        excerpt: {type: [string, 'null']}
+        published_at: {type: string, format: date-time}
+    EntityRef:
+      type: object
+      required: [type, id]
+      properties:
+        type: {type: string, enum: [task, habit, capture, post, voice_record]}
+        id: {type: string, format: uuid}
+    SearchGroup:
+      type: object
+      required: [type, items]
+      properties:
+        type: {type: string}
+        items: {type: array, items: {$ref: '#/components/schemas/SearchResult'}}
+    SearchResult:
+      type: object
+      required: [entity, title, highlights]
+      properties:
+        entity: {$ref: '#/components/schemas/EntityRef'}
+        title: {type: string}
+        category: {type: [string, 'null']}
+        tags: {type: array, items: {type: string}}
+        summary: {type: [string, 'null']}
+        thumbnail_asset_id: {type: [string, 'null'], format: uuid}
+        highlights: {type: array, items: {type: string}}
+    AssistantRun:
+      type: object
+      required: [id, intent, status, cards, grounded_refs]
+      properties:
+        id: {type: string, format: uuid}
+        intent: {type: string}
+        status: {$ref: '#/components/schemas/JobStatus'}
+        job_id: {type: string, format: uuid}
+        cards: {type: array, items: {$ref: '#/components/schemas/ActionCard'}}
+        grounded_refs: {type: array, items: {$ref: '#/components/schemas/EntityRef'}}
+    ActionCard:
+      type: object
+      required: [id, kind, title, actions]
+      properties:
+        id: {type: string}
+        kind: {type: string, enum: [plan, task, search_results, habit_analysis, blog_draft, summary]}
+        title: {type: string}
+        body: {type: object, additionalProperties: true}
+        actions: {type: array, items: {type: object, required: [id, label], properties: {id: {type: string}, label: {type: string}, destructive: {type: boolean}}}}
+    JobStatus:
+      type: string
+      enum: [pending, queued, processing, waiting_user, completed, failed, cancelled]
+    AsyncJob:
+      type: object
+      required: [id, job_type, status, priority, progress, retry_count, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        job_type: {type: string}
+        entity: {oneOf: [{$ref: '#/components/schemas/EntityRef'}, {type: 'null'}]}
+        status: {$ref: '#/components/schemas/JobStatus'}
+        priority: {type: integer}
+        progress: {type: integer, minimum: 0, maximum: 100}
+        current_step: {type: [string, 'null'], description: User-facing text}
+        result: {type: [object, 'null'], additionalProperties: true}
+        error: {oneOf: [{$ref: '#/components/schemas/JobError'}, {type: 'null'}]}
+        retry_count: {type: integer, minimum: 0}
+        trace_id: {type: [string, 'null']}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+    JobError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+    Notification:
+      type: object
+      required: [id, type, title, body, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string}
+        title: {type: string}
+        body: {type: string}
+        status: {type: string, enum: [unread, read, archived]}
+        entity: {oneOf: [{$ref: '#/components/schemas/EntityRef'}, {type: 'null'}]}
+        created_at: {type: string, format: date-time}
+    Problem:
+      type: object
+      required: [type, title, status, trace_id]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string, format: uri-reference}
+        code: {type: string}
+        trace_id: {type: string}
+        errors: {type: array, items: {type: object, additionalProperties: true}}

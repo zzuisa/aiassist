@@ -103,6 +103,13 @@
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
 
+### Data Safety & AI Control *(mandatory when the feature stores content or uses AI)*
+
+- **Durable acceptance point**: [State exactly when user content is considered saved]
+- **AI authority boundary**: [State what AI may propose and what requires confirmation]
+- **Failure fallback**: [State what remains usable when AI, queues, or providers fail]
+- **Privacy and ownership**: [State default visibility and access-control expectations]
+
 ## Success Criteria *(mandatory)*
 
 <!--
