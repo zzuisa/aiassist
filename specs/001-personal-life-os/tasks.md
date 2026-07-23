@@ -312,17 +312,17 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 9
 
-- [ ] T121 [P] [US9] Add grounded-query, no-result honesty, scope ownership, prompt-injection, fixed-event, stale-action, and selected-only effect tests in `backend/tests/integration/test_assistant.py`
-- [ ] T122 [P] [US9] Add strict action-card/intent schemas and explicit action endpoint contract tests in `backend/tests/contract/test_assistant_api.py`
-- [ ] T123 [P] [US9] Add intent launcher, result cards, grounded refs, apply/ignore/reanalyze, and no-chat-dominance component tests in `frontend/tests/component/assistant.spec.ts`
+- [X] T121 [P] [US9] Add grounded-query, no-result honesty, scope ownership, prompt-injection, fixed-event, stale-action, and selected-only effect tests in `backend/tests/integration/test_assistant.py`
+- [X] T122 [P] [US9] Add strict action-card/intent schemas and explicit action endpoint contract tests in `backend/tests/contract/test_assistant_api.py`
+- [X] T123 [P] [US9] Add intent launcher, result cards, grounded refs, apply/ignore/reanalyze, and no-chat-dominance component tests in `frontend/tests/component/assistant.spec.ts`
 
 ### Implementation for User Story 9
 
-- [ ] T124 [US9] Implement intent registry, authorized context loaders, bounded provenance payloads, and no-result handling in `backend/app/modules/assistant/context.py`
-- [ ] T125 [US9] Implement assistant run orchestration, strict action cards, stored source versions, and domain-service action execution in `backend/app/modules/assistant/service.py`
-- [ ] T126 [US9] Implement assistant run/status/action routes and async LLM task adapters in `backend/app/modules/assistant/router.py` and `backend/app/workers/tasks/assistant.py`
-- [ ] T127 [US9] Implement intent shortcuts, scope picker, structured result cards, grounded references, and explicit action buttons in `frontend/src/modules/assistant/AssistantPage.vue`
-- [ ] T128 [US9] Add grounded arrange-today, fixed-event rejection, selected apply, and empty-search Playwright journey in `frontend/tests/e2e/assistant.spec.ts`
+- [X] T124 [US9] Implement intent registry, authorized context loaders, bounded provenance payloads, and no-result handling in `backend/app/modules/assistant/context.py`
+- [X] T125 [US9] Implement assistant run orchestration, strict action cards, stored source versions, and domain-service action execution in `backend/app/modules/assistant/service.py`
+- [X] T126 [US9] Implement assistant run/status/action routes and async LLM task adapters in `backend/app/modules/assistant/router.py` and `backend/app/workers/tasks/assistant.py`
+- [X] T127 [US9] Implement intent shortcuts, scope picker, structured result cards, grounded references, and explicit action buttons in `frontend/src/modules/assistant/AssistantPage.vue`
+- [X] T128 [US9] Add grounded arrange-today, fixed-event rejection, selected apply, and empty-search Playwright journey in `frontend/tests/e2e/assistant.spec.ts`
 
 **Checkpoint**: Every applied assistant effect goes through a normal authorized domain service and can be traced to queried entity versions.
 

@@ -11,6 +11,7 @@ from app.core.config import ensure_dev_signing_key, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.observability import TraceContextMiddleware, configure_logging
 from app.db.session import get_db
+from app.modules.assistant.router import router as assistant_router
 from app.modules.auth.router import router as auth_router
 from app.modules.captures.router import router as captures_router
 from app.modules.habits.router import router as habits_router
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router, prefix=API_PREFIX)
     app.include_router(posts_router, prefix=API_PREFIX)
     app.include_router(public_router, prefix=API_PREFIX)
+    app.include_router(assistant_router, prefix=API_PREFIX)
 
     return app
 
