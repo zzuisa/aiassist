@@ -89,6 +89,7 @@ celery.conf.imports = (
     "app.workers.tasks.notifications",
     "app.workers.tasks.habits",
     "app.workers.tasks.maintenance",
+    "app.workers.tasks.voice",
 )
 
 

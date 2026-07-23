@@ -1,16 +1,43 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { tasksApi, type Task, type TodayDashboard } from '@/api/tasks'
+import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
 import QuickTaskInput from '@/modules/tasks/QuickTaskInput.vue'
 import TaskCard from '@/modules/tasks/TaskCard.vue'
+import VoiceRecorder from '@/modules/voice/VoiceRecorder.vue'
+import VoiceConfirmDrawer from '@/modules/voice/VoiceConfirmDrawer.vue'
 
 const store = useTasksStore()
 const dashboard = ref<TodayDashboard | null>(null)
 const loading = ref(true)
+const pendingVoice = ref<VoiceRecord | null>(null)
+const confirmCandidate = ref<{ id: string; candidate: VoiceCandidate } | null>(null)
 
 async function refresh(): Promise<void> {
   dashboard.value = await tasksApi.today()
+}
+
+async function onVoiceCreated(record: VoiceRecord): Promise<void> {
+  pendingVoice.value = record
+  // Poll the record until it is ready for confirmation (SSE also drives this in
+  // the full app; polling keeps the Today page self-contained).
+  const poll = async (): Promise<void> => {
+    const latest = await voiceApi.get(record.id)
+    pendingVoice.value = latest
+    if (latest.status === 'waiting_user' && latest.candidate) {
+      confirmCandidate.value = { id: latest.id, candidate: latest.candidate }
+    } else if (['transcribing', 'parsing', 'uploaded'].includes(latest.status)) {
+      setTimeout(poll, 1500)
+    }
+  }
+  setTimeout(poll, 1500)
+}
+
+async function onVoiceConfirmed(): Promise<void> {
+  confirmCandidate.value = null
+  pendingVoice.value = null
+  await refresh()
 }
 
 onMounted(async () => {
@@ -43,6 +70,15 @@ async function onComplete(task: Task): Promise<void> {
     </header>
 
     <QuickTaskInput @create="onCreate" />
+
+    <div class="voice-row">
+      <VoiceRecorder @created="onVoiceCreated" />
+      <span
+        v-if="pendingVoice && pendingVoice.status !== 'waiting_user'"
+        class="voice-status"
+        role="status"
+      >语音处理中…</span>
+    </div>
 
     <p
       v-if="loading"
@@ -102,6 +138,18 @@ async function onComplete(task: Task): Promise<void> {
         </div>
       </section>
     </template>
+
+    <div
+      v-if="confirmCandidate"
+      class="overlay"
+    >
+      <VoiceConfirmDrawer
+        :record-id="confirmCandidate.id"
+        :candidate="confirmCandidate.candidate"
+        @confirmed="onVoiceConfirmed"
+        @discard="confirmCandidate = null"
+      />
+    </div>
   </main>
 </template>
 
@@ -114,6 +162,24 @@ async function onComplete(task: Task): Promise<void> {
   gap: var(--space-6);
   max-width: 720px;
   margin: 0 auto;
+}
+.voice-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.voice-status {
+  color: var(--status-ai);
+  font-size: 0.85rem;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  padding: var(--space-4);
+  z-index: 20;
 }
 .head {
   display: flex;

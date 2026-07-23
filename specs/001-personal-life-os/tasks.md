@@ -174,21 +174,21 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 4
 
-- [ ] T063 [P] [US4] Validate strict `voice-task.v1` success, unknown fields, invalid dates, and malformed Provider output in `backend/tests/contract/test_voice_schema.py`
-- [ ] T064 [P] [US4] Add upload-first, Provider timeout, checkpoint retry, waiting_user, double-confirm, and source-relation tests in `backend/tests/integration/test_voice_pipeline.py`
-- [ ] T065 [P] [US4] Add recorder permission, upload progress, failure retention, and confirmation-card edit tests in `frontend/tests/component/voice.spec.ts`
-- [ ] T066 [US4] Add mobile voice record → wait → edit → confirm Playwright journey with fake providers in `frontend/tests/e2e/voice.spec.ts`
+- [X] T063 [P] [US4] Validate strict `voice-task.v1` success, unknown fields, invalid dates, and malformed Provider output in `backend/tests/contract/test_voice_schema.py`
+- [X] T064 [P] [US4] Add upload-first, Provider timeout, checkpoint retry, waiting_user, double-confirm, and source-relation tests in `backend/tests/integration/test_voice_pipeline.py`
+- [X] T065 [P] [US4] Add recorder permission, upload progress, failure retention, and confirmation-card edit tests in `frontend/tests/component/voice.spec.ts`
+- [X] T066 [US4] Add mobile voice record → wait → edit → confirm Playwright journey with fake providers in `frontend/tests/e2e/voice.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T067 [P] [US4] Implement upload-session, voice-record, and audio-asset models with confirm state constraints in `backend/app/models/voice.py`
-- [ ] T068 [US4] Create upload/voice Alembic migration and state indexes in `backend/alembic/versions/0005_voice_uploads.py`
-- [ ] T069 [P] [US4] Implement OpenAI Whisper, faster-whisper, and generic cloud adapters behind SpeechGateway in `backend/app/services/speech/providers/`
-- [ ] T070 [P] [US4] Implement OpenAI, Anthropic, and Ollama structured-output adapters and scenario routing in `backend/app/services/llm/providers/` and `backend/app/services/llm/gateway.py`
-- [ ] T071 [US4] Implement transcribe → strict parse → waiting_user pipeline, checkpoints, job events, and safe retries in `backend/app/workers/tasks/voice.py`
-- [ ] T072 [US4] Implement upload, voice status/retry, and idempotent confirm-to-task endpoints in `backend/app/modules/voice/router.py` and `backend/app/modules/voice/service.py`
-- [ ] T073 [US4] Implement MediaRecorder flow, streamed upload, task-center linkage, and persistent retry state in `frontend/src/modules/voice/VoiceRecorder.vue`
-- [ ] T074 [US4] Implement schema-driven confirmation card, timezone display, edited submit, and discard flow in `frontend/src/modules/voice/VoiceConfirmDrawer.vue`
+- [X] T067 [P] [US4] Implement upload-session, voice-record, and audio-asset models with confirm state constraints in `backend/app/models/voice.py`
+- [X] T068 [US4] Create upload/voice Alembic migration and state indexes in `backend/alembic/versions/0005_voice_uploads.py`
+- [X] T069 [P] [US4] Implement OpenAI Whisper, faster-whisper, and generic cloud adapters behind SpeechGateway in `backend/app/services/speech/providers/`
+- [X] T070 [P] [US4] Implement OpenAI, Anthropic, and Ollama structured-output adapters and scenario routing in `backend/app/services/llm/providers/` and `backend/app/services/llm/gateway.py`
+- [X] T071 [US4] Implement transcribe → strict parse → waiting_user pipeline, checkpoints, job events, and safe retries in `backend/app/workers/tasks/voice.py`
+- [X] T072 [US4] Implement upload, voice status/retry, and idempotent confirm-to-task endpoints in `backend/app/modules/voice/router.py` and `backend/app/modules/voice/service.py`
+- [X] T073 [US4] Implement MediaRecorder flow, streamed upload, task-center linkage, and persistent retry state in `frontend/src/modules/voice/VoiceRecorder.vue`
+- [X] T074 [US4] Implement schema-driven confirmation card, timezone display, edited submit, and discard flow in `frontend/src/modules/voice/VoiceConfirmDrawer.vue`
 
 **Checkpoint**: Audio and transcript survive Provider failure; dates/reminders never create records before confirmation.
 

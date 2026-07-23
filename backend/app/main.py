@@ -18,6 +18,8 @@ from app.modules.notifications.router import router as notifications_router
 from app.modules.tasks.calendar_router import router as calendar_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.tasks.today import router as today_router
+from app.modules.uploads.router import router as uploads_router
+from app.modules.voice.router import router as voice_router
 
 API_PREFIX = "/api/v1"
 
@@ -62,6 +64,8 @@ def create_app() -> FastAPI:
     app.include_router(habits_router, prefix=API_PREFIX)
     app.include_router(today_router, prefix=API_PREFIX)
     app.include_router(notifications_router, prefix=API_PREFIX)
+    app.include_router(uploads_router, prefix=API_PREFIX)
+    app.include_router(voice_router, prefix=API_PREFIX)
 
     return app
 
