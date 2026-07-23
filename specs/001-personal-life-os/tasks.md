@@ -102,9 +102,9 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### User settings (FR-004, FR-090; reconciled in Phase 0)
 
-- [ ] T142 [P] [US1] Add settings contract tests for get/patch, IANA timezone validation, strict notification preferences, password change with other-session revocation, and cross-user isolation in `backend/tests/contract/test_settings_api.py`
-- [ ] T143 [US1] Implement settings service and `GET/PATCH /settings` plus `POST /settings/password` (Argon2id verify, refresh-family revocation, activity log, non-secret dependency states) in `backend/app/modules/settings/service.py` and `backend/app/modules/settings/router.py`
-- [ ] T144 [US1] Implement the `/settings` page with account, timezone, locale, notification preference and provider-configured-only sections in `frontend/src/modules/settings/SettingsPage.vue` and `frontend/tests/component/settings.spec.ts`
+- [X] T142 [P] [US1] Add settings contract tests for get/patch, IANA timezone validation, strict notification preferences, password change with other-session revocation, and cross-user isolation in `backend/tests/contract/test_settings_api.py`
+- [X] T143 [US1] Implement settings service and `GET/PATCH /settings` plus `POST /settings/password` (Argon2id verify, refresh-family revocation, activity log, non-secret dependency states) in `backend/app/modules/settings/service.py` and `backend/app/modules/settings/router.py`
+- [X] T144 [US1] Implement the `/settings` page with account, timezone, locale, notification preference and provider-configured-only sections in `frontend/src/modules/settings/SettingsPage.vue` and `frontend/tests/component/settings.spec.ts`
 
 **Checkpoint**: US1 is deployable independently and satisfies durable text capture without AI; settings changes take effect in timezone-dependent aggregation.
 

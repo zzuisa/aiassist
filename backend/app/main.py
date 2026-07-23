@@ -20,6 +20,7 @@ from app.modules.notifications.router import router as notifications_router
 from app.modules.posts.router import private_router as posts_router
 from app.modules.posts.router import public_router as public_router
 from app.modules.search.router import router as search_router
+from app.modules.settings.router import router as settings_router
 from app.modules.tasks.calendar_router import router as calendar_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.tasks.today import router as today_router
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(posts_router, prefix=API_PREFIX)
     app.include_router(public_router, prefix=API_PREFIX)
     app.include_router(assistant_router, prefix=API_PREFIX)
+    app.include_router(settings_router, prefix=API_PREFIX)
 
     return app
 
