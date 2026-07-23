@@ -49,7 +49,25 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
                     "progress": j.progress,
                     "current_step": j.current_step,
                     "retry_count": j.retry_count,
+                    "created_at": (
+                        j.created_at.astimezone(UTC).isoformat() if j.created_at else None
+                    ),
+                    "started_at": (
+                        j.started_at.astimezone(UTC).isoformat() if j.started_at else None
+                    ),
+                    "finished_at": (
+                        j.finished_at.astimezone(UTC).isoformat() if j.finished_at else None
+                    ),
                     "updated_at": (j.updated_at or datetime.now(UTC)).astimezone(UTC).isoformat(),
+                    "error": (
+                        {
+                            "code": j.error_code,
+                            "message": j.error_message,
+                            "retryable": j.error_retryable,
+                        }
+                        if j.error_code
+                        else None
+                    ),
                 }
                 for j in jobs
             ],

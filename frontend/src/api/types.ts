@@ -48,6 +48,7 @@ export interface AsyncJob {
   retry_count: number
   trace_id?: string | null
   created_at: string
+  started_at?: string | null
   updated_at: string
   finished_at?: string | null
 }

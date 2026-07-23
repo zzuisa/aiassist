@@ -29,6 +29,46 @@ describe('TaskCenterDrawer', () => {
     expect(wrapper.text()).toContain('内容已保存，可稍后重试')
   })
 
+  it('shows a business-language job name, percent and progress bar', () => {
+    const jobs = useJobsStore()
+    jobs.applyJobEvent({
+      job_id: 'a',
+      job_version: 1,
+      job_type: 'voice.transcribe',
+      status: 'processing',
+      progress: 65,
+      current_step: '正在识别',
+      created_at: '2026-07-24T10:00:00Z',
+      started_at: '2026-07-24T10:00:01Z',
+    })
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    expect(wrapper.text()).toContain('语音识别') // friendly name, not 'voice.transcribe'
+    expect(wrapper.text()).not.toContain('voice.transcribe')
+    expect(wrapper.text()).toContain('65%')
+    expect(wrapper.find('.bar span').attributes('style')).toContain('65%')
+    expect(wrapper.text()).toContain('开始')
+  })
+
+  it('shows failure reason, finish time and retry count', () => {
+    const jobs = useJobsStore()
+    jobs.applyJobEvent({
+      job_id: 'f',
+      job_version: 1,
+      job_type: 'capture.process',
+      status: 'failed',
+      progress: 50,
+      retry_count: 2,
+      created_at: '2026-07-24T10:00:00Z',
+      finished_at: '2026-07-24T10:00:30Z',
+      error: { code: 'X', message: '图片分析未完成', retryable: true },
+    })
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    expect(wrapper.text()).toContain('图片处理')
+    expect(wrapper.text()).toContain('图片分析未完成')
+    expect(wrapper.text()).toContain('结束')
+    expect(wrapper.text()).toContain('已重试 2 次')
+  })
+
   it('shows a retry button only for retryable failures', () => {
     const jobs = useJobsStore()
     jobs.applyJobEvent({

@@ -42,7 +42,11 @@ def _read_secret_file(path: str | None) -> str | None:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=None,
+        # Read a local .env when present (repo root). Docker Compose still injects
+        # the same file via env_file:, and OS env vars take precedence over the
+        # file, so this only adds standalone/dev support — no production change.
+        env_file=(".env", "../.env"),
+        env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
     )

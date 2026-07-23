@@ -35,6 +35,7 @@ class AsyncJobOut(BaseModel):
     retry_count: int
     trace_id: str | None = None
     created_at: datetime
+    started_at: datetime | None = None
     updated_at: datetime
     finished_at: datetime | None = None
 
@@ -63,6 +64,7 @@ def serialize_job(job: AsyncJob) -> AsyncJobOut:
         retry_count=job.retry_count,
         trace_id=job.trace_id,
         created_at=job.created_at,
+        started_at=job.started_at,
         updated_at=job.updated_at,
         finished_at=job.finished_at,
     )

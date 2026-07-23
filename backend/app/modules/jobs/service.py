@@ -73,15 +73,21 @@ def create_job(
 def _append_event(
     session: Session, job: AsyncJob, event_type: str, extra: dict | None = None
 ) -> None:
+    def _iso(dt: datetime | None) -> str | None:
+        return dt.astimezone(UTC).isoformat() if dt else None
+
     payload = {
         "job_id": str(job.id),
         "job_version": job.version,
+        "job_type": job.job_type,
         "status": job.status,
         "progress": job.progress,
         "current_step": job.current_step,
-        "updated_at": (job.updated_at or datetime.now(UTC)).astimezone(UTC).isoformat()
-        if job.updated_at
-        else datetime.now(UTC).isoformat(),
+        "retry_count": job.retry_count,
+        "created_at": _iso(job.created_at),
+        "started_at": _iso(job.started_at),
+        "finished_at": _iso(job.finished_at),
+        "updated_at": _iso(job.updated_at) or datetime.now(UTC).isoformat(),
         "trace_id": job.trace_id,
     }
     if job.status == "failed" and job.error_code:

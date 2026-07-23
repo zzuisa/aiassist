@@ -45,9 +45,10 @@ export const useJobsStore = defineStore('jobs', () => {
       retry_count: (data.retry_count as number) ?? existing?.retry_count ?? 0,
       priority: existing?.priority ?? 0,
       trace_id: (data.trace_id as string) ?? existing?.trace_id ?? null,
-      created_at: existing?.created_at ?? (data.updated_at as string),
+      created_at: (data.created_at as string) ?? existing?.created_at ?? (data.updated_at as string),
+      started_at: (data.started_at as string) ?? existing?.started_at ?? null,
       updated_at: (data.updated_at as string) ?? existing?.updated_at ?? '',
-      finished_at: existing?.finished_at ?? null,
+      finished_at: (data.finished_at as string) ?? existing?.finished_at ?? null,
       entity: (data.entity as AsyncJob['entity']) ?? existing?.entity ?? null,
     })
   }
