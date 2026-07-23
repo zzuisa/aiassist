@@ -5,6 +5,7 @@ Every feature module's models are imported here as they are added. Importing
 """
 
 from app.db.base import Base
+from app.models import captures as captures
 from app.models import foundation as foundation
 from app.models import habits as habits
 from app.models import notifications as notifications

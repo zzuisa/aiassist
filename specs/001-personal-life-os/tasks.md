@@ -202,25 +202,25 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 5
 
-- [ ] T075 [P] [US5] Add upload size, magic-byte, MIME mismatch, pixel bomb, path/key, ownership, and orphan-cleanup tests in `backend/tests/integration/test_upload_security.py`
-- [ ] T076 [P] [US5] Add orientation-before-strip, derivative EXIF/GPS removal, deterministic variants, hash duplicate, and worker-redelivery tests in `backend/tests/integration/test_image_pipeline.py`
-- [ ] T077 [P] [US5] Add strict capture-analysis schema, confidence, AI/user provenance, and no-user-overwrite tests in `backend/tests/contract/test_capture_analysis.py`
-- [ ] T078 [P] [US5] Add capture list/filter/detail/convert and protected-asset API tests in `backend/tests/contract/test_captures_api.py`
-- [ ] T079 [P] [US5] Add quick-photo, waterfall/list, processing card, provenance form, and asset-carousel component tests in `frontend/tests/component/captures.spec.ts`
-- [ ] T080 [US5] Add mobile photo → saved pending → SSE ready → edit facts → convert Todo Playwright journey in `frontend/tests/e2e/captures.spec.ts`
+- [X] T075 [P] [US5] Add upload size, magic-byte, MIME mismatch, pixel bomb, path/key, ownership, and orphan-cleanup tests in `backend/tests/integration/test_upload_security.py`
+- [X] T076 [P] [US5] Add orientation-before-strip, derivative EXIF/GPS removal, deterministic variants, hash duplicate, and worker-redelivery tests in `backend/tests/integration/test_image_pipeline.py`
+- [X] T077 [P] [US5] Add strict capture-analysis schema, confidence, AI/user provenance, and no-user-overwrite tests in `backend/tests/contract/test_capture_analysis.py`
+- [X] T078 [P] [US5] Add capture list/filter/detail/convert and protected-asset API tests in `backend/tests/contract/test_captures_api.py`
+- [X] T079 [P] [US5] Add quick-photo, waterfall/list, processing card, provenance form, and asset-carousel component tests in `frontend/tests/component/captures.spec.ts`
+- [X] T080 [US5] Add mobile photo → saved pending → SSE ready → edit facts → convert Todo Playwright journey in `frontend/tests/e2e/captures.spec.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T081 [P] [US5] Implement capture, asset, AI-tag and provenance-aware fields in `backend/app/models/captures.py`, plus the single shared `entity_relations` model and same-user relation service used by every module in `backend/app/models/relations.py`
-- [ ] T082 [US5] Create capture/assets/relations Alembic migration with hash, storage, filter, and same-user constraints in `backend/alembic/versions/0006_captures.py`
-- [ ] T083 [US5] Implement streaming upload validation, temporary/final object compensation, protected access, and orphan reconciliation in `backend/app/modules/captures/upload_service.py`
-- [ ] T084 [US5] Implement capture create/update/filter/detail/convert, user-over-AI merge rules, and relation checks in `backend/app/modules/captures/service.py`
-- [ ] T085 [US5] Implement upload/capture/asset-access/convert endpoints in `backend/app/modules/captures/router.py`
-- [ ] T086 [US5] Implement hash → EXIF/orient → sanitized original → thumbnail/WebP → OCR task pipeline with versioned keys in `backend/app/workers/tasks/images.py`
-- [ ] T087 [US5] Implement capture classification/tagging through strict LLM schema and suggestion persistence in `backend/app/workers/tasks/capture_ai.py`
-- [ ] T088 [P] [US5] Implement camera/file quick-add, upload progress, and durable pending card insertion in `frontend/src/modules/captures/CaptureQuickAdd.vue`
-- [ ] T089 [US5] Implement responsive waterfall/list, filters, recent/pending/wishlist/duplicate views, and incremental asset loading in `frontend/src/modules/captures/CapturePage.vue`
-- [ ] T090 [US5] Implement asset carousel, user-vs-AI provenance form, confidence labels, relations, and conversion actions in `frontend/src/modules/captures/CaptureDrawer.vue`
+- [X] T081 [P] [US5] Implement capture, asset, AI-tag and provenance-aware fields in `backend/app/models/captures.py`, plus the single shared `entity_relations` model and same-user relation service used by every module in `backend/app/models/relations.py`
+- [X] T082 [US5] Create capture/assets/relations Alembic migration with hash, storage, filter, and same-user constraints in `backend/alembic/versions/0006_captures.py`
+- [X] T083 [US5] Implement streaming upload validation, temporary/final object compensation, protected access, and orphan reconciliation in `backend/app/modules/captures/upload_service.py`
+- [X] T084 [US5] Implement capture create/update/filter/detail/convert, user-over-AI merge rules, and relation checks in `backend/app/modules/captures/service.py`
+- [X] T085 [US5] Implement upload/capture/asset-access/convert endpoints in `backend/app/modules/captures/router.py`
+- [X] T086 [US5] Implement hash → EXIF/orient → sanitized original → thumbnail/WebP → OCR task pipeline with versioned keys in `backend/app/workers/tasks/images.py`
+- [X] T087 [US5] Implement capture classification/tagging through strict LLM schema and suggestion persistence in `backend/app/workers/tasks/capture_ai.py`
+- [X] T088 [P] [US5] Implement camera/file quick-add, upload progress, and durable pending card insertion in `frontend/src/modules/captures/CaptureQuickAdd.vue`
+- [X] T089 [US5] Implement responsive waterfall/list, filters, recent/pending/wishlist/duplicate views, and incremental asset loading in `frontend/src/modules/captures/CapturePage.vue`
+- [X] T090 [US5] Implement asset carousel, user-vs-AI provenance form, confidence labels, relations, and conversion actions in `frontend/src/modules/captures/CaptureDrawer.vue`
 
 **Checkpoint**: The raw original is never lost to AI/image failure, while every browser/public derivative is location-sanitized.
 

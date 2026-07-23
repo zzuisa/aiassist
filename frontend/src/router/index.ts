@@ -25,6 +25,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/modules/habits/HabitsPage.vue'),
       },
       {
+        path: 'captures',
+        name: 'captures',
+        component: () => import('@/modules/captures/CapturePage.vue'),
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),

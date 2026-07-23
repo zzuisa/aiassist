@@ -12,6 +12,7 @@ from app.core.errors import register_exception_handlers
 from app.core.observability import TraceContextMiddleware, configure_logging
 from app.db.session import get_db
 from app.modules.auth.router import router as auth_router
+from app.modules.captures.router import router as captures_router
 from app.modules.habits.router import router as habits_router
 from app.modules.jobs.router import router as jobs_router
 from app.modules.notifications.router import router as notifications_router
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router, prefix=API_PREFIX)
     app.include_router(uploads_router, prefix=API_PREFIX)
     app.include_router(voice_router, prefix=API_PREFIX)
+    app.include_router(captures_router, prefix=API_PREFIX)
 
     return app
 

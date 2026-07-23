@@ -90,6 +90,8 @@ celery.conf.imports = (
     "app.workers.tasks.habits",
     "app.workers.tasks.maintenance",
     "app.workers.tasks.voice",
+    "app.workers.tasks.images",
+    "app.workers.tasks.capture_ai",
 )
 
 
