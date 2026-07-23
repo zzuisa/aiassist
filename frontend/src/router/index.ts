@@ -35,6 +35,16 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/modules/search/SearchPage.vue'),
       },
       {
+        path: 'posts',
+        name: 'posts',
+        component: () => import('@/modules/posts/PostListPage.vue'),
+      },
+      {
+        path: 'posts/:id',
+        name: 'post-editor',
+        component: () => import('@/modules/posts/PostEditorPage.vue'),
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),

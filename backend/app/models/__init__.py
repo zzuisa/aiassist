@@ -9,6 +9,7 @@ from app.models import captures as captures
 from app.models import foundation as foundation
 from app.models import habits as habits
 from app.models import notifications as notifications
+from app.models import posts as posts
 from app.models import relations as relations
 from app.models import scheduling as scheduling
 from app.models import search as search

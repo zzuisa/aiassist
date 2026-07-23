@@ -93,6 +93,7 @@ celery.conf.imports = (
     "app.workers.tasks.images",
     "app.workers.tasks.capture_ai",
     "app.workers.tasks.search",
+    "app.workers.tasks.blog",
 )
 
 

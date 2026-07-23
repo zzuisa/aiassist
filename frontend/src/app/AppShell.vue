@@ -18,6 +18,7 @@ const primaryNav = [
   { to: '/habits', label: '习惯', icon: '🔁' },
   { to: '/captures', label: '收藏', icon: '📷' },
   { to: '/search', label: '搜索', icon: '🔍' },
+  { to: '/posts', label: '博客', icon: '✍️' },
   { to: '/settings', label: '设置', icon: '⚙️' },
 ]
 

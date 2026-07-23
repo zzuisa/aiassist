@@ -283,22 +283,22 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 8
 
-- [ ] T108 [P] [US8] Add post draft/revision/base-conflict/private/public/slug/unpublish/relation API tests in `backend/tests/contract/test_posts_api.py`
-- [ ] T109 [P] [US8] Add Markdown sanitization, unsafe link/image, RSS escaping, and public asset provenance tests in `backend/tests/unit/test_post_rendering.py`
-- [ ] T110 [P] [US8] Add AI revision non-overwrite, source grounding, retry, and usage-log integration tests in `backend/tests/integration/test_blog_generation.py`
-- [ ] T111 [P] [US8] Add editor autosave, preview, diff apply/ignore/regenerate, visibility, and conflict component tests in `frontend/tests/component/posts.spec.ts`
+- [X] T108 [P] [US8] Add post draft/revision/base-conflict/private/public/slug/unpublish/relation API tests in `backend/tests/contract/test_posts_api.py`
+- [X] T109 [P] [US8] Add Markdown sanitization, unsafe link/image, RSS escaping, and public asset provenance tests in `backend/tests/unit/test_post_rendering.py`
+- [X] T110 [P] [US8] Add AI revision non-overwrite, source grounding, retry, and usage-log integration tests in `backend/tests/integration/test_blog_generation.py`
+- [X] T111 [P] [US8] Add editor autosave, preview, diff apply/ignore/regenerate, visibility, and conflict component tests in `frontend/tests/component/posts.spec.ts`
 
 ### Implementation for User Story 8
 
-- [ ] T112 [P] [US8] Implement post, immutable revision, and post-tag models in `backend/app/models/posts.py`; reuse the `entity_relations` model owned by T081 (`backend/app/models/relations.py`) instead of redefining it
-- [ ] T113 [US8] Create posts/revisions/tags/relations migration with public slug constraints in `backend/alembic/versions/0008_posts.py`
-- [ ] T114 [US8] Implement draft CRUD, user revisions, source conversion, diff/apply conflict, publish/unpublish, and activity/outbox rules in `backend/app/modules/posts/service.py`
-- [ ] T115 [US8] Implement sanitized Markdown-to-HTML rendering, public post, protected/public derivative policy, and RSS generation in `backend/app/modules/posts/rendering.py`
-- [ ] T116 [US8] Implement generate/optimize/translate blog tasks that create unapplied AI revisions and usage logs in `backend/app/workers/tasks/blog.py`
-- [ ] T117 [US8] Implement private post/revision/generate/publish and public post/RSS routes in `backend/app/modules/posts/router.py`
-- [ ] T118 [P] [US8] Implement Markdown editor, autosave/version conflict, preview, metadata, and source picker in `frontend/src/modules/posts/PostEditorPage.vue`
-- [ ] T119 [US8] Implement revision diff, apply/ignore/regenerate, post list, publication confirmation, and public page in `frontend/src/modules/posts/`
-- [ ] T120 [US8] Add source → draft → AI diff → publish → anonymous read → unpublish Playwright journey in `frontend/tests/e2e/posts.spec.ts`
+- [X] T112 [P] [US8] Implement post, immutable revision, and post-tag models in `backend/app/models/posts.py`; reuse the `entity_relations` model owned by T081 (`backend/app/models/relations.py`) instead of redefining it
+- [X] T113 [US8] Create posts/revisions/tags/relations migration with public slug constraints in `backend/alembic/versions/0008_posts.py`
+- [X] T114 [US8] Implement draft CRUD, user revisions, source conversion, diff/apply conflict, publish/unpublish, and activity/outbox rules in `backend/app/modules/posts/service.py`
+- [X] T115 [US8] Implement sanitized Markdown-to-HTML rendering, public post, protected/public derivative policy, and RSS generation in `backend/app/modules/posts/rendering.py`
+- [X] T116 [US8] Implement generate/optimize/translate blog tasks that create unapplied AI revisions and usage logs in `backend/app/workers/tasks/blog.py`
+- [X] T117 [US8] Implement private post/revision/generate/publish and public post/RSS routes in `backend/app/modules/posts/router.py`
+- [X] T118 [P] [US8] Implement Markdown editor, autosave/version conflict, preview, metadata, and source picker in `frontend/src/modules/posts/PostEditorPage.vue`
+- [X] T119 [US8] Implement revision diff, apply/ignore/regenerate, post list, publication confirmation, and public page in `frontend/src/modules/posts/`
+- [X] T120 [US8] Add source → draft → AI diff → publish → anonymous read → unpublish Playwright journey in `frontend/tests/e2e/posts.spec.ts`
 
 **Checkpoint**: AI never overwrites authored Markdown; private content remains inaccessible until explicit publication.
 

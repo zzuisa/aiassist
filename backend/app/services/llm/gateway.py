@@ -37,10 +37,12 @@ class FakeProvider:
     """
 
     def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int) -> str:
-        marker = "<<JSON>>"
-        if marker in user:
-            return user.split(marker, 1)[1].strip()
-        raise LLMError("provider_unavailable", "No fake JSON payload provided")
+        # Tests embed the desired provider output after a marker: <<JSON>> for
+        # structured scenarios, <<TEXT>> for free-form chat (e.g. blog Markdown).
+        for marker in ("<<JSON>>", "<<TEXT>>"):
+            if marker in user:
+                return user.split(marker, 1)[1].strip()
+        raise LLMError("provider_unavailable", "No fake payload provided")
 
 
 def _select_provider(scenario: str) -> StructuredProvider:
@@ -66,6 +68,28 @@ def _select_provider(scenario: str) -> StructuredProvider:
 class LLMGatewayImpl:
     def __init__(self, provider: StructuredProvider | None = None) -> None:
         self._provider = provider
+
+    def chat(self, request: object) -> object:
+        """Free-form text generation (e.g. blog Markdown).
+
+        Returns an object with a ``.text`` attribute. The FakeProvider echoes the
+        user prompt so tests can assert an AI revision is created without a network
+        call; real adapters return provider text.
+        """
+        from app.services.llm.base import ChatRequest, ChatResponse
+
+        if not isinstance(request, ChatRequest):
+            raise TypeError("chat() requires a ChatRequest")
+        provider = self._provider or _select_provider(request.scenario)
+        # complete_json is the single provider entrypoint; for chat we treat the
+        # returned string as plain text (Markdown), not JSON.
+        text = provider.complete_json(
+            request.system,
+            request.user,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+        )
+        return ChatResponse(text=text)
 
     def structured(self, request: StructuredRequest[T]) -> T:
         provider = self._provider or _select_provider(request.scenario)
