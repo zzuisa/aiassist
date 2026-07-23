@@ -119,6 +119,10 @@ def transition(
     extra_event: dict | None = None,
 ) -> AsyncJob:
     """Apply a durable transition and append its event in one transaction scope."""
+    # A late/stale worker must not resurrect a job the user already cancelled or
+    # completed. Failed jobs remain re-activatable via retry_job (failed->queued).
+    if job.status in ("completed", "cancelled") and status is not None and status != job.status:
+        return job
     now = datetime.now(UTC)
     if status is not None:
         job.status = status

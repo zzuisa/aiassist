@@ -234,18 +234,18 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 6
 
-- [ ] T091 [P] [US6] Add job retry/cancel permission, stale-worker result, progress monotonicity, and preserved-entity tests in `backend/tests/integration/test_job_controls.py`
-- [ ] T092 [P] [US6] Add critical queue under heavy saturation, retry exhaustion, DLQ, manual replay guard, and delivery audit tests in `backend/tests/integration/test_queue_reliability.py`
-- [ ] T093 [P] [US6] Add task-center grouping, no-toast progress, retry/cancel, reconnect banner, and safe diagnostic detail tests in `frontend/tests/component/task_center.spec.ts`
+- [X] T091 [P] [US6] Add job retry/cancel permission, stale-worker result, progress monotonicity, and preserved-entity tests in `backend/tests/integration/test_job_controls.py`
+- [X] T092 [P] [US6] Add critical queue under heavy saturation, retry exhaustion, DLQ, manual replay guard, and delivery audit tests in `backend/tests/integration/test_queue_reliability.py`
+- [X] T093 [P] [US6] Add task-center grouping, no-toast progress, retry/cancel, reconnect banner, and safe diagnostic detail tests in `frontend/tests/component/task_center.spec.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T094 [US6] Implement notification creation/read/list, delivery result states, and SSE notification events in `backend/app/modules/notifications/service.py` and `backend/app/modules/notifications/router.py`
-- [ ] T095 [US6] Implement job list/detail/retry/cancel routes, retry policy registry, cancellation checks, and stale-result rejection in `backend/app/modules/jobs/router.py`
-- [ ] T096 [US6] Implement DLQ inspection/replay CLI with explicit operator confirmation and new trace/attempt in `backend/app/cli/dlq.py`
-- [ ] T097 [US6] Implement global task-center drawer with active/waiting/failed sections, business copy, actions, and trace detail in `frontend/src/components/jobs/TaskCenterDrawer.vue`
-- [ ] T098 [US6] Implement notification list/badge/read actions and important reminder presentation in `frontend/src/components/notifications/NotificationCenter.vue`
-- [ ] T099 [US6] Add critical-reminder under load, worker crash, SSE replay, retry, and cancel Playwright/API journey in `frontend/tests/e2e/jobs-notifications.spec.ts`
+- [X] T094 [US6] Implement notification creation/read/list, delivery result states, and SSE notification events in `backend/app/modules/notifications/service.py` and `backend/app/modules/notifications/router.py`
+- [X] T095 [US6] Implement job list/detail/retry/cancel routes, retry policy registry, cancellation checks, and stale-result rejection in `backend/app/modules/jobs/router.py`
+- [X] T096 [US6] Implement DLQ inspection/replay CLI with explicit operator confirmation and new trace/attempt in `backend/app/cli/dlq.py`
+- [X] T097 [US6] Implement global task-center drawer with active/waiting/failed sections, business copy, actions, and trace detail in `frontend/src/components/jobs/TaskCenterDrawer.vue`
+- [X] T098 [US6] Implement notification list/badge/read actions and important reminder presentation in `frontend/src/components/notifications/NotificationCenter.vue`
+- [X] T099 [US6] Add critical-reminder under load, worker crash, SSE replay, retry, and cancel Playwright/API journey in `frontend/tests/e2e/jobs-notifications.spec.ts`
 
 **Checkpoint**: Heavy work cannot hide or delay important reminders; Redis/Celery state loss does not erase user-visible status.
 

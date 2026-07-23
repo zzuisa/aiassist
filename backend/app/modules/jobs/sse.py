@@ -53,9 +53,27 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
                 }
                 for j in jobs
             ],
-            "notifications": [],
+            "notifications": _unread_notifications(s, user_id),
         }
         return payload, cursor
+
+
+def _unread_notifications(session, user_id: uuid.UUID) -> list[dict]:  # type: ignore[no-untyped-def]
+    from app.modules.notifications import service as notif_service
+
+    items = notif_service.list_notifications(session, user_id, limit=20)
+    return [
+        {
+            "notification_id": str(n.id),
+            "type": n.type,
+            "title": n.title,
+            "body": n.body,
+            "status": n.status,
+            "created_at": n.created_at.isoformat(),
+        }
+        for n in items
+        if n.status == "unread"
+    ]
 
 
 def _cursor_valid(user_id: uuid.UUID, cursor: int) -> bool:
