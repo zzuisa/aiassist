@@ -35,7 +35,7 @@ function toggleTimer(): void {
 
 <template>
   <article
-    class="habit"
+    class="habit tappable"
     :class="{ done, skipped }"
   >
     <div class="info">

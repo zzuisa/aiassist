@@ -30,7 +30,7 @@ const statusClass = computed(() => {
 
 <template>
   <article
-    class="card"
+    class="card tappable"
     :class="statusClass"
   >
     <button

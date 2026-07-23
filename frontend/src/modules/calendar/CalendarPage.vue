@@ -8,6 +8,7 @@ import type { CalendarOptions, EventDropArg } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import { calendarApi, type SchedulePreview, type Task, type WeekCalendar } from '@/api/calendar'
 import { persistReschedule } from '@/modules/calendar/useReschedule'
+import { computeSlotRange } from '@/modules/calendar/slotRange'
 import SchedulePreviewDrawer from '@/modules/calendar/SchedulePreviewDrawer.vue'
 
 const week = ref<WeekCalendar | null>(null)
@@ -75,6 +76,8 @@ async function onApplied(): Promise<void> {
   await load()
 }
 
+const slotRange = computed(() => computeSlotRange(week.value?.events ?? []))
+
 const options = computed<CalendarOptions>(() => ({
   plugins: [timeGridPlugin, listPlugin, interactionPlugin],
   initialView: 'timeGridWeek',
@@ -82,6 +85,19 @@ const options = computed<CalendarOptions>(() => ({
   editable: true,
   droppable: true,
   height: 'auto',
+  expandRows: true,
+  nowIndicator: true,
+  allDaySlot: false,
+  // Collapse empty early/late hours to the range that actually has events.
+  slotMinTime: slotRange.value.min,
+  slotMaxTime: slotRange.value.max,
+  scrollTime: slotRange.value.min,
+  // Overlapping events stack up to 2 side-by-side; the rest fold into a
+  // "+N 更多" popover so nothing is hidden behind another event.
+  slotEventOverlap: false,
+  eventMaxStack: 2,
+  moreLinkClick: 'popover',
+  moreLinkContent: (arg) => `+${arg.num} 更多`,
   headerToolbar: { left: 'prev,next', center: 'title', right: 'timeGridWeek,listWeek' },
   events: calendarEvents.value,
   eventDrop: onChange,

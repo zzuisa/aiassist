@@ -109,7 +109,11 @@ async function onComplete(task: Task): Promise<void> {
         >
           今天还没有待办。
         </p>
-        <div class="list">
+        <transition-group
+          name="list"
+          tag="div"
+          class="list"
+        >
           <TaskCard
             v-for="t in dashboard.todos"
             :key="t.id"
@@ -117,7 +121,7 @@ async function onComplete(task: Task): Promise<void> {
             @complete="onComplete"
             @open="() => {}"
           />
-        </div>
+        </transition-group>
       </section>
 
       <section
@@ -127,7 +131,11 @@ async function onComplete(task: Task): Promise<void> {
         <h2 class="overdue">
           逾期 ({{ dashboard.overdue.length }})
         </h2>
-        <div class="list">
+        <transition-group
+          name="list"
+          tag="div"
+          class="list"
+        >
           <TaskCard
             v-for="t in dashboard.overdue"
             :key="t.id"
@@ -135,7 +143,7 @@ async function onComplete(task: Task): Promise<void> {
             @complete="onComplete"
             @open="() => {}"
           />
-        </div>
+        </transition-group>
       </section>
     </template>
 
@@ -193,6 +201,7 @@ async function onComplete(task: Task): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  position: relative; /* anchor for list-leave absolute positioning */
 }
 .muted {
   color: var(--color-text-muted);

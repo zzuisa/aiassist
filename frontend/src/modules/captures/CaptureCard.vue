@@ -27,7 +27,7 @@ const title = computed(
 
 <template>
   <button
-    class="capture-card"
+    class="capture-card tappable"
     @click="$emit('open', capture)"
   >
     <div
