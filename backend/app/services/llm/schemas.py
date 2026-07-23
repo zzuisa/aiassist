@@ -79,6 +79,7 @@ class CaptureAnalysisV1(BaseModel):
         "blog_material",
     ]
     category: CaptureCategory
-    tags: list[CaptureTag] = Field(default_factory=list, max_length=12)
-    facts: list[CaptureFact] = Field(default_factory=list, max_length=20)
-    needs_user_input: list[str] = Field(default_factory=list, max_length=8)
+    # Required by the contract (may be empty lists, but must be present).
+    tags: list[CaptureTag] = Field(max_length=12)
+    facts: list[CaptureFact] = Field(max_length=20)
+    needs_user_input: list[str] = Field(max_length=8)

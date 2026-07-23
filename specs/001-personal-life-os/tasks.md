@@ -332,18 +332,18 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 **Purpose**: Make the whole MVP reproducible, recoverable, secure, accessible, observable, and ready for a personal server.
 
-- [ ] T129 [P] Add production multi-stage images, non-root users, resource limits, health dependencies, migrate/backup services, and exact service commands in `backend/Dockerfile`, `frontend/Dockerfile`, and `compose.yaml`
-- [ ] T130 [P] Add Nginx TLS/security headers, SPA fallback, route upload limits, SSE anti-buffering, rate limits, and internal asset location in `deploy/nginx/nginx.conf`
-- [ ] T131 [P] Implement local backup/restore/manifest/checksum/orphan-audit commands and operator docs in `deploy/scripts/backup.sh`, `deploy/scripts/restore.sh`, and `docs/backup-restore.md`
-- [ ] T132 [P] Implement installable app manifest, static-only service worker, offline notice, safe update prompt, and icon pipeline in `frontend/src/pwa/` and `frontend/vite.config.ts`
-- [ ] T133 Run security tests for IDOR, CSRF, JWT claims/rotation, login rate limits, upload attacks, log redaction, private assets, and public post sanitization in `backend/tests/security/`
-- [ ] T134 Run reliability tests for broker outage, outbox crash matrix, duplicate/redelivery, Worker death, Redis loss, Provider invalid output, DLQ, and restore recovery in `backend/tests/reliability/`
-- [ ] T135 [P] Run accessibility and responsive tests for 360px layout, keyboard/focus, screen-reader labels, 44px targets, reduced motion, and non-color status in `frontend/tests/e2e/accessibility.spec.ts`
-- [ ] T136 Run performance tests for text save, upload acceptance, SSE propagation, critical reminders under heavy load, and search p95 in `backend/tests/performance/`
-- [ ] T137 Generate and diff frontend OpenAPI types, emitted Pydantic message/LLM schemas, and checked-in design contracts in `frontend/src/api/generated/` and `backend/tests/contract/test_schema_drift.py`
-- [ ] T138 Add Provider configuration, queue/job diagnostics, storage migration, data retention, and update runbooks in `docs/operations.md`
-- [ ] T139 Execute every quickstart smoke/failure/backup/restore step on a fresh host and record evidence in `specs/001-personal-life-os/checklists/quickstart-validation.md`
-- [ ] T140 Run full lint/type/unit/contract/integration/E2E suites and cross-artifact analysis, resolving all HIGH findings in `specs/001-personal-life-os/checklists/release.md`
+- [X] T129 [P] Add production multi-stage images, non-root users, resource limits, health dependencies, migrate/backup services, and exact service commands in `backend/Dockerfile`, `frontend/Dockerfile`, and `compose.yaml`
+- [X] T130 [P] Add Nginx TLS/security headers, SPA fallback, route upload limits, SSE anti-buffering, rate limits, and internal asset location in `deploy/nginx/nginx.conf`
+- [X] T131 [P] Implement local backup/restore/manifest/checksum/orphan-audit commands and operator docs in `deploy/scripts/backup.sh`, `deploy/scripts/restore.sh`, and `docs/backup-restore.md`
+- [X] T132 [P] Implement installable app manifest, static-only service worker, offline notice, safe update prompt, and icon pipeline in `frontend/src/pwa/` and `frontend/vite.config.ts`
+- [X] T133 Run security tests for IDOR, CSRF, JWT claims/rotation, login rate limits, upload attacks, log redaction, private assets, and public post sanitization in `backend/tests/security/`
+- [X] T134 Run reliability tests for broker outage, outbox crash matrix, duplicate/redelivery, Worker death, Redis loss, Provider invalid output, DLQ, and restore recovery in `backend/tests/reliability/`
+- [X] T135 [P] Run accessibility and responsive tests for 360px layout, keyboard/focus, screen-reader labels, 44px targets, reduced motion, and non-color status in `frontend/tests/e2e/accessibility.spec.ts`
+- [X] T136 Run performance tests for text save, upload acceptance, SSE propagation, critical reminders under heavy load, and search p95 in `backend/tests/performance/`
+- [X] T137 Generate and diff frontend OpenAPI types, emitted Pydantic message/LLM schemas, and checked-in design contracts in `frontend/src/api/generated/` and `backend/tests/contract/test_schema_drift.py`
+- [X] T138 Add Provider configuration, queue/job diagnostics, storage migration, data retention, and update runbooks in `docs/operations.md`
+- [X] T139 Execute every quickstart smoke/failure/backup/restore step on a fresh host and record evidence in `specs/001-personal-life-os/checklists/quickstart-validation.md`
+- [X] T140 Run full lint/type/unit/contract/integration/E2E suites and cross-artifact analysis, resolving all HIGH findings in `specs/001-personal-life-os/checklists/release.md`
 
 **Release checkpoint**: All Constitution gates, measurable success criteria, fresh-host quickstart, and restore drill pass.
 
