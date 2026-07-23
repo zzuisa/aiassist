@@ -259,17 +259,17 @@ Non-destructive specification pass run before coding. It did not widen MVP scope
 
 ### Tests for User Story 7
 
-- [ ] T100 [P] [US7] Add multilingual keyword, trigram fallback, ranking, highlight sanitization, ownership, public-post, and fresh-record tests in `backend/tests/integration/test_search.py`
-- [ ] T101 [P] [US7] Add grouped results, filters, pending-index hint, keyboard navigation, and empty-state tests in `frontend/tests/component/search.spec.ts`
-- [ ] T102 [US7] Add 100k mixed-document seed and p95 search benchmark in `backend/tests/performance/test_search_100k.py`
+- [X] T100 [P] [US7] Add multilingual keyword, trigram fallback, ranking, highlight sanitization, ownership, public-post, and fresh-record tests in `backend/tests/integration/test_search.py`
+- [X] T101 [P] [US7] Add grouped results, filters, pending-index hint, keyboard navigation, and empty-state tests in `frontend/tests/component/search.spec.ts`
+- [X] T102 [US7] Add 100k mixed-document seed and p95 search benchmark in `backend/tests/performance/test_search_100k.py`
 
 ### Implementation for User Story 7
 
-- [ ] T103 [US7] Implement search-document model, tsvector/GIN/trigram migration, and language configuration in `backend/app/models/search.py` and `backend/alembic/versions/0007_search.py`
-- [ ] T104 [US7] Implement direct committed-data search plus derived-document ranking, safe headline, grouping, and cursor pagination in `backend/app/modules/search/service.py`
-- [ ] T105 [US7] Implement idempotent search refresh/delete tasks and event handlers in `backend/app/workers/tasks/search.py`
-- [ ] T106 [US7] Implement `/search` route, filter validation, pending-index count, and protected thumbnail refs in `backend/app/modules/search/router.py`
-- [ ] T107 [US7] Implement global search input, grouped result page, filters, highlights, thumbnails, and accessible keyboard flow in `frontend/src/modules/search/`
+- [X] T103 [US7] Implement search-document model, tsvector/GIN/trigram migration, and language configuration in `backend/app/models/search.py` and `backend/alembic/versions/0007_search.py`
+- [X] T104 [US7] Implement direct committed-data search plus derived-document ranking, safe headline, grouping, and cursor pagination in `backend/app/modules/search/service.py`
+- [X] T105 [US7] Implement idempotent search refresh/delete tasks and event handlers in `backend/app/workers/tasks/search.py`
+- [X] T106 [US7] Implement `/search` route, filter validation, pending-index count, and protected thumbnail refs in `backend/app/modules/search/router.py`
+- [X] T107 [US7] Implement global search input, grouped result page, filters, highlights, thumbnails, and accessible keyboard flow in `frontend/src/modules/search/`
 
 **Checkpoint**: Search is useful without a separate search service and never treats a derived index as an authorization boundary.
 

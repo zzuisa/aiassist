@@ -30,6 +30,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/modules/captures/CapturePage.vue'),
       },
       {
+        path: 'search',
+        name: 'search',
+        component: () => import('@/modules/search/SearchPage.vue'),
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),
