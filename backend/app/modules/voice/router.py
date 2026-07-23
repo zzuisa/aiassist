@@ -57,6 +57,28 @@ def create_voice(
     return _out(record)
 
 
+class VoiceFromText(BaseModel):
+    model_config = {"extra": "forbid"}
+    transcript: str = Field(min_length=1, max_length=50000)
+
+
+@router.post("/from-text", status_code=201)
+def create_from_text(
+    body: VoiceFromText,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Real-time recognition path: the browser already transcribed speech; parse
+    the text into a structured candidate via the LLM gateway and return it for
+    confirmation. No formal entity is created until the user confirms."""
+    record = service.create_from_transcript(db, user.id, body.transcript)
+    db.flush()
+    # Parse synchronously (single LLM call) so the confirmation card is immediate.
+    service.run_pipeline(db, record.id)
+    db.commit()
+    return _out(record)
+
+
 @router.get("/{voice_id}")
 def get_voice(
     voice_id: uuid.UUID,

@@ -62,6 +62,37 @@ def create_voice_record(session: Session, user_id: uuid.UUID, upload_id: uuid.UU
     return record
 
 
+def create_from_transcript(session: Session, user_id: uuid.UUID, transcript: str) -> VoiceRecord:
+    """Create a voice record from client-side real-time recognition.
+
+    The browser performs live ASR (Web Speech API); we skip the audio-upload and
+    transcription checkpoints and go straight to structured parsing via the LLM
+    gateway. There is no audio asset, so `asset_key` is a text sentinel.
+    """
+    if not transcript.strip():
+        raise ValidationError("Empty transcript", code="empty_transcript")
+    record = VoiceRecord(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        asset_key="text-input",  # no audio object; parse-only path
+        media_type=None,
+        status="parsing",
+        transcript=transcript.strip(),
+    )
+    session.add(record)
+    session.flush()
+    job = jobs_service.create_job(
+        session,
+        user_id=user_id,
+        job_type="voice.transcribe",
+        entity_type="voice_record",
+        entity_id=record.id,
+        idempotency_key=f"voice:{record.id}",
+    )
+    record.async_job_id = job.id
+    return record
+
+
 def get_record(session: Session, user_id: uuid.UUID, voice_id: uuid.UUID) -> VoiceRecord:
     record = session.get(VoiceRecord, voice_id)
     if record is None or record.user_id != user_id:

@@ -51,6 +51,8 @@ export const voiceApi = {
     }),
   completeUpload: (uploadId: string) => api.post<UploadSession>(`/uploads/${uploadId}/complete`),
   create: (uploadId: string) => api.post<VoiceRecord>('/voice-records', { upload_id: uploadId }),
+  fromText: (transcript: string) =>
+    api.post<VoiceRecord>('/voice-records/from-text', { transcript }),
   get: (id: string) => api.get<VoiceRecord>(`/voice-records/${id}`),
   retry: (id: string) => api.post<VoiceRecord>(`/voice-records/${id}/retry`),
   confirm: (id: string, candidate: VoiceCandidate) =>

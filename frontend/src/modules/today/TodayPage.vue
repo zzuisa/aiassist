@@ -5,7 +5,7 @@ import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
 import QuickTaskInput from '@/modules/tasks/QuickTaskInput.vue'
 import TaskCard from '@/modules/tasks/TaskCard.vue'
-import VoiceRecorder from '@/modules/voice/VoiceRecorder.vue'
+import LiveVoiceInput from '@/modules/voice/LiveVoiceInput.vue'
 import VoiceConfirmDrawer from '@/modules/voice/VoiceConfirmDrawer.vue'
 
 const store = useTasksStore()
@@ -20,8 +20,12 @@ async function refresh(): Promise<void> {
 
 async function onVoiceCreated(record: VoiceRecord): Promise<void> {
   pendingVoice.value = record
-  // Poll the record until it is ready for confirmation (SSE also drives this in
-  // the full app; polling keeps the Today page self-contained).
+  // Real-time path returns a candidate immediately; the audio path needs polling
+  // (SSE also drives this in the full app).
+  if (record.status === 'waiting_user' && record.candidate) {
+    confirmCandidate.value = { id: record.id, candidate: record.candidate }
+    return
+  }
   const poll = async (): Promise<void> => {
     const latest = await voiceApi.get(record.id)
     pendingVoice.value = latest
@@ -72,7 +76,7 @@ async function onComplete(task: Task): Promise<void> {
     <QuickTaskInput @create="onCreate" />
 
     <div class="voice-row">
-      <VoiceRecorder @created="onVoiceCreated" />
+      <LiveVoiceInput @candidate="onVoiceCreated" />
       <span
         v-if="pendingVoice && pendingVoice.status !== 'waiting_user'"
         class="voice-status"

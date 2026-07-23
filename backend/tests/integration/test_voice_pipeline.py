@@ -171,6 +171,24 @@ def test_confirm_creates_one_entity_and_source_relation(make_user):
         assert rel.relation_type == "converted_to"
 
 
+def test_from_transcript_parses_without_audio(make_user):
+    """Real-time recognition path: text -> parse -> waiting_user, no audio asset."""
+    user = make_user()
+    transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_candidate_json()}"
+    speech = SpeechGatewayImpl(_ScriptedSpeech("unused"))
+    llm = LLMGatewayImpl(FakeProvider())
+    with session_scope() as s:
+        record = voice_service.create_from_transcript(s, user.id, transcript)
+        assert record.asset_key == "text-input"
+        assert record.transcript == transcript
+        vid = record.id
+
+    with session_scope() as s:
+        record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
+        assert record.status == "waiting_user"
+        assert record.parsed_payload_json["title"] == "联系房东"
+
+
 def test_double_confirm_rejected(make_user):
     from app.core.errors import ConflictError
 
