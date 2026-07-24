@@ -26,7 +26,10 @@ echo "[backup] writing manifest + checksums..."
 DB_SHA="$(sha256sum "${OUT}/database.dump" | awk '{print $1}')"
 ASSET_SHA="$( [ -f "${OUT}/assets.tar.gz" ] && sha256sum "${OUT}/assets.tar.gz" | awk '{print $1}' || echo "none")"
 ASSET_COUNT="$( [ -d "$ASSET_ROOT" ] && find "$ASSET_ROOT" -type f | wc -l || echo 0)"
-MIGRATION_HEAD="$(cd /app && python -m alembic -c alembic.ini heads 2>/dev/null | head -1 || echo unknown)"
+MIGRATION_HEAD="$(
+  psql -At -h "$PGHOST" -U "$PGUSER" -d "$PGDB" \
+    -c "SELECT version_num FROM alembic_version LIMIT 1" 2>/dev/null || echo unknown
+)"
 
 cat > "${OUT}/manifest.json" <<EOF
 {

@@ -6,6 +6,9 @@ x-backend-image: &backend-image
   build:
     context: ./backend
     dockerfile: Dockerfile
+    # This host's BuildKit bridge DNS is unavailable; dependency downloads use
+    # the host resolver while runtime services remain isolated on `internal`.
+    network: host
   image: aiassist-backend:local
   restart: unless-stopped
   env_file: [.env]
@@ -33,7 +36,10 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     secrets: [postgres_password]
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # PostgreSQL 18+ stores data under /var/lib/postgresql/<major>/docker.
+      # Mount the parent directory so the named volume is the authoritative
+      # persistent store across container recreation and future pg_upgrade.
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aiassist} -d ${POSTGRES_DB:-aiassist}"]
       interval: 10s
@@ -70,7 +76,8 @@ services:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./deploy/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/10-aiassist.conf:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running", "&&", "rabbitmq-diagnostics", "-q", "check_local_alarms"]
+      test:
+        ["CMD-SHELL", "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -81,6 +88,8 @@ services:
     <<: *backend-image
     restart: "no"
     command: ["python", "-m", "app.cli.main", "migrate"]
+    healthcheck:
+      disable: true
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,6 +117,12 @@ services:
   outbox-publisher:
     <<: *backend-image
     command: ["python", "-m", "app.cli.main", "outbox-publisher"]
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,6 +139,13 @@ services:
        "--prefetch-multiplier", "1", "-n", "fast@%h"]
     volumes:
       - assets:/data/assets
+    healthcheck:
+      test:
+        ["CMD-SHELL", "celery -A app.workers.celery_app.celery inspect ping --destination fast@$$HOSTNAME --timeout 10 | grep -q pong"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -140,6 +162,13 @@ services:
        "--prefetch-multiplier", "1", "--max-tasks-per-child", "20", "-n", "heavy@%h"]
     volumes:
       - assets:/data/assets
+    healthcheck:
+      test:
+        ["CMD-SHELL", "celery -A app.workers.celery_app.celery inspect ping --destination heavy@$$HOSTNAME --timeout 10 | grep -q pong"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -153,6 +182,12 @@ services:
     command:
       ["celery", "-A", "app.workers.celery_app.celery", "beat",
        "--schedule", "/tmp/celerybeat-schedule", "-l", "info"]
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -165,13 +200,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      network: host
       args:
         VITE_BASE_URL: ${VITE_BASE_URL:-/}
     image: aiassist-frontend:local
     restart: unless-stopped
     networks: [internal]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -191,17 +227,26 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks: [internal]
 
   backup:
-    <<: *backend-image
+    image: postgres:18.4
     profiles: [tools]
     restart: "no"
-    command: ["/bin/sh", "/app/deploy/scripts/backup.sh"]
+    env_file: [.env]
+    command: ["/bin/bash", "/app/deploy/scripts/backup.sh"]
+    secrets: [postgres_password]
     volumes:
       - assets:/data/assets:ro
-      - ./backups:/data/backups
+      - ./data/backups:/data/backups
       - ./deploy/scripts:/app/deploy/scripts:ro
+    networks: [internal]
     depends_on:
       postgres:
         condition: service_healthy

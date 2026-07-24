@@ -50,3 +50,6 @@ Thumbs.db
 .idea/
 .vscode/
 !.vscode/extensions.json
+
+# Claude Code worktrees / tooling
+.claude/

@@ -6,7 +6,17 @@ mounted into containers as Docker secrets / bind mounts and are **never**
 committed. `.gitignore` excludes everything here except this README and
 `.gitkeep`.
 
-Set permissions to `0600` and own them as the deploy user.
+Set permissions to `0600`. Because Docker Compose file-backed secrets preserve
+host ownership, production files must be owned by the backend runtime UID
+`10001` so the non-root application process can read them:
+
+```bash
+sudo chown 10001 deploy/secrets/{postgres_password,jwt_signing_key,rabbitmq_password}
+sudo chmod 0600 deploy/secrets/{postgres_password,jwt_signing_key,rabbitmq_password}
+```
+
+`deploy.sh up` applies this ownership automatically when run as root and fails
+closed with the required command when an unprivileged deploy user owns the files.
 
 ## Required for production startup
 

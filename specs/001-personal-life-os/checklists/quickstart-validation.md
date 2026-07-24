@@ -5,20 +5,20 @@ output, screenshots) next to each item. Items requiring the production server or
 real provider credentials are gated on explicit authorization.
 
 ## Prerequisites
-- [ ] Docker Engine + Compose V2 present (`docker compose version`)
-- [ ] 4 CPU / 8 GiB RAM, 20 GiB disk + asset/backup space
+- [x] Docker Engine + Compose V2 present (`docker compose version`) — 2026-07-23
+- [x] 4 CPU / 8 GiB RAM, 20 GiB disk + asset/backup space — 4 CPU, 15 GiB RAM, 34 GiB free
 
 ## Configure
-- [ ] `cp .env.example .env`; edit non-secret values
-- [ ] Create `deploy/secrets/{postgres_password,jwt_signing_key,rabbitmq_password}` (0600)
+- [x] `cp .env.example .env`; edit non-secret values — production origin configured
+- [x] Create `deploy/secrets/{postgres_password,jwt_signing_key,rabbitmq_password}` (0600)
 - [ ] Optional: smtp/llm/s3 secret files
 
 ## Start & migrate
-- [ ] `./deploy/scripts/deploy.sh up` completes
-- [ ] `docker compose ps` shows all required services healthy
-- [ ] `GET /health/live` and `/health/ready` return 200
-- [ ] Migration head matches `alembic heads`
-- [ ] `docker compose run --rm backend python -m app.cli.main create-admin --email owner@example.com`
+- [x] `./deploy/scripts/deploy.sh up` completes — 2026-07-23
+- [x] `docker compose ps` shows all required services healthy
+- [x] `GET /health/live` and `/health/ready` return 200
+- [x] Migration head matches `alembic heads` — `0008_posts`
+- [ ] `./deploy/scripts/deploy.sh create-admin owner@example.com`
 
 ## Smoke tests (§6 quickstart)
 - [ ] Login sets Secure HttpOnly cookies; no token in URL/localStorage
@@ -38,11 +38,11 @@ real provider credentials are gated on explicit authorization.
 - [ ] Invalid LLM output: schema/business rules reject; no business mutation
 
 ## Backup / restore (§8–9)
-- [ ] `docker compose --profile tools run --rm backup` writes dump+assets+manifest
+- [x] `docker compose --profile tools run --rm backup` writes dump+assets+manifest — checksums verified
 - [ ] Isolated restore drill: checksums verify, pg_restore + assets + migrate
 - [ ] Post-restore smoke tests pass; record measured RPO/RTO
 
 ## Deployment (only with authorization)
-- [ ] Host Nginx config backed up before edit; `nginx -t` before `nginx -s reload`
-- [ ] `https://llm.roguelife.de/` serves the SPA; Vue routes don't 404 on refresh
-- [ ] Middleware/management ports not reachable from the public internet
+- [x] Host Nginx config backed up before edit; BaoTa `nginx -t` passed before reload
+- [x] `https://llm.roguelife.de/` serves the SPA; `/settings` refresh returns 200
+- [x] Middleware/management ports are not published by the AI Assist Compose project

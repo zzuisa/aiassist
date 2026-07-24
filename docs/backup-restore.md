@@ -30,10 +30,12 @@ On a clean host/volume:
 ```bash
 # 1. Bring up only the database.
 docker compose up -d postgres
-# 2. Restore (verifies checksums, pg_restore, assets, migrations).
+# 2. Restore (verifies checksums, then restores PostgreSQL and assets).
 docker compose --profile tools run --rm \
   -v "$PWD/data/backups/<timestamp>:/restore:ro" \
   backup /app/deploy/scripts/restore.sh /restore
+# 3. Apply the current application migrations.
+docker compose run --rm migrate
 ```
 
 After restore:
