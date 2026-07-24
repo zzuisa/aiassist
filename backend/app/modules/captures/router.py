@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.core.errors import NotFoundError
+from app.core.observability import get_logger
 from app.db.session import get_db
 from app.models.captures import Capture, CaptureAsset
 from app.modules.captures import service
@@ -127,6 +128,15 @@ def create_capture(
         url=body.url,
     )
     db.commit()
+    # Enqueue the image pipeline directly (best-effort; the capture is durable
+    # regardless). The pipeline chains AI analysis when it finishes.
+    if body.upload_ids:
+        try:
+            from app.workers.tasks.images import process_capture
+
+            process_capture.delay(str(capture.id))
+        except Exception:
+            get_logger("captures").warning("capture_enqueue_failed", capture_id=str(capture.id))
     return _capture_out(db, capture)
 
 

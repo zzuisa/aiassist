@@ -142,6 +142,16 @@ def generate(
         user_id=user.id,
     )
     db.commit()
+    # Enqueue the generation task directly (best-effort). The worker creates an
+    # UNAPPLIED AI revision; the current text is never overwritten.
+    try:
+        from app.workers.tasks.blog import generate as blog_generate
+
+        blog_generate.delay(str(post.id), body.scenario, body.instruction)
+    except Exception:
+        from app.core.observability import get_logger
+
+        get_logger("posts").warning("blog_enqueue_failed", post_id=str(post.id))
     from app.modules.jobs.schemas import serialize_job
 
     return serialize_job(job).model_dump(mode="json")
