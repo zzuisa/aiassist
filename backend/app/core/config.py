@@ -12,6 +12,7 @@ import os
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -158,8 +159,9 @@ class Settings(BaseSettings):
             return self.database_url
         pw = self.resolved_postgres_password or ""
         return (
-            f"postgresql+psycopg://{self.postgres_user}:{pw}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"postgresql+psycopg://{quote(self.postgres_user, safe='')}:"
+            f"{quote(pw, safe='')}@{self.postgres_host}:{self.postgres_port}/"
+            f"{quote(self.postgres_db, safe='')}"
         )
 
     @property
@@ -174,8 +176,9 @@ class Settings(BaseSettings):
             return self.amqp_url
         pw = self.resolved_rabbitmq_password or ""
         return (
-            f"amqp://{self.rabbitmq_user}:{pw}"
-            f"@{self.rabbitmq_host}:{self.rabbitmq_port}/{self.rabbitmq_vhost}"
+            f"amqp://{quote(self.rabbitmq_user, safe='')}:{quote(pw, safe='')}"
+            f"@{self.rabbitmq_host}:{self.rabbitmq_port}/"
+            f"{quote(self.rabbitmq_vhost, safe='')}"
         )
 
     @property

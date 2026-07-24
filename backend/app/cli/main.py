@@ -21,7 +21,9 @@ def cmd_migrate() -> int:
     from app.core.config import get_settings
 
     cfg = Config("alembic.ini")
-    cfg.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_url)
+    # Alembic stores this value in ConfigParser, where literal percent signs in
+    # URL-encoded credentials must be escaped as ``%%``.
+    cfg.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_url.replace("%", "%%"))
     command.upgrade(cfg, "head")
     print("Migrations applied to head.")
     return 0

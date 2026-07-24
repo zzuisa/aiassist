@@ -52,7 +52,7 @@ MinIO 社区服务端已停止维护，不是默认公网生产建议；生产 S
 
 ```bash
 docker compose run --rm migrate
-docker compose run --rm backend python -m app.cli create-admin --email owner@example.com
+./deploy/scripts/deploy.sh create-admin owner@example.com
 ```
 
 `create-admin` 从交互式 stdin 读取密码，使用 Argon2id 哈希，不接受命令行明文密码。重复 email 必须安全失败。

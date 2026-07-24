@@ -32,7 +32,5 @@ if [ -f "${DIR}/assets.tar.gz" ]; then
   tar -xzf "${DIR}/assets.tar.gz" -C "$ASSET_ROOT"
 fi
 
-echo "[restore] applying current migrations..."
-cd /app && python -m app.cli.main migrate
-
-echo "[restore] done. Run smoke tests (login, task save, asset read, SSE)."
+echo "[restore] database and assets restored."
+echo "[restore] NEXT: run 'docker compose run --rm migrate', then the smoke tests."
