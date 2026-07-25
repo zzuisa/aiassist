@@ -93,8 +93,12 @@ class LLMGatewayImpl:
 
     def structured(self, request: StructuredRequest[T]) -> T:
         provider = self._provider or _select_provider(request.scenario)
+        # Inject the target JSON Schema into the system prompt so real models emit
+        # the exact field names/shape (the FakeProvider ignores the system prompt
+        # and echoes the user marker, so tests are unaffected).
+        system = self._augment_system(request.system, request.schema)
         raw = provider.complete_json(
-            request.system,
+            system,
             request.user,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
@@ -111,7 +115,7 @@ class LLMGatewayImpl:
                 "只返回符合 schema 的 JSON。"
             )
             raw2 = provider.complete_json(
-                request.system,
+                system,
                 repair_user,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
@@ -120,6 +124,18 @@ class LLMGatewayImpl:
                 return self._validate(raw2, request.schema)
             except (ValidationError, json.JSONDecodeError) as second_err:
                 raise LLMError("invalid_structured_output", str(second_err)) from second_err
+
+    @staticmethod
+    def _augment_system(system: str, schema: type[T]) -> str:
+        """Append the target JSON Schema so real models produce the exact shape."""
+        sch = json.dumps(schema.model_json_schema(), ensure_ascii=False)
+        return (
+            f"{system}\n\n"
+            "你必须只输出一个符合下面 JSON Schema 的 JSON 对象："
+            "不要输出解释文字，不要用 markdown 代码块包裹。"
+            "required 中列出的字段全部必须出现；未知信息填 null（对可为 null 的字段）。\n"
+            f"JSON Schema:\n{sch}"
+        )
 
     @staticmethod
     def _validate(raw: str, schema: type[T]) -> T:
