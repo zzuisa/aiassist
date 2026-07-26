@@ -29,24 +29,34 @@ def _tmp_storage(tmp_path, monkeypatch):
     reset_storage()
 
 
+def _candidate_dict(**over) -> dict:
+    base = {
+        "title": "联系房东",
+        "content_type": "reminder",
+        "description": None,
+        "local_date": "2026-07-24",
+        "local_time": "15:00:00",
+        "timezone": "Europe/Berlin",
+        "duration_minutes": 20,
+        "priority": 3,
+        "important": True,
+        "reminder": {"channel": "in_app", "offset_minutes": 30},
+        "recurring": False,
+        "recurrence_rule": None,
+        "original_text": "明天下午三点提醒我联系房东",
+    }
+    base.update(over)
+    return base
+
+
 def _candidate_json() -> str:
-    return json.dumps(
-        {
-            "title": "联系房东",
-            "content_type": "reminder",
-            "description": None,
-            "local_date": "2026-07-24",
-            "local_time": "15:00:00",
-            "timezone": "Europe/Berlin",
-            "duration_minutes": 20,
-            "priority": 3,
-            "important": True,
-            "reminder": {"channel": "in_app", "offset_minutes": 30},
-            "recurring": False,
-            "recurrence_rule": None,
-            "original_text": "明天下午三点提醒我联系房东",
-        }
-    )
+    """A single VoiceTaskV1 candidate (used for the explicit confirm() path)."""
+    return json.dumps(_candidate_dict())
+
+
+def _tasks_json(*items: dict) -> str:
+    """A voice-tasks.v1 payload the FakeProvider echoes back to run_pipeline."""
+    return json.dumps({"tasks": list(items) or [_candidate_dict()]})
 
 
 class _ScriptedSpeech(TranscribeProvider):
@@ -87,7 +97,7 @@ def test_upload_first_returns_record_before_processing(make_user):
 
 def test_pipeline_auto_confirms_and_creates_task(make_user):
     user = make_user()
-    transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_candidate_json()}"
+    transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_tasks_json()}"
     with session_scope() as s:
         record = _make_voice(s, user.id, audio=transcript.encode())
         vid = record.id
@@ -97,7 +107,7 @@ def test_pipeline_auto_confirms_and_creates_task(make_user):
     with session_scope() as s:
         record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
         assert record.status == "confirmed"
-        assert record.parsed_payload_json["title"] == "联系房东"
+        assert record.parsed_payload_json["tasks"][0]["title"] == "联系房东"
         assert record.confirmed_entity_id is not None
     with session_scope() as s:
         from datetime import UTC, datetime
@@ -113,9 +123,53 @@ def test_pipeline_auto_confirms_and_creates_task(make_user):
         assert task.due_at == datetime(2026, 7, 24, 13, 20, tzinfo=UTC)
 
 
+def test_pipeline_decomposes_message_into_multiple_tasks(make_user):
+    """One message -> several tasks, each with its own date/time (or undated)."""
+    user = make_user()
+    items = [
+        _candidate_dict(
+            title="买菜", content_type="task", local_date="2026-07-27",
+            local_time="09:00:00", duration_minutes=None, original_text="明天买菜",
+        ),
+        _candidate_dict(
+            title="交报告", content_type="task", local_date="2026-07-31",
+            local_time="18:00:00", duration_minutes=60, original_text="周五交报告",
+        ),
+        _candidate_dict(
+            title="缴房租", content_type="reminder", local_date=None,
+            local_time=None, duration_minutes=None, original_text="提醒我缴房租",
+        ),
+    ]
+    transcript = f"明天买菜、周五交报告、提醒我缴房租 <<JSON>>{_tasks_json(*items)}"
+    with session_scope() as s:
+        record = _make_voice(s, user.id, audio=transcript.encode())
+        vid, uid = record.id, user.id
+    speech = SpeechGatewayImpl(_ScriptedSpeech(transcript))
+    llm = LLMGatewayImpl(FakeProvider())
+    with session_scope() as s:
+        record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
+        assert record.status == "confirmed"
+        assert len(record.parsed_payload_json["tasks"]) == 3
+    with session_scope() as s:
+        from datetime import UTC, datetime
+
+        from app.models.tasks import Task
+        from sqlalchemy import func, select
+
+        assert s.scalar(select(func.count()).select_from(Task).where(Task.user_id == uid)) == 3
+        by_title = {t.title: t for t in s.scalars(select(Task).where(Task.user_id == uid)).all()}
+        # 09:00 Europe/Berlin (CEST) -> 07:00 UTC, default 30 min.
+        assert by_title["买菜"].start_at == datetime(2026, 7, 27, 7, 0, tzinfo=UTC)
+        assert by_title["买菜"].due_at == datetime(2026, 7, 27, 7, 30, tzinfo=UTC)
+        # 18:00 Europe/Berlin -> 16:00 UTC, explicit 60 min.
+        assert by_title["交报告"].due_at == datetime(2026, 7, 31, 17, 0, tzinfo=UTC)
+        # Undated reminder stays a plain todo.
+        assert by_title["缴房租"].start_at is None
+
+
 def test_transcription_failure_preserves_audio_and_allows_retry(make_user):
     user = make_user()
-    transcript = f"文本 <<JSON>>{_candidate_json()}"
+    transcript = f"文本 <<JSON>>{_tasks_json()}"
     with session_scope() as s:
         record = _make_voice(s, user.id, audio=transcript.encode())
         vid = record.id
@@ -158,7 +212,7 @@ def test_invalid_llm_output_fails_without_creating_task(make_user):
 
 def test_pipeline_creates_entity_and_source_relation(make_user):
     user = make_user()
-    transcript = f"文本 <<JSON>>{_candidate_json()}"
+    transcript = f"文本 <<JSON>>{_tasks_json()}"
     with session_scope() as s:
         record = _make_voice(s, user.id, audio=transcript.encode())
         vid = record.id
@@ -184,7 +238,7 @@ def test_pipeline_creates_entity_and_source_relation(make_user):
 def test_from_transcript_auto_confirms_without_audio(make_user):
     """Real-time recognition path: text -> parse -> auto-confirm, no audio asset."""
     user = make_user()
-    transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_candidate_json()}"
+    transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_tasks_json()}"
     speech = SpeechGatewayImpl(_ScriptedSpeech("unused"))
     llm = LLMGatewayImpl(FakeProvider())
     with session_scope() as s:
@@ -196,7 +250,7 @@ def test_from_transcript_auto_confirms_without_audio(make_user):
     with session_scope() as s:
         record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
         assert record.status == "confirmed"
-        assert record.parsed_payload_json["title"] == "联系房东"
+        assert record.parsed_payload_json["tasks"][0]["title"] == "联系房东"
         assert record.confirmed_entity_id is not None
 
 
@@ -205,7 +259,7 @@ def test_explicit_confirm_after_auto_confirm_rejected(make_user):
     from app.core.errors import ConflictError
 
     user = make_user()
-    transcript = f"文本 <<JSON>>{_candidate_json()}"
+    transcript = f"文本 <<JSON>>{_tasks_json()}"
     with session_scope() as s:
         record = _make_voice(s, user.id, audio=transcript.encode())
         vid = record.id

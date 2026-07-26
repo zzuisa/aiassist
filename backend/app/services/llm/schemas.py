@@ -41,6 +41,17 @@ class VoiceTaskV1(BaseModel):
     original_text: str = Field(min_length=1, max_length=50000)
 
 
+class VoiceTasksV1(BaseModel):
+    """voice-tasks.v1: one transcript decomposed into independent task candidates.
+
+    A single spoken message may contain several action items; each becomes its own
+    task candidate. At least one item is expected.
+    """
+
+    model_config = _STRICT
+    tasks: list[VoiceTaskV1] = Field(min_length=1, max_length=20)
+
+
 class CaptureCategory(BaseModel):
     model_config = _STRICT
     name: str = Field(max_length=120)

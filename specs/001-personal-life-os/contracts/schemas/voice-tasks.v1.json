@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/voice-tasks.v1.json",
+  "title": "Voice Task Candidates v1",
+  "description": "One transcript decomposed into one or more independent task candidates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "tasks"
+  ],
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "$ref": "voice-task.v1.json"
+      }
+    }
+  }
+}

@@ -22,12 +22,12 @@ from app.models.voice import UploadSession, VoiceRecord
 from app.modules.jobs import service as jobs_service
 from app.services.llm.base import LLMError, StructuredRequest
 from app.services.llm.gateway import LLMGatewayImpl, get_llm_gateway
-from app.services.llm.schemas import VoiceTaskV1
+from app.services.llm.schemas import VoiceTasksV1, VoiceTaskV1
 from app.services.speech.base import SpeechError, TranscriptionRequest
 from app.services.speech.gateway import SpeechGatewayImpl, get_speech_gateway
 from app.services.storage.providers.local import get_storage
 
-VOICE_SCHEMA_VERSION = "voice-task.v1"
+VOICE_SCHEMA_VERSION = "voice-tasks.v1"
 
 _PARSE_SYSTEM = (
     "你是把中文自然语言转成结构化任务候选的助手。"
@@ -39,8 +39,11 @@ _PARSE_SYSTEM = (
     "具体日期（如“明天”“下礼拜三”→ local_date 的 YYYY-MM-DD，“两点半”→ local_time 14:30，"
     "“半个小时”→ duration_minutes 30）。\n"
     "3. 缺失的词边界与标点按语义补齐，但不得改变原意、不得新增未提及的信息。\n"
-    "纠正只用于 title、description 等结构化字段；original_text 必须保留未经改动的原始识别文本。\n"
-    "缺失信息保持为 null，不得编造。只输出符合 voice-task.v1 的 JSON。"
+    "4. 一段留言可能包含多件事（如“明天买菜、周五交报告、月底提醒我缴房租”），"
+    "请拆解为多个相互独立、各自可执行的任务，每个任务单独带自己的日期/时间/时长；"
+    "若只有一件事就只输出一个任务；无法判断为独立事项时不要强行拆分。\n"
+    "纠正只用于 title、description 等结构化字段；每个任务的 original_text 保留其对应的原始识别片段。\n"
+    "缺失信息保持为 null，不得编造。只输出符合 voice-tasks.v1 的 JSON（顶层是 {\"tasks\": [...]}）。"
 )
 
 
@@ -217,12 +220,12 @@ def run_pipeline(
     user = session.get(User, record.user_id)
     tz_name = user.timezone if user else "UTC"
     try:
-        candidate = llm.structured(
+        parsed = llm.structured(
             StructuredRequest(
                 scenario="parse_voice_task",
                 system=_PARSE_SYSTEM,
                 user=f"{_now_context(tz_name)}\n{record.transcript or ''}",
-                schema=VoiceTaskV1,
+                schema=VoiceTasksV1,
             )
         )
     except LLMError as exc:
@@ -240,48 +243,57 @@ def run_pipeline(
             )
         return record
 
-    record.parsed_payload_json = candidate.model_dump(mode="json")
+    record.parsed_payload_json = parsed.model_dump(mode="json")
     record.schema_version = VOICE_SCHEMA_VERSION
     record.error_code = None
     record.error_message = None
 
-    # Auto-confirm: create the task directly without user review.
-    entity_type = candidate.content_type
-    start_at, due_at = _calendar_bounds(
-        candidate.local_date, candidate.local_time, candidate.duration_minutes, tz_name
-    )
-    task = Task(
-        id=uuid.uuid4(),
-        user_id=record.user_id,
-        type="task" if entity_type == "reminder" else entity_type,
-        title=candidate.title,
-        description=candidate.description,
-        status="todo",
-        priority=candidate.priority,
-        importance=4 if candidate.important else 0,
-        is_fixed=entity_type == "fixed_event",
-        is_ai_adjustable=entity_type != "fixed_event",
-        start_at=start_at,
-        due_at=due_at,
-        source_type="voice",
-        source_id=record.id,
-    )
-    session.add(task)
-    session.flush()
-    session.add(
-        EntityRelation(
+    # Auto-confirm: create every decomposed task directly, without user review.
+    # Each item carries its own date/time so it lands on the calendar independently.
+    first_task: Task | None = None
+    for item in parsed.tasks:
+        entity_type = item.content_type
+        start_at, due_at = _calendar_bounds(
+            item.local_date, item.local_time, item.duration_minutes, tz_name
+        )
+        task = Task(
             id=uuid.uuid4(),
             user_id=record.user_id,
-            source_type="voice_record",
+            type="task" if entity_type == "reminder" else entity_type,
+            title=item.title,
+            description=item.description,
+            status="todo",
+            priority=item.priority,
+            importance=4 if item.important else 0,
+            is_fixed=entity_type == "fixed_event",
+            is_ai_adjustable=entity_type != "fixed_event",
+            start_at=start_at,
+            due_at=due_at,
+            source_type="voice",
             source_id=record.id,
-            target_type="task",
-            target_id=task.id,
-            relation_type="converted_to",
         )
-    )
+        session.add(task)
+        session.flush()
+        session.add(
+            EntityRelation(
+                id=uuid.uuid4(),
+                user_id=record.user_id,
+                source_type="voice_record",
+                source_id=record.id,
+                target_type="task",
+                target_id=task.id,
+                relation_type="converted_to",
+            )
+        )
+        if first_task is None:
+            first_task = task
+
     record.status = "confirmed"
-    record.confirmed_entity_type = entity_type
-    record.confirmed_entity_id = task.id
+    # confirmed_entity_* points at the first task for display; EntityRelations hold
+    # the full set when a message decomposed into several tasks.
+    if first_task is not None:
+        record.confirmed_entity_type = parsed.tasks[0].content_type
+        record.confirmed_entity_id = first_task.id
     record.confirmed_at = datetime.now(UTC)
     if job:
         jobs_service.transition(

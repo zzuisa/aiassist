@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
-from app.services.llm.schemas import CaptureAnalysisV1, VoiceTaskV1
+from app.services.llm.schemas import CaptureAnalysisV1, VoiceTasksV1, VoiceTaskV1
 
 pytestmark = [pytest.mark.contract]
 
@@ -27,6 +27,7 @@ def _load(name: str) -> dict:
     ("model", "contract"),
     [
         (VoiceTaskV1, "voice-task.v1.json"),
+        (VoiceTasksV1, "voice-tasks.v1.json"),
         (CaptureAnalysisV1, "capture-analysis.v1.json"),
     ],
 )
