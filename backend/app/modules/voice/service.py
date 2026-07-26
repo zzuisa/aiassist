@@ -1,9 +1,8 @@
-"""Voice service: register record, run pipeline, confirm to a single entity.
+"""Voice service: register record, run pipeline, auto-confirm to a task.
 
 Audio is saved first (via the upload session). The pipeline transcribes and
-parses asynchronously through the gateways, moving to `waiting_user`. Only a
-`waiting_user` record can be confirmed, and confirmation creates exactly one
-formal entity plus a source relation, then marks the record `confirmed`.
+parses asynchronously through the gateways, then auto-confirms directly to a
+Task with status='todo' without waiting for user review.
 """
 
 from __future__ import annotations
@@ -30,8 +29,16 @@ from app.services.storage.providers.local import get_storage
 VOICE_SCHEMA_VERSION = "voice-task.v1"
 
 _PARSE_SYSTEM = (
-    "你是把中文自然语言转成结构化任务候选的助手。缺失信息保持为 null，不得编造。"
-    "只输出符合 voice-task.v1 的 JSON。"
+    "你是把中文自然语言转成结构化任务候选的助手。"
+    "输入文本来自浏览器实时语音识别（ASR），可能存在识别错误，"
+    "请先按中文语境纠正后再解析：\n"
+    "1. 同音字/近音字：结合任务管理语境纠正（如“会以”→“会议”、“提醒我”而非“提行我”、"
+    "“联系房东”而非“联系房洞”、“预定”/“预订”按语义择一）。\n"
+    "2. 数字、日期、时间：把口语与误听规范化（如“两点半”→14:30、“明天”按 local_date、"
+    "“下礼拜三”→具体日期、“半个小时”→30 分钟）。\n"
+    "3. 缺失的词边界与标点按语义补齐，但不得改变原意、不得新增未提及的信息。\n"
+    "纠正只用于 title、description 等结构化字段；original_text 必须保留未经改动的原始识别文本。\n"
+    "缺失信息保持为 null，不得编造。只输出符合 voice-task.v1 的 JSON。"
 )
 
 
@@ -183,16 +190,49 @@ def run_pipeline(
 
     record.parsed_payload_json = candidate.model_dump(mode="json")
     record.schema_version = VOICE_SCHEMA_VERSION
-    record.status = "waiting_user"
     record.error_code = None
     record.error_message = None
+
+    # Auto-confirm: create the task directly without user review.
+    entity_type = candidate.content_type
+    task = Task(
+        id=uuid.uuid4(),
+        user_id=record.user_id,
+        type="task" if entity_type == "reminder" else entity_type,
+        title=candidate.title,
+        description=candidate.description,
+        status="todo",
+        priority=candidate.priority,
+        importance=4 if candidate.important else 0,
+        is_fixed=entity_type == "fixed_event",
+        is_ai_adjustable=entity_type != "fixed_event",
+        source_type="voice",
+        source_id=record.id,
+    )
+    session.add(task)
+    session.flush()
+    session.add(
+        EntityRelation(
+            id=uuid.uuid4(),
+            user_id=record.user_id,
+            source_type="voice_record",
+            source_id=record.id,
+            target_type="task",
+            target_id=task.id,
+            relation_type="converted_to",
+        )
+    )
+    record.status = "confirmed"
+    record.confirmed_entity_type = entity_type
+    record.confirmed_entity_id = task.id
+    record.confirmed_at = datetime.now(UTC)
     if job:
         jobs_service.transition(
             session,
             job,
-            status="waiting_user",
+            status="completed",
             progress=100,
-            current_step="请确认语音识别结果",
+            current_step="任务已创建",
         )
     return record
 

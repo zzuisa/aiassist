@@ -88,6 +88,38 @@ def cmd_outbox_publisher() -> int:
     return 0
 
 
+def cmd_flush_voice_queue() -> int:
+    """Auto-confirm all voice records stuck in waiting_user state."""
+    from sqlalchemy import select
+
+    from app.db.session import session_scope
+    from app.models.voice import VoiceRecord
+    from app.modules.voice import service as voice_service
+    from app.services.llm.schemas import VoiceTaskV1
+
+    with session_scope() as s:
+        records = list(
+            s.scalars(
+                select(VoiceRecord).where(VoiceRecord.status == "waiting_user")
+            ).all()
+        )
+        confirmed = 0
+        skipped = 0
+        for record in records:
+            if not record.parsed_payload_json:
+                skipped += 1
+                continue
+            try:
+                candidate = VoiceTaskV1.model_validate(record.parsed_payload_json)
+                voice_service.confirm(s, record.user_id, record.id, candidate)
+                confirmed += 1
+            except Exception as exc:
+                print(f"  skip {record.id}: {exc}", file=__import__("sys").stderr)
+                skipped += 1
+    print(f"Flushed: {confirmed} confirmed, {skipped} skipped.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aiassist")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -97,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     p_health = sub.add_parser("healthcheck")
     p_health.add_argument("--url", default="http://localhost:8000/health/live")
     sub.add_parser("outbox-publisher")
+    sub.add_parser("flush-voice-queue")
 
     args = parser.parse_args(argv)
     if args.command == "migrate":
@@ -107,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_healthcheck(args.url)
     if args.command == "outbox-publisher":
         return cmd_outbox_publisher()
+    if args.command == "flush-voice-queue":
+        return cmd_flush_voice_queue()
     parser.error("unknown command")
     return 2
 

@@ -1,4 +1,4 @@
-"""Voice pipeline: upload-first, provider failure, retry, waiting_user, confirm."""
+"""Voice pipeline: upload-first, provider failure, retry, auto-confirm to task."""
 
 from __future__ import annotations
 
@@ -85,19 +85,25 @@ def test_upload_first_returns_record_before_processing(make_user):
         assert record.async_job_id is not None
 
 
-def test_pipeline_reaches_waiting_user_with_candidate(make_user):
+def test_pipeline_auto_confirms_and_creates_task(make_user):
     user = make_user()
-    # The transcript embeds the JSON the fake LLM should echo.
     transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_candidate_json()}"
     with session_scope() as s:
         record = _make_voice(s, user.id, audio=transcript.encode())
         vid = record.id
+        uid = user.id
     speech = SpeechGatewayImpl(_ScriptedSpeech(transcript))
     llm = LLMGatewayImpl(FakeProvider())
     with session_scope() as s:
         record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
-        assert record.status == "waiting_user"
+        assert record.status == "confirmed"
         assert record.parsed_payload_json["title"] == "联系房东"
+        assert record.confirmed_entity_id is not None
+    with session_scope() as s:
+        from app.models.tasks import Task
+        from sqlalchemy import func, select
+
+        assert s.scalar(select(func.count()).select_from(Task).where(Task.user_id == uid)) == 1
 
 
 def test_transcription_failure_preserves_audio_and_allows_retry(make_user):
@@ -120,7 +126,7 @@ def test_transcription_failure_preserves_audio_and_allows_retry(make_user):
         voice_service.retry(s, user.id, vid)
     with session_scope() as s:
         record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
-        assert record.status == "waiting_user"
+        assert record.status == "confirmed"
 
 
 def test_invalid_llm_output_fails_without_creating_task(make_user):
@@ -143,7 +149,7 @@ def test_invalid_llm_output_fails_without_creating_task(make_user):
         assert s.scalar(select(func.count()).select_from(Task).where(Task.user_id == uid)) == 0
 
 
-def test_confirm_creates_one_entity_and_source_relation(make_user):
+def test_pipeline_creates_entity_and_source_relation(make_user):
     user = make_user()
     transcript = f"文本 <<JSON>>{_candidate_json()}"
     with session_scope() as s:
@@ -153,12 +159,9 @@ def test_confirm_creates_one_entity_and_source_relation(make_user):
     speech = SpeechGatewayImpl(_ScriptedSpeech(transcript))
     llm = LLMGatewayImpl(FakeProvider())
     with session_scope() as s:
-        voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
-
-    candidate = VoiceTaskV1.model_validate(json.loads(_candidate_json()))
-    with session_scope() as s:
-        entity_type, _entity_id = voice_service.confirm(s, uid, vid, candidate)
-        assert entity_type == "reminder"
+        record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
+        assert record.status == "confirmed"
+        assert record.confirmed_entity_type == "reminder"
 
     with session_scope() as s:
         from app.models.relations import EntityRelation
@@ -171,8 +174,8 @@ def test_confirm_creates_one_entity_and_source_relation(make_user):
         assert rel.relation_type == "converted_to"
 
 
-def test_from_transcript_parses_without_audio(make_user):
-    """Real-time recognition path: text -> parse -> waiting_user, no audio asset."""
+def test_from_transcript_auto_confirms_without_audio(make_user):
+    """Real-time recognition path: text -> parse -> auto-confirm, no audio asset."""
     user = make_user()
     transcript = f"明天下午三点提醒我联系房东 <<JSON>>{_candidate_json()}"
     speech = SpeechGatewayImpl(_ScriptedSpeech("unused"))
@@ -185,11 +188,13 @@ def test_from_transcript_parses_without_audio(make_user):
 
     with session_scope() as s:
         record = voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
-        assert record.status == "waiting_user"
+        assert record.status == "confirmed"
         assert record.parsed_payload_json["title"] == "联系房东"
+        assert record.confirmed_entity_id is not None
 
 
-def test_double_confirm_rejected(make_user):
+def test_explicit_confirm_after_auto_confirm_rejected(make_user):
+    """Pipeline auto-confirms; calling confirm() again raises ConflictError."""
     from app.core.errors import ConflictError
 
     user = make_user()
@@ -203,8 +208,6 @@ def test_double_confirm_rejected(make_user):
     with session_scope() as s:
         voice_service.run_pipeline(s, vid, speech=speech, llm=llm)
     candidate = VoiceTaskV1.model_validate(json.loads(_candidate_json()))
-    with session_scope() as s:
-        voice_service.confirm(s, uid, vid, candidate)
     with session_scope() as s, pytest.raises(ConflictError):
         voice_service.confirm(s, uid, vid, candidate)
 
