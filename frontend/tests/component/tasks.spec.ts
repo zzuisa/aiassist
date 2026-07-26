@@ -79,4 +79,11 @@ describe('TaskCard', () => {
     await wrapper.get('.check').trigger('click')
     expect(wrapper.emitted('complete')?.[0]).toEqual([task])
   })
+
+  it('emits add-to-calendar from the swipe action', async () => {
+    const task = makeTask()
+    const wrapper = mount(TaskCard, { props: { task } })
+    await wrapper.get('.cal-action').trigger('click')
+    expect(wrapper.emitted('add-to-calendar')?.[0]).toEqual([task])
+  })
 })

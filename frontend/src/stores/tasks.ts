@@ -7,6 +7,14 @@ export const useTasksStore = defineStore('tasks', () => {
   const items = ref<Task[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  // A monotonic signal every view can watch to stay in sync: any task mutation
+  // (here or elsewhere, e.g. a calendar drag) bumps it, so the Today list and the
+  // calendar refetch and never drift apart.
+  const changedAt = ref(0)
+
+  function markChanged(): void {
+    changedAt.value = Date.now()
+  }
 
   async function load(status?: string): Promise<void> {
     loading.value = true
@@ -24,23 +32,27 @@ export const useTasksStore = defineStore('tasks', () => {
   async function create(body: TaskCreate): Promise<Task> {
     const task = await tasksApi.create(body)
     items.value = [task, ...items.value]
+    markChanged()
     return task
   }
 
   async function complete(task: Task): Promise<void> {
     const updated = await tasksApi.complete(task.id, task.version)
     replace(updated)
+    markChanged()
   }
 
   async function patch(id: string, body: Record<string, unknown>): Promise<Task> {
     const updated = await tasksApi.patch(id, body)
     replace(updated)
+    markChanged()
     return updated
   }
 
   async function remove(id: string): Promise<void> {
     await tasksApi.remove(id)
     items.value = items.value.filter((t) => t.id !== id)
+    markChanged()
   }
 
   function replace(task: Task): void {
@@ -49,5 +61,17 @@ export const useTasksStore = defineStore('tasks', () => {
     else items.value.unshift(task)
   }
 
-  return { items, loading, error, load, create, complete, patch, remove, replace }
+  return {
+    items,
+    loading,
+    error,
+    changedAt,
+    markChanged,
+    load,
+    create,
+    complete,
+    patch,
+    remove,
+    replace,
+  }
 })

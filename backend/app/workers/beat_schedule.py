@@ -28,4 +28,9 @@ celery.conf.beat_schedule = {
         "task": "app.workers.tasks.maintenance.reconcile_outbox",
         "schedule": 300.0,
     },
+    # Retire orphaned/stale background jobs so the task center stays clean.
+    "cleanup-stale-jobs": {
+        "task": "app.workers.tasks.maintenance.cleanup_stale_jobs",
+        "schedule": crontab(minute=15),
+    },
 }

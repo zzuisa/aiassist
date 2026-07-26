@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { tasksApi, type Task, type TodayDashboard } from '@/api/tasks'
 import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
@@ -65,6 +65,16 @@ async function onVoiceConfirmed(): Promise<void> {
   await refresh()
 }
 
+// Keep the Today list in sync with mutations from anywhere (including a calendar
+// drag): any task change bumps the store signal and we refetch. Also refresh when
+// the tab regains focus so it never shows a stale board.
+watch(() => store.changedAt, () => void refresh())
+function onVisible(): void {
+  if (document.visibilityState === 'visible') void refresh()
+}
+onMounted(() => document.addEventListener('visibilitychange', onVisible))
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
+
 onMounted(async () => {
   try {
     await refresh()
@@ -74,13 +84,30 @@ onMounted(async () => {
 })
 
 async function onCreate(title: string): Promise<void> {
-  await store.create({ title })
-  await refresh()
+  await store.create({ title }) // store.changedAt bump triggers refresh
 }
 
 async function onComplete(task: Task): Promise<void> {
-  await tasksApi.complete(task.id, task.version)
-  await refresh()
+  await store.complete(task)
+}
+
+// Left-swipe action: give an undated todo a concrete calendar slot (next full
+// hour today, or tomorrow 09:00 if it's already late), then it shows on the
+// calendar via the shared sync signal.
+async function onAddToCalendar(task: Task): Promise<void> {
+  const start = new Date()
+  start.setMinutes(0, 0, 0)
+  start.setHours(start.getHours() + 1)
+  if (start.getHours() >= 22 || start.getHours() < 7) {
+    start.setDate(start.getDate() + (start.getHours() >= 22 ? 1 : 0))
+    start.setHours(9, 0, 0, 0)
+  }
+  const end = new Date(start.getTime() + 30 * 60 * 1000)
+  await store.patch(task.id, {
+    version: task.version,
+    start_at: start.toISOString(),
+    due_at: end.toISOString(),
+  })
 }
 </script>
 
@@ -128,6 +155,7 @@ async function onComplete(task: Task): Promise<void> {
           :task="dashboard.current_task"
           @complete="onComplete"
           @open="() => {}"
+          @add-to-calendar="onAddToCalendar"
         />
       </section>
 
@@ -150,6 +178,7 @@ async function onComplete(task: Task): Promise<void> {
             :task="t"
             @complete="onComplete"
             @open="() => {}"
+          @add-to-calendar="onAddToCalendar"
           />
         </transition-group>
       </section>
@@ -172,6 +201,7 @@ async function onComplete(task: Task): Promise<void> {
             :task="t"
             @complete="onComplete"
             @open="() => {}"
+          @add-to-calendar="onAddToCalendar"
           />
         </transition-group>
       </section>
