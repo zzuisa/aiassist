@@ -13,25 +13,46 @@ const dashboard = ref<TodayDashboard | null>(null)
 const loading = ref(true)
 const pendingVoice = ref<VoiceRecord | null>(null)
 const confirmCandidate = ref<{ id: string; candidate: VoiceCandidate } | null>(null)
+const voiceError = ref('')
 
 async function refresh(): Promise<void> {
   dashboard.value = await tasksApi.today()
 }
 
-async function onVoiceCreated(record: VoiceRecord): Promise<void> {
-  pendingVoice.value = record
-  // Real-time path returns a candidate immediately; the audio path needs polling
-  // (SSE also drives this in the full app).
-  if (record.status === 'waiting_user' && record.candidate) {
-    confirmCandidate.value = { id: record.id, candidate: record.candidate }
-    return
+// Resolve a terminal voice status; returns true when nothing more to poll.
+async function settleVoice(rec: VoiceRecord): Promise<boolean> {
+  if (rec.status === 'confirmed') {
+    // Auto-confirm: the entity was already created server-side. Just refresh so
+    // the new task shows up immediately — no confirmation step needed.
+    pendingVoice.value = null
+    await refresh()
+    return true
   }
+  if (rec.status === 'waiting_user' && rec.candidate) {
+    // Legacy review flow: surface the confirmation drawer.
+    confirmCandidate.value = { id: rec.id, candidate: rec.candidate }
+    pendingVoice.value = null
+    return true
+  }
+  if (rec.status === 'failed') {
+    voiceError.value = rec.error?.message ?? '识别失败，请重试'
+    pendingVoice.value = null
+    return true
+  }
+  return false
+}
+
+async function onVoiceCreated(record: VoiceRecord): Promise<void> {
+  voiceError.value = ''
+  pendingVoice.value = record
+  // The real-time path parses synchronously and returns a terminal status
+  // (confirmed/failed) right away; the audio path stays 'parsing' and needs polling.
+  if (await settleVoice(record)) return
   const poll = async (): Promise<void> => {
     const latest = await voiceApi.get(record.id)
     pendingVoice.value = latest
-    if (latest.status === 'waiting_user' && latest.candidate) {
-      confirmCandidate.value = { id: latest.id, candidate: latest.candidate }
-    } else if (['transcribing', 'parsing', 'uploaded'].includes(latest.status)) {
+    if (await settleVoice(latest)) return
+    if (['transcribing', 'parsing', 'uploaded'].includes(latest.status)) {
       setTimeout(poll, 1500)
     }
   }
@@ -82,6 +103,11 @@ async function onComplete(task: Task): Promise<void> {
         class="voice-status"
         role="status"
       >语音处理中…</span>
+      <span
+        v-if="voiceError"
+        class="voice-error"
+        role="alert"
+      >{{ voiceError }}</span>
     </div>
 
     <p
@@ -182,6 +208,10 @@ async function onComplete(task: Task): Promise<void> {
 }
 .voice-status {
   color: var(--status-ai);
+  font-size: 0.85rem;
+}
+.voice-error {
+  color: var(--status-urgent);
   font-size: 0.85rem;
 }
 .overlay {
