@@ -8,13 +8,14 @@ Task with status='todo' without waiting for user review.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.models.foundation import AsyncJob
+from app.models.foundation import AsyncJob, User
 from app.models.relations import EntityRelation
 from app.models.tasks import Task
 from app.models.voice import UploadSession, VoiceRecord
@@ -30,16 +31,65 @@ VOICE_SCHEMA_VERSION = "voice-task.v1"
 
 _PARSE_SYSTEM = (
     "你是把中文自然语言转成结构化任务候选的助手。"
-    "输入文本来自浏览器实时语音识别（ASR），可能存在识别错误，"
+    "输入文本来自语音识别（ASR），可能存在识别错误，"
     "请先按中文语境纠正后再解析：\n"
     "1. 同音字/近音字：结合任务管理语境纠正（如“会以”→“会议”、“提醒我”而非“提行我”、"
     "“联系房东”而非“联系房洞”、“预定”/“预订”按语义择一）。\n"
-    "2. 数字、日期、时间：把口语与误听规范化（如“两点半”→14:30、“明天”按 local_date、"
-    "“下礼拜三”→具体日期、“半个小时”→30 分钟）。\n"
+    "2. 数字、日期、时间：把口语与误听规范化，并结合下方给出的“当前日期”把相对时间换算成"
+    "具体日期（如“明天”“下礼拜三”→ local_date 的 YYYY-MM-DD，“两点半”→ local_time 14:30，"
+    "“半个小时”→ duration_minutes 30）。\n"
     "3. 缺失的词边界与标点按语义补齐，但不得改变原意、不得新增未提及的信息。\n"
     "纠正只用于 title、description 等结构化字段；original_text 必须保留未经改动的原始识别文本。\n"
     "缺失信息保持为 null，不得编造。只输出符合 voice-task.v1 的 JSON。"
 )
+
+
+def _now_context(tz_name: str) -> str:
+    """Give the model 'today' so relative dates like 明天/下周三 resolve correctly."""
+    try:
+        now = datetime.now(ZoneInfo(tz_name))
+    except Exception:  # unknown tz -> fall back to UTC
+        now = datetime.now(UTC)
+        tz_name = "UTC"
+    weekday = "一二三四五六日"[now.weekday()]
+    return f"（当前日期：{now:%Y-%m-%d} 星期{weekday}，时区：{tz_name}）"
+
+
+def _calendar_bounds(
+    local_date: str | None,
+    local_time: str | None,
+    duration_minutes: int | None,
+    tz_name: str,
+) -> tuple[datetime | None, datetime | None]:
+    """Map a parsed local date/time/duration to timezone-aware UTC start/due.
+
+    Undated items -> (None, None) (a plain todo). A date without a time anchors to the
+    start of that day. A timed item defaults to a 30-minute duration when none is given.
+    """
+    if not local_date:
+        return None, None
+    try:
+        d = date.fromisoformat(local_date)
+    except ValueError:
+        return None, None
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = UTC
+    t = time(0, 0)
+    timed = False
+    if local_time:
+        try:
+            t = time.fromisoformat(local_time)
+            timed = True
+        except ValueError:
+            timed = False
+    start_local = datetime.combine(d, t, tzinfo=tz)
+    start_utc = start_local.astimezone(UTC)
+    if not timed:
+        return start_utc, None
+    minutes = duration_minutes if duration_minutes and duration_minutes > 0 else 30
+    return start_utc, start_utc + timedelta(minutes=minutes)
 
 
 def create_voice_record(session: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> VoiceRecord:
@@ -164,12 +214,14 @@ def run_pipeline(
         jobs_service.transition(
             session, job, status="processing", progress=70, current_step="正在解析"
         )
+    user = session.get(User, record.user_id)
+    tz_name = user.timezone if user else "UTC"
     try:
         candidate = llm.structured(
             StructuredRequest(
                 scenario="parse_voice_task",
                 system=_PARSE_SYSTEM,
-                user=record.transcript or "",
+                user=f"{_now_context(tz_name)}\n{record.transcript or ''}",
                 schema=VoiceTaskV1,
             )
         )
@@ -195,6 +247,9 @@ def run_pipeline(
 
     # Auto-confirm: create the task directly without user review.
     entity_type = candidate.content_type
+    start_at, due_at = _calendar_bounds(
+        candidate.local_date, candidate.local_time, candidate.duration_minutes, tz_name
+    )
     task = Task(
         id=uuid.uuid4(),
         user_id=record.user_id,
@@ -206,6 +261,8 @@ def run_pipeline(
         importance=4 if candidate.important else 0,
         is_fixed=entity_type == "fixed_event",
         is_ai_adjustable=entity_type != "fixed_event",
+        start_at=start_at,
+        due_at=due_at,
         source_type="voice",
         source_id=record.id,
     )

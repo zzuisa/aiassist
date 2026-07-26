@@ -5,7 +5,7 @@ import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
 import QuickTaskInput from '@/modules/tasks/QuickTaskInput.vue'
 import TaskCard from '@/modules/tasks/TaskCard.vue'
-import LiveVoiceInput from '@/modules/voice/LiveVoiceInput.vue'
+import VoiceRecorder from '@/modules/voice/VoiceRecorder.vue'
 import VoiceConfirmDrawer from '@/modules/voice/VoiceConfirmDrawer.vue'
 
 const store = useTasksStore()
@@ -97,7 +97,7 @@ async function onComplete(task: Task): Promise<void> {
     <QuickTaskInput @create="onCreate" />
 
     <div class="voice-row">
-      <LiveVoiceInput @candidate="onVoiceCreated" />
+      <VoiceRecorder @created="onVoiceCreated" />
       <span
         v-if="pendingVoice && pendingVoice.status !== 'waiting_user'"
         class="voice-status"

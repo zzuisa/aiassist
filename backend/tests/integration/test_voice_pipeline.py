@@ -100,10 +100,17 @@ def test_pipeline_auto_confirms_and_creates_task(make_user):
         assert record.parsed_payload_json["title"] == "联系房东"
         assert record.confirmed_entity_id is not None
     with session_scope() as s:
+        from datetime import UTC, datetime
+
         from app.models.tasks import Task
         from sqlalchemy import func, select
 
         assert s.scalar(select(func.count()).select_from(Task).where(Task.user_id == uid)) == 1
+        # Dated candidate (2026-07-24 15:00 Europe/Berlin, 20 min) must land on the
+        # calendar: start_at/due_at populated in UTC (CEST = UTC+2 in July).
+        task = s.scalar(select(Task).where(Task.user_id == uid))
+        assert task.start_at == datetime(2026, 7, 24, 13, 0, tzinfo=UTC)
+        assert task.due_at == datetime(2026, 7, 24, 13, 20, tzinfo=UTC)
 
 
 def test_transcription_failure_preserves_audio_and_allows_retry(make_user):
