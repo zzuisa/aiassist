@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { api, ApiError, setCsrfToken } from '@/api/client'
+import { api, ApiError, getCsrfToken, setCsrfToken, tryRefresh } from '@/api/client'
 import type { LoginResponse, User } from '@/api/types'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -17,6 +17,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe(): Promise<void> {
     try {
       user.value = await api.get<User>('/auth/me')
+      // The session is restored from the HttpOnly cookie on reload, but the CSRF
+      // token lives in memory only and is now null. Bootstrap it from the refresh
+      // cookie, otherwise unsafe requests (POST/PATCH/DELETE) fail with 403.
+      if (user.value && !getCsrfToken()) {
+        await tryRefresh()
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         user.value = null

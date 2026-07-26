@@ -68,7 +68,9 @@ async function toProblem(resp: Response): Promise<ProblemDetails> {
 // Refresh is attempted at most once per failed request; concurrent 401s share it.
 let refreshInFlight: Promise<boolean> | null = null
 
-async function tryRefresh(): Promise<boolean> {
+// Also used at app startup to bootstrap the in-memory CSRF token from the
+// refresh cookie (the token is memory-only and lost on page reload).
+export async function tryRefresh(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       const resp = await fetch(buildUrl('/auth/refresh'), {
