@@ -13,6 +13,7 @@ import { useTasksStore } from '@/stores/tasks'
 import SchedulePreviewDrawer from '@/modules/calendar/SchedulePreviewDrawer.vue'
 import CalendarEventPopover from '@/modules/calendar/CalendarEventPopover.vue'
 import CalendarEventNoteEditor from '@/modules/calendar/CalendarEventNoteEditor.vue'
+import TimeDayPicker from '@/modules/calendar/TimeDayPicker.vue'
 
 const tasks = useTasksStore()
 const week = ref<WeekCalendar | null>(null)
@@ -27,6 +28,37 @@ function openNote(): void {
   if (pop.value) {
     editorTask.value = pop.value.task
     closePop()
+  }
+}
+
+const pickerTask = ref<Task | null>(null)
+function openPicker(): void {
+  if (pop.value) {
+    pickerTask.value = pop.value.task
+    closePop()
+  }
+}
+async function onPickTime(iso: string): Promise<void> {
+  const t = pickerTask.value
+  pickerTask.value = null
+  if (!t) return
+  // Preserve the event's existing duration; default to 30 minutes.
+  const durMs =
+    t.due_at && t.start_at
+      ? new Date(t.due_at).getTime() - new Date(t.start_at).getTime()
+      : 30 * 60_000
+  const start = new Date(iso)
+  const outcome = await persistReschedule(
+    t,
+    start.toISOString(),
+    new Date(start.getTime() + durMs).toISOString(),
+  )
+  if (outcome.ok) {
+    banner.value = ''
+    await load()
+    tasks.markChanged()
+  } else {
+    banner.value = outcome.reason === 'fixed_event' ? '固定事件不能被移动。' : '保存失败，请重试。'
   }
 }
 // Drives the elapsed-time shading; refreshed every minute so the past/future
@@ -332,6 +364,7 @@ const options = computed<CalendarOptions>(() => ({
         :style="{ left: pop.x + 'px', top: pop.y + 'px' }"
         @toggle-complete="toggleComplete"
         @toggle-important="toggleImportant"
+        @adjust-time="openPicker"
         @add-note="openNote"
         @close="closePop"
       />
@@ -348,6 +381,13 @@ const options = computed<CalendarOptions>(() => ({
         @close="editorTask = null"
       />
     </div>
+    <TimeDayPicker
+      v-if="pickerTask"
+      :title="pickerTask.title"
+      :initial="pickerTask.start_at"
+      @confirm="onPickTime"
+      @cancel="pickerTask = null"
+    />
     <SchedulePreviewDrawer
       v-if="preview"
       :preview="preview"
@@ -459,5 +499,73 @@ const options = computed<CalendarOptions>(() => ({
   place-items: center;
   background: rgba(0, 0, 0, 0.4);
   padding: var(--space-4);
+}
+
+/* ---- Deep polish: modern, GPU-friendly, restrained (transform/opacity only) ---- */
+.calendar {
+  animation: cal-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes cal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.calendar-layout :deep(.fc-timegrid-event) {
+  border-radius: 8px;
+  border: none;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.16s ease,
+    filter 0.16s ease;
+}
+.calendar-layout :deep(.fc-timegrid-event:active) {
+  transform: scale(0.98);
+}
+@media (hover: hover) {
+  .calendar-layout :deep(.fc-timegrid-event:hover) {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    filter: brightness(1.03);
+    z-index: 3;
+  }
+}
+/* A gently pulsing "now" line so the current moment is always locatable (HCD). */
+.calendar-layout :deep(.fc-timegrid-now-indicator-line) {
+  border-color: var(--status-urgent);
+  animation: now-pulse 2.6s ease-in-out infinite;
+}
+@keyframes now-pulse {
+  50% {
+    box-shadow: 0 0 9px rgba(220, 38, 38, 0.45);
+  }
+}
+
+/* Mobile: the title is the priority — let it wrap to two lines and stay readable;
+   drop the time on very short events instead of cramming both. */
+@media (max-width: 720px) {
+  .calendar-layout :deep(.evt-title) {
+    font-size: 0.82rem;
+    line-height: 1.2;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .calendar-layout :deep(.evt-time) {
+    font-size: 0.64rem;
+  }
+  .calendar-layout :deep(.fc-timegrid-event-short .evt-time) {
+    display: none;
+  }
+  .calendar-layout :deep(.fc-timegrid-event-short .evt-title) {
+    -webkit-line-clamp: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar,
+  .calendar-layout :deep(.fc-timegrid-now-indicator-line) {
+    animation: none;
+  }
 }
 </style>

@@ -6,6 +6,7 @@ const props = defineProps<{ task: Task; busy?: boolean }>()
 const emit = defineEmits<{
   (e: 'toggle-complete'): void
   (e: 'toggle-important'): void
+  (e: 'adjust-time'): void
   (e: 'add-note'): void
   (e: 'close'): void
 }>()
@@ -72,6 +73,14 @@ const reminderText = computed(() => {
         @click="emit('toggle-important')"
       >
         {{ important ? '⭐ 取消重要' : '☆ 设为重要' }}
+      </button>
+      <button
+        type="button"
+        class="act"
+        :disabled="busy"
+        @click="emit('adjust-time')"
+      >
+        🕐 调整时间
       </button>
       <button
         type="button"

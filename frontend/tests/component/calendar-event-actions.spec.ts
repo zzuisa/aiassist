@@ -31,6 +31,13 @@ describe('CalendarEventPopover (US1)', () => {
     expect(w.text()).toContain('取消重要')
   })
 
+  it('emits adjust-time from the popover', async () => {
+    const w = mount(CalendarEventPopover, { props: { task: makeTask() } })
+    const btn = w.findAll('.act').find((b) => b.text().includes('调整时间'))!
+    await btn.trigger('click')
+    expect(w.emitted('adjust-time')).toBeTruthy()
+  })
+
   it('emits toggle-complete and toggle-important', async () => {
     const w = mount(CalendarEventPopover, { props: { task: makeTask() } })
     const btns = w.findAll('.act')
