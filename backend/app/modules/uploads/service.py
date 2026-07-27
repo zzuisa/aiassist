@@ -27,6 +27,21 @@ _MAX_BYTES = {
 }
 
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_ALLOWED_NOTE_TYPES = _ALLOWED_IMAGE_TYPES | {
+    "image/gif",
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+    "application/zip",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
 _ALLOWED_AUDIO_PREFIX = "audio/"
 
 
@@ -49,8 +64,10 @@ def create_session(
         raise ValidationError(
             f"Declared size exceeds limit ({max_bytes})", code="payload_too_large", status=413
         )
-    if purpose in ("capture", "post_cover", "task_note_image") and media_type not in _ALLOWED_IMAGE_TYPES:
+    if purpose in ("capture", "post_cover") and media_type not in _ALLOWED_IMAGE_TYPES:
         raise ValidationError("Unsupported image type", code="unsupported_media", status=415)
+    if purpose == "task_note_image" and media_type not in _ALLOWED_NOTE_TYPES:
+        raise ValidationError("Unsupported file type", code="unsupported_media", status=415)
     if purpose == "voice" and not media_type.startswith(_ALLOWED_AUDIO_PREFIX):
         raise ValidationError("Unsupported audio type", code="unsupported_media", status=415)
 

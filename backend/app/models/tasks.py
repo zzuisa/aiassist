@@ -172,9 +172,5 @@ class TaskNoteAsset(Base):
             "processing_status in ('pending','processing','ready','failed','deleted')",
             name="task_note_asset_status",
         ),
-        CheckConstraint(
-            "media_type in ('image/jpeg','image/png','image/webp')",
-            name="task_note_asset_media_type",
-        ),
         Index("ix_task_note_assets_user_note_deleted", "user_id", "note_id", "deleted_at"),
     )

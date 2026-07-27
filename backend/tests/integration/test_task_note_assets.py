@@ -28,6 +28,16 @@ def _make_task(s, user_id) -> Task:
     return t
 
 
+def _upload_file(s, user_id, data: bytes, media_type: str, name: str):
+    up = upload_service.create_session(
+        s, user_id, purpose='task_note_image', filename=name,
+        media_type=media_type, byte_size=len(data),
+    )
+    upload_service.store_bytes(s, up, io.BytesIO(data))
+    upload_service.complete(s, user_id, up.id)
+    return up
+
+
 def _upload(s, user_id, data: bytes):
     up = upload_service.create_session(
         s, user_id, purpose="task_note_image", filename="a.jpg",
@@ -113,3 +123,17 @@ def test_foreign_task_note_not_found(make_user):
         task = _make_task(s, owner.id)
         with pytest.raises(NotFoundError):
             note_service.get_note(s, other.id, task.id)
+
+
+def test_attach_non_image_file_without_preview(make_user):
+    """A PDF (or other allowed file) attaches as-is: ready, no thumbnail."""
+    user = make_user()
+    with session_scope() as s:
+        task = _make_task(s, user.id)
+        up = _upload_file(s, user.id, b"%PDF-1.4 fake pdf bytes", "application/pdf", "doc.pdf")
+        note, results = note_service.attach_images(s, user.id, task.id, [up.id])
+        assert results[0]["status"] == "attached"
+        a = note_service.list_assets(s, note.id)[0]
+        assert a.media_type == "application/pdf"
+        assert a.processing_status == "ready"
+        assert a.preview_storage_key is None

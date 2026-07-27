@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { tasksApi, type Task, type TodayDashboard } from '@/api/tasks'
 import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
@@ -18,6 +18,14 @@ const voiceError = ref('')
 async function refresh(): Promise<void> {
   dashboard.value = await tasksApi.today()
 }
+
+// The daily list strictly follows the calendar: today's scheduled events,
+// time-ordered. Undated open tasks live in a separate "待安排" section and can
+// be swiped onto the calendar. Mutations sync both views via the store signal.
+const todayList = computed(() => dashboard.value?.timeline ?? [])
+const unscheduled = computed(() =>
+  (dashboard.value?.todos ?? []).filter((t) => !t.start_at && t.status !== 'completed'),
+)
 
 // Resolve a terminal voice status; returns true when nothing more to poll.
 async function settleVoice(rec: VoiceRecord): Promise<boolean> {
@@ -159,13 +167,13 @@ async function onAddToCalendar(task: Task): Promise<void> {
         />
       </section>
 
-      <section aria-label="待办">
-        <h2>待办 ({{ dashboard.todos.length }})</h2>
+      <section aria-label="今日日历">
+        <h2>今日日历 ({{ todayList.length }})</h2>
         <p
-          v-if="dashboard.todos.length === 0"
+          v-if="todayList.length === 0"
           class="muted"
         >
-          今天还没有待办。
+          今天日历上还没有安排。
         </p>
         <transition-group
           name="list"
@@ -173,12 +181,34 @@ async function onAddToCalendar(task: Task): Promise<void> {
           class="list"
         >
           <TaskCard
-            v-for="t in dashboard.todos"
+            v-for="t in todayList"
             :key="t.id"
             :task="t"
             @complete="onComplete"
             @open="() => {}"
-          @add-to-calendar="onAddToCalendar"
+            @add-to-calendar="onAddToCalendar"
+          />
+        </transition-group>
+      </section>
+
+      <section
+        v-if="unscheduled.length"
+        aria-label="待安排"
+      >
+        <h2>待安排 ({{ unscheduled.length }})</h2>
+        <p class="muted small">左滑任务可加入日历</p>
+        <transition-group
+          name="list"
+          tag="div"
+          class="list"
+        >
+          <TaskCard
+            v-for="t in unscheduled"
+            :key="t.id"
+            :task="t"
+            @complete="onComplete"
+            @open="() => {}"
+            @add-to-calendar="onAddToCalendar"
           />
         </transition-group>
       </section>

@@ -22,6 +22,8 @@ from app.modules.tasks import service as task_service
 from app.services.storage.providers.local import get_storage
 
 _PREVIEW_MAX = 1280
+# Only these get a generated thumbnail; other files attach as-is (basic card).
+_PREVIEWABLE_IMAGE = {"image/jpeg", "image/png", "image/webp"}
 PROCESSING_VERSION = "tna-1"
 
 
@@ -112,7 +114,11 @@ def attach_images(
                     raise ConflictError("Already attached", code="already_attached")
 
                 data = b"".join(storage.open_stream(upload.object_key_temp))
-                width, height = validate_image(data, upload.expected_media_type)
+                media_type = upload.expected_media_type
+                is_image = media_type in _PREVIEWABLE_IMAGE
+                width = height = None
+                if is_image:
+                    width, height = validate_image(data, media_type)
 
                 asset = TaskNoteAsset(
                     id=uuid.uuid4(),
@@ -120,32 +126,34 @@ def attach_images(
                     note_id=note.id,
                     upload_id=upload_id,
                     storage_key=upload.object_key_temp,
-                    filename=upload.filename or "image",
-                    media_type=upload.expected_media_type,
+                    filename=upload.filename or "file",
+                    media_type=media_type,
                     byte_size=upload.byte_size or len(data),
                     sha256=upload.sha256,
                     width=width,
                     height=height,
                     position=_next_position(session, note.id),
-                    processing_status="pending",
+                    processing_status="pending" if is_image else "ready",
                     processing_version=PROCESSING_VERSION,
                 )
                 session.add(asset)
                 session.flush()
 
-                # Sanitized (EXIF/GPS-stripped) preview; original stays private.
-                try:
-                    preview = make_sanitized_derivative(data, max_size=_PREVIEW_MAX)
-                    preview_key = f"assets/{user_id}/{asset.id.hex}-preview.webp"
-                    storage.put_stream(
-                        preview_key, io.BytesIO(preview), media_type="image/webp",
-                        max_bytes=len(preview) + 1,
-                    )
-                    asset.preview_storage_key = preview_key
-                    asset.processing_status = "ready"
-                except Exception as exc:  # preview failure keeps the original attached
-                    asset.processing_status = "failed"
-                    asset.last_error = str(exc)[:255]
+                # Only images get a sanitized (EXIF/GPS-stripped) thumbnail; other
+                # files attach as-is. The private original is served via access.
+                if is_image:
+                    try:
+                        preview = make_sanitized_derivative(data, max_size=_PREVIEW_MAX)
+                        preview_key = f"assets/{user_id}/{asset.id.hex}-preview.webp"
+                        storage.put_stream(
+                            preview_key, io.BytesIO(preview), media_type="image/webp",
+                            max_bytes=len(preview) + 1,
+                        )
+                        asset.preview_storage_key = preview_key
+                        asset.processing_status = "ready"
+                    except Exception as exc:  # preview failure keeps the original attached
+                        asset.processing_status = "failed"
+                        asset.last_error = str(exc)[:255]
 
             results.append({"upload_id": str(upload_id), "status": "attached", "asset_id": str(asset.id)})
         except (ValidationError, ConflictError, NotFoundError) as exc:

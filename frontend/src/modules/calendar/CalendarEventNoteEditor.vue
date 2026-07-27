@@ -32,14 +32,28 @@ async function load(): Promise<void> {
   await loadPreviews()
 }
 
+function isImage(a: NoteAsset): boolean {
+  return a.media_type.startsWith('image/')
+}
+function fileIcon(a: NoteAsset): string {
+  if (a.media_type === 'application/pdf') return '📄'
+  if (a.media_type.startsWith('text/')) return '📃'
+  if (a.media_type === 'application/zip') return '🗜️'
+  if (a.media_type.includes('sheet') || a.media_type.includes('excel')) return '📊'
+  if (a.media_type.includes('word') || a.media_type.includes('document')) return '📝'
+  if (a.media_type.includes('presentation') || a.media_type.includes('powerpoint')) return '📑'
+  return '📎'
+}
 async function loadPreviews(): Promise<void> {
+  // Fetch an access URL for every ready asset: images render as a thumbnail,
+  // other files render as a clickable card that opens the original.
   for (const a of assets.value) {
-    if (a.processing_status === 'ready' && !previews.value[a.id]) {
+    if (a.processing_status !== 'failed' && !previews.value[a.id]) {
       try {
         const { url } = await taskNotesApi.access(props.taskId, a.id)
         previews.value[a.id] = url
       } catch {
-        /* preview optional */
+        /* access optional */
       }
     }
   }
@@ -152,7 +166,7 @@ async function retry(item: Batch): Promise<void> {
         + 添加图片
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf,text/plain,text/markdown,text/csv,application/json,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
           multiple
           hidden
           @change="onFiles"
@@ -192,21 +206,26 @@ async function retry(item: Batch): Promise<void> {
       v-if="assets.length"
       class="gallery"
     >
-      <div
+      <a
         v-for="a in assets"
         :key="a.id"
         class="thumb"
+        :class="{ file: !isImage(a) }"
+        :href="previews[a.id] || undefined"
+        :target="previews[a.id] ? '_blank' : undefined"
+        rel="noopener"
+        :title="a.filename"
       >
         <img
-          v-if="previews[a.id]"
+          v-if="isImage(a) && previews[a.id]"
           :src="previews[a.id]"
           :alt="a.filename"
         />
-        <span
-          v-else
-          class="ph"
-        >{{ a.processing_status === 'failed' ? '⚠️' : '🖼️' }}</span>
-      </div>
+        <template v-else>
+          <span class="ph">{{ a.processing_status === 'failed' ? '⚠️' : fileIcon(a) }}</span>
+          <span class="fname">{{ a.filename }}</span>
+        </template>
+      </a>
     </div>
   </div>
 </template>
@@ -327,5 +346,26 @@ header {
 }
 .ph {
   font-size: 1.4rem;
+}
+.thumb.file {
+  width: auto;
+  min-width: 96px;
+  max-width: 160px;
+  height: auto;
+  padding: var(--space-2);
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  color: var(--color-text);
+}
+.thumb {
+  text-decoration: none;
+}
+.fname {
+  font-size: 0.68rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
