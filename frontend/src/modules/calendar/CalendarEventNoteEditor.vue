@@ -6,6 +6,7 @@ import {
   type NoteAsset,
   type TaskNote,
 } from '@/api/taskNotes'
+import NoteAttachmentViewer from '@/modules/calendar/NoteAttachmentViewer.vue'
 
 const props = defineProps<{ taskId: string; title: string }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>()
@@ -15,6 +16,13 @@ const version = ref<number>(0)
 const assets = ref<NoteAsset[]>([])
 const previews = ref<Record<string, string>>({})
 const savingText = ref(false)
+const viewerIndex = ref<number | null>(null)
+
+function openViewer(a: NoteAsset): void {
+  if (a.processing_status === 'failed') return
+  const i = assets.value.findIndex((x) => x.id === a.id)
+  if (i >= 0) viewerIndex.value = i
+}
 const textError = ref('')
 
 interface Batch {
@@ -201,15 +209,14 @@ async function retry(item: Batch): Promise<void> {
       v-if="assets.length"
       class="gallery"
     >
-      <a
+      <button
         v-for="a in assets"
         :key="a.id"
+        type="button"
         class="thumb"
         :class="{ file: !isImage(a) }"
-        :href="previews[a.id] || undefined"
-        :target="previews[a.id] ? '_blank' : undefined"
-        rel="noopener"
         :title="a.filename"
+        @click="openViewer(a)"
       >
         <img
           v-if="isImage(a) && previews[a.id]"
@@ -220,8 +227,16 @@ async function retry(item: Batch): Promise<void> {
           <span class="ph">{{ a.processing_status === 'failed' ? '⚠️' : fileIcon(a) }}</span>
           <span class="fname">{{ a.filename }}</span>
         </template>
-      </a>
+      </button>
     </div>
+
+    <NoteAttachmentViewer
+      v-if="viewerIndex !== null"
+      :assets="assets"
+      :task-id="taskId"
+      :start-index="viewerIndex"
+      @close="viewerIndex = null"
+    />
   </div>
 </template>
 
@@ -326,6 +341,9 @@ header {
   gap: var(--space-2);
 }
 .thumb {
+  border: none;
+  cursor: pointer;
+  padding: 0;
   width: 72px;
   height: 72px;
   border-radius: var(--radius-sm);
