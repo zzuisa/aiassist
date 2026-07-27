@@ -92,11 +92,13 @@ onMounted(async () => {
 })
 
 async function onCreate(title: string): Promise<void> {
-  await store.create({ title }) // store.changedAt bump triggers refresh
+  await store.create({ title })
+  await refresh() // reflect the new task immediately
 }
 
 async function onComplete(task: Task): Promise<void> {
   await store.complete(task)
+  await refresh()
 }
 
 // Left-swipe action: give an undated todo a concrete calendar slot (next full
@@ -116,6 +118,7 @@ async function onAddToCalendar(task: Task): Promise<void> {
     start_at: start.toISOString(),
     due_at: end.toISOString(),
   })
+  await refresh()
 }
 </script>
 
