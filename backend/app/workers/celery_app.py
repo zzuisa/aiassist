@@ -56,6 +56,7 @@ TASK_ROUTES = {
     "app.workers.tasks.scheduling.*": {"queue": "schedule"},
     "app.workers.tasks.search.*": {"queue": "search"},
     "app.workers.tasks.voice.*": {"queue": "voice"},
+    "app.workers.tasks.plan.*": {"queue": "llm"},
     "app.workers.tasks.images.*": {"queue": "image"},
     "app.workers.tasks.capture_ai.*": {"queue": "llm"},
     "app.workers.tasks.blog.*": {"queue": "llm"},
@@ -94,6 +95,7 @@ celery.conf.imports = (
     "app.workers.tasks.capture_ai",
     "app.workers.tasks.search",
     "app.workers.tasks.blog",
+    "app.workers.tasks.plan",
 )
 
 

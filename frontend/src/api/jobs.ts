@@ -3,6 +3,7 @@ import type { AsyncJob } from '@/api/types'
 // Business-language names for job types (FR-094: no queue/executor jargon).
 const JOB_LABELS: Record<string, string> = {
   'voice.transcribe': '语音识别',
+  'plan.analyze': 'AI 安排待办',
   'capture.process': '图片处理',
   'capture.analyze': '图片分析',
   'image.process': '图片处理',

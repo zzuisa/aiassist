@@ -11,6 +11,9 @@ export const useJobsStore = defineStore('jobs', () => {
   const notifications = ref<NotificationItem[]>([])
   const connected = ref(false)
   const reconnecting = ref(false)
+  // Bumped on any quick-add plan job event so the Today view can refetch once the
+  // background analysis finishes creating tasks.
+  const planTick = ref(0)
   let source: EventSource | null = null
   let lastEventId = ''
 
@@ -50,7 +53,11 @@ export const useJobsStore = defineStore('jobs', () => {
       updated_at: (data.updated_at as string) ?? existing?.updated_at ?? '',
       finished_at: (data.finished_at as string) ?? existing?.finished_at ?? null,
       entity: (data.entity as AsyncJob['entity']) ?? existing?.entity ?? null,
+      result: (data.result as AsyncJob['result']) ?? existing?.result ?? null,
     })
+    if (((data.job_type as string) ?? existing?.job_type) === 'plan.analyze') {
+      planTick.value += 1
+    }
   }
 
   function applySnapshot(data: Record<string, unknown>): void {
@@ -127,6 +134,7 @@ export const useJobsStore = defineStore('jobs', () => {
     notifications,
     connected,
     reconnecting,
+    planTick,
     activeJobs,
     failedJobs,
     unreadCount,

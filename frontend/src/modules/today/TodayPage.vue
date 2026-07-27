@@ -3,8 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { tasksApi, type Task, type TodayDashboard } from '@/api/tasks'
 import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
+import { planApi } from '@/api/plan'
+import { useJobsStore } from '@/stores/jobs'
 import QuickTaskInput from '@/modules/tasks/QuickTaskInput.vue'
-import QuickPlanReview from '@/modules/today/QuickPlanReview.vue'
 import TaskCard from '@/modules/tasks/TaskCard.vue'
 import VoiceRecorder from '@/modules/voice/VoiceRecorder.vue'
 import VoiceConfirmDrawer from '@/modules/voice/VoiceConfirmDrawer.vue'
@@ -92,23 +93,17 @@ onMounted(async () => {
   }
 })
 
-// Quick-add routes through the analysis panel: the LLM splits it into scheduled
-// tasks and may ask a couple of questions; the user can answer, save the plan, or
-// bail out to a plain todo at any time.
-const planText = ref<string | null>(null)
+// Quick-add is instant: it enqueues a background analysis job (splits the line
+// into scheduled tasks, may ask questions in the task center). Tasks appear here
+// once the job finishes — the jobs store's planTick triggers a refetch.
+const jobsStore = useJobsStore()
+const planNote = ref('')
 async function onCreate(title: string): Promise<void> {
-  planText.value = title
+  await planApi.create(title)
+  planNote.value = '已加入后台分析，稍后在「后台任务」查看或回答问题'
+  setTimeout(() => (planNote.value = ''), 6000)
 }
-async function onPlanSaved(): Promise<void> {
-  planText.value = null
-  await refresh()
-  store.markChanged()
-}
-async function onPlanSaveRaw(title: string): Promise<void> {
-  planText.value = null
-  await store.create({ title })
-  await refresh()
-}
+watch(() => jobsStore.planTick, () => void refresh())
 
 async function onComplete(task: Task): Promise<void> {
   await store.complete(task)
@@ -147,6 +142,11 @@ async function onAddToCalendar(task: Task): Promise<void> {
     </header>
 
     <QuickTaskInput @create="onCreate" />
+    <p
+      v-if="planNote"
+      class="plan-note"
+      role="status"
+    >🧠 {{ planNote }}</p>
 
     <div class="voice-row">
       <VoiceRecorder @created="onVoiceCreated" />
@@ -266,13 +266,6 @@ async function onAddToCalendar(task: Task): Promise<void> {
       />
     </div>
 
-    <QuickPlanReview
-      v-if="planText"
-      :text="planText"
-      @saved="onPlanSaved"
-      @save-raw="onPlanSaveRaw"
-      @close="planText = null"
-    />
   </main>
 </template>
 
@@ -292,6 +285,11 @@ async function onAddToCalendar(task: Task): Promise<void> {
   gap: var(--space-3);
 }
 .voice-status {
+  color: var(--status-ai);
+  font-size: 0.85rem;
+}
+.plan-note {
+  margin: 0;
   color: var(--status-ai);
   font-size: 0.85rem;
 }

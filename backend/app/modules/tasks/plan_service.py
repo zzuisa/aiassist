@@ -127,3 +127,126 @@ def commit(session: Session, user_id: uuid.UUID, tasks: list[VoiceTaskV1]) -> li
         reminder_service.sync_important_reminder(session, task)
         created.append(task)
     return created
+
+
+# --- Async orchestration: quick-add -> background job -> (optional) Q&A -> tasks ---
+from app.core.errors import ConflictError, NotFoundError  # noqa: E402
+from app.models.foundation import AsyncJob  # noqa: E402
+from app.modules.jobs import service as jobs_service  # noqa: E402
+
+_FACTS_KEY = "_profile"  # namespaced inside users.notification_preferences (no migration)
+_MAX_ROUNDS = 2
+_MAX_MEMORY_QA = 12
+
+
+def get_user_facts(user: User) -> list[dict]:
+    prefs = user.notification_preferences or {}
+    return list((prefs.get(_FACTS_KEY) or {}).get("qa") or [])
+
+
+def _remember(user: User, qa: list[tuple[str, str]]) -> None:
+    """Persist answered Q&A so future quick-adds are smarter (加深记忆)."""
+    prefs = dict(user.notification_preferences or {})
+    profile = dict(prefs.get(_FACTS_KEY) or {})
+    memory = list(profile.get("qa") or [])
+    seen = {m["q"] for m in memory}
+    for q, a in qa:
+        if a and q not in seen:
+            memory.append({"q": q, "a": a})
+    profile["qa"] = memory[-_MAX_MEMORY_QA:]
+    prefs[_FACTS_KEY] = profile
+    user.notification_preferences = prefs
+
+
+def create_plan_job(session: Session, user_id: uuid.UUID, text: str) -> AsyncJob:
+    """Enqueue background analysis of a quick-add line. Creates nothing yet."""
+    job = jobs_service.create_job(
+        session, user_id=user_id, job_type="plan.analyze", entity_type="plan"
+    )
+    jobs_service.transition(
+        session, job, status="queued", progress=10, current_step="正在后台分析安排",
+        result={"text": text, "answers": [], "rounds": 0},
+    )
+    return job
+
+
+def _job_answers(job: AsyncJob) -> list[tuple[str, str]]:
+    return [(a["q"], a["a"]) for a in (job.result_json or {}).get("answers", [])]
+
+
+def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = None) -> AsyncJob:
+    """Worker step: analyze; ask (waiting_user) if needed, else create the tasks."""
+    job = session.get(AsyncJob, job_id)
+    if job is None or job.job_type != "plan.analyze":
+        raise NotFoundError("Plan job not found")
+    data = dict(job.result_json or {})
+    text = data.get("text", "")
+    rounds = int(data.get("rounds", 0))
+    user = session.get(User, job.user_id)
+    # Persistent memory + this job's answers both inform the analysis.
+    answers = _job_answers(job) + [(m["q"], m["a"]) for m in get_user_facts(user)] if user else []
+    jobs_service.transition(session, job, status="processing", progress=50, current_step="正在分析")
+    try:
+        plan = analyze(session, job.user_id, text, answers, llm=llm)
+    except Exception as exc:  # noqa: BLE001 — surface as a retryable failure
+        jobs_service.transition(
+            session, job, status="failed", error_code="analyze_failed",
+            error_message="分析失败，可稍后重试或直接保存", error_retryable=True,
+        )
+        raise exc
+
+    if plan.questions and rounds < _MAX_ROUNDS:
+        data.update(
+            {
+                "questions": list(plan.questions),
+                "tasks": [t.model_dump(mode="json") for t in plan.tasks],
+                "summary": plan.summary,
+            }
+        )
+        jobs_service.transition(
+            session, job, status="waiting_user", progress=70,
+            current_step="需要你回答几个问题", result=data,
+        )
+        return job
+
+    created = commit(session, job.user_id, list(plan.tasks))
+    jobs_service.transition(
+        session, job, status="completed", progress=100,
+        current_step=f"已创建 {len(created)} 项", result={"created": len(created), "summary": plan.summary},
+    )
+    return job
+
+
+def answer_plan(
+    session: Session, user_id: uuid.UUID, job_id: uuid.UUID, answers: list[tuple[str, str]]
+) -> AsyncJob:
+    job = jobs_service.get_owned_job(session, user_id, job_id)
+    if job.status != "waiting_user":
+        raise ConflictError("Job is not awaiting answers", code="not_waiting")
+    data = dict(job.result_json or {})
+    stored = list(data.get("answers", []))
+    stored.extend({"q": q, "a": a} for q, a in answers if a)
+    data["answers"] = stored
+    data["rounds"] = int(data.get("rounds", 0)) + 1
+    user = session.get(User, user_id)
+    if user is not None:
+        _remember(user, answers)
+    jobs_service.transition(
+        session, job, status="queued", progress=40, current_step="根据你的回答重新分析", result=data
+    )
+    return job
+
+
+def skip_plan(session: Session, user_id: uuid.UUID, job_id: uuid.UUID) -> AsyncJob:
+    """Save whatever was planned so far without answering the questions."""
+    job = jobs_service.get_owned_job(session, user_id, job_id)
+    if job.status != "waiting_user":
+        raise ConflictError("Job is not awaiting answers", code="not_waiting")
+    data = dict(job.result_json or {})
+    candidates = [VoiceTaskV1.model_validate(t) for t in data.get("tasks", [])]
+    created = commit(session, user_id, candidates)
+    jobs_service.transition(
+        session, job, status="completed", progress=100,
+        current_step=f"已创建 {len(created)} 项", result={"created": len(created)},
+    )
+    return job

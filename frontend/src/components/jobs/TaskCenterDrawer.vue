@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import { useJobsStore } from '@/stores/jobs'
 import { jobLabel, formatTime, formatDuration } from '@/api/jobs'
+import { planApi } from '@/api/plan'
 import type { AsyncJob } from '@/api/types'
 
 // Global task center: active / waiting / failed sections with business copy,
@@ -25,6 +26,40 @@ async function retry(job: AsyncJob): Promise<void> {
 }
 async function cancel(job: AsyncJob): Promise<void> {
   await api.post(`/jobs/${job.id}/cancel`)
+}
+
+// --- Quick-add plan Q&A (answered right here in the task center) ---
+function planQuestions(job: AsyncJob): string[] {
+  return ((job.result?.questions as string[]) ?? []) as string[]
+}
+const answers = ref<Record<string, string>>({})
+const planBusy = ref<Record<string, boolean>>({})
+function aKey(jobId: string, i: number): string {
+  return `${jobId}:${i}`
+}
+async function submitAnswers(job: AsyncJob): Promise<void> {
+  const qs = planQuestions(job)
+  const payload = qs
+    .map((q, i) => ({ question: q, answer: (answers.value[aKey(job.id, i)] ?? '').trim() }))
+    .filter((x) => x.answer)
+  if (!payload.length) {
+    await skipPlan(job)
+    return
+  }
+  planBusy.value[job.id] = true
+  try {
+    await planApi.answer(job.id, payload)
+  } finally {
+    planBusy.value[job.id] = false
+  }
+}
+async function skipPlan(job: AsyncJob): Promise<void> {
+  planBusy.value[job.id] = true
+  try {
+    await planApi.skip(job.id)
+  } finally {
+    planBusy.value[job.id] = false
+  }
 }
 </script>
 
@@ -105,6 +140,35 @@ async function cancel(job: AsyncJob): Promise<void> {
             <span class="name">{{ jobLabel(job) }}</span>
           </div>
           <span class="step">{{ job.current_step ?? '请确认' }}</span>
+
+          <!-- Quick-add planner: answer here, or skip to save what it planned. -->
+          <template v-if="job.job_type === 'plan.analyze' && planQuestions(job).length">
+            <label
+              v-for="(q, i) in planQuestions(job)"
+              :key="i"
+              class="q"
+            >
+              <span>{{ q }}</span>
+              <input
+                v-model="answers[aKey(job.id, i)]"
+                type="text"
+                placeholder="可不填"
+                :disabled="planBusy[job.id]"
+              >
+            </label>
+            <div class="actions">
+              <button
+                type="button"
+                :disabled="planBusy[job.id]"
+                @click="submitAnswers(job)"
+              >提交回答</button>
+              <button
+                type="button"
+                :disabled="planBusy[job.id]"
+                @click="skipPlan(job)"
+              >跳过并保存</button>
+            </div>
+          </template>
         </div>
       </section>
 
@@ -234,6 +298,21 @@ h3 {
 .step {
   color: var(--color-text-muted);
   font-size: 0.85rem;
+}
+.q {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  margin-top: var(--space-2);
+}
+.q input {
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 .reason {
   color: var(--status-urgent);

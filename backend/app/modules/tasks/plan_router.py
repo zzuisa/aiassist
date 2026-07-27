@@ -1,4 +1,4 @@
-"""Quick-add planning endpoints: analyze a line, then commit reviewed tasks."""
+"""Quick-add planning: enqueue background analysis, answer questions, or skip."""
 
 from __future__ import annotations
 
@@ -9,14 +9,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
+from app.core.observability import get_logger
 from app.db.session import get_db
+from app.modules.jobs import service as jobs_service
 from app.modules.tasks import plan_service
 from app.modules.tasks import service as task_service
 from app.modules.tasks.schemas import TaskOut
-from app.services.llm.base import LLMError
-from app.services.llm.schemas import VoiceTaskV1
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+class PlanBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    text: str = Field(min_length=1, max_length=2000)
 
 
 class QA(BaseModel):
@@ -25,48 +30,71 @@ class QA(BaseModel):
     answer: str = Field(max_length=1000)
 
 
-class AnalyzeBody(BaseModel):
+class AnswerBody(BaseModel):
     model_config = {"extra": "forbid"}
-    text: str = Field(min_length=1, max_length=2000)
-    answers: list[QA] = Field(default_factory=list, max_length=4)
+    answers: list[QA] = Field(min_length=1, max_length=4)
 
 
-class CommitBody(BaseModel):
-    model_config = {"extra": "forbid"}
-    tasks: list[VoiceTaskV1] = Field(min_length=1, max_length=20)
+def _enqueue(job_id: uuid.UUID) -> None:
+    try:
+        from app.workers.tasks.plan import process_plan
+
+        process_plan.delay(str(job_id))
+    except Exception:
+        get_logger("plan").warning("plan_enqueue_failed")
 
 
-@router.post("/analyze")
-def analyze(
-    body: AnalyzeBody = Body(...),
+@router.post("/plan", status_code=202)
+def create_plan(
+    body: PlanBody = Body(...),
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Analyze the quick-add text into a scheduling plan. Creates nothing."""
-    answers = [(qa.question, qa.answer) for qa in body.answers]
-    try:
-        plan = plan_service.analyze(db, user.id, body.text, answers)
-    except LLMError as exc:
-        # The caller can still save the raw text as a plain todo (escape hatch).
-        return {"tasks": [], "questions": [], "summary": "", "error": exc.code}
+    """立即加入后台分析队列；不阻塞，不即时创建任务。"""
+    job = plan_service.create_plan_job(db, user.id, body.text)
+    db.commit()
+    _enqueue(job.id)
+    return {"job_id": str(job.id), "status": job.status}
+
+
+@router.get("/plan/{job_id}")
+def get_plan(
+    job_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    job = jobs_service.get_owned_job(db, user.id, job_id)
+    data = job.result_json or {}
     return {
-        "tasks": [t.model_dump(mode="json") for t in plan.tasks],
-        "questions": plan.questions,
-        "summary": plan.summary,
-        "error": None,
+        "job_id": str(job.id),
+        "status": job.status,
+        "questions": data.get("questions", []),
+        "tasks": data.get("tasks", []),
+        "summary": data.get("summary", ""),
+        "created": data.get("created"),
     }
 
 
-@router.post("/plan/commit", status_code=201)
-def commit(
-    body: CommitBody = Body(...),
+@router.post("/plan/{job_id}/answer", status_code=202)
+def answer_plan(
+    job_id: uuid.UUID,
+    body: AnswerBody = Body(...),
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> dict:
-    created = plan_service.commit(db, user.id, body.tasks)
+    answers = [(qa.question, qa.answer) for qa in body.answers]
+    job = plan_service.answer_plan(db, user.id, job_id, answers)
     db.commit()
-    out = [
-        TaskOut.from_model(t, task_service.get_tag_ids(db, t.id)).model_dump(mode="json")
-        for t in created
-    ]
-    return {"created": out}
+    _enqueue(job.id)
+    return {"job_id": str(job.id), "status": job.status}
+
+
+@router.post("/plan/{job_id}/skip", status_code=201)
+def skip_plan(
+    job_id: uuid.UUID,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict:
+    job = plan_service.skip_plan(db, user.id, job_id)
+    db.commit()
+    return {"job_id": str(job.id), "status": job.status}
