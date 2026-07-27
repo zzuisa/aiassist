@@ -35,7 +35,8 @@ const nowTick = ref(Date.now())
 let nowTimer: ReturnType<typeof setInterval> | null = null
 
 function onEventClick(arg: EventClickArg): void {
-  const task = arg.event.extendedProps.task as Task
+  const task = arg.event.extendedProps.task as Task | undefined
+  if (!task) return
   const rect = (arg.el as HTMLElement).getBoundingClientRect()
   // Keep the popover inside the viewport on both desktop and mobile.
   const x = rect.right + 268 > window.innerWidth ? Math.max(8, rect.left - 268) : rect.right + 8
@@ -250,15 +251,17 @@ const options = computed<CalendarOptions>(() => ({
   events: calendarEvents.value,
   eventClick: onEventClick,
   eventClassNames: (arg) => {
-    const t = arg.event.extendedProps.task as Task
+    const t = arg.event.extendedProps.task as Task | undefined
     const c: string[] = []
+    if (!t) return c
     if (t.importance > 0) c.push('evt-important')
     if (t.status === 'completed') c.push('evt-done')
     return c
   },
   eventContent: (arg) => {
     // Name first, time below (FR-017); a completed event shows an emoji.
-    const t = arg.event.extendedProps.task as Task
+    const t = arg.event.extendedProps.task as Task | undefined
+    if (!t) return undefined // background (elapsed) span: default rendering
     const wrap = document.createElement('div')
     wrap.className = 'evt'
     const title = document.createElement('div')
