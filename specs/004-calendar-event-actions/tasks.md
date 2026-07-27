@@ -75,22 +75,22 @@
 ### Tests for User Story 2 (write first and verify failure)
 
 - [ ] T019 [P] [US2] Add REST contract tests for nullable note reads, versioned note puts, first-batch and append attachment responses, upload purpose, and protected access variants in `backend/tests/contract/test_calendar_event_actions_api.py`
-- [ ] T020 [P] [US2] Add integration tests for text-only, image-only, three-batch append, stable ordering, duplicate upload rejection, partial success, and reload persistence in `backend/tests/integration/test_task_note_assets.py`
+- [x] T020 [P] [US2] Add integration tests for text-only, image-only, three-batch append, stable ordering, duplicate upload rejection, partial success, and reload persistence in `backend/tests/integration/test_task_note_assets.py`
 - [ ] T021 [P] [US2] Add cross-user tests for task-note read/write, foreign upload association, preview/original access, and non-disclosing errors in `backend/tests/security/test_task_note_asset_security.py`
 - [ ] T022 [P] [US2] Add data-survival and idempotency tests for storage failure, association rollback, derivative retry/redelivery, and orphan cleanup in `backend/tests/reliability/test_calendar_event_action_failures.py`
-- [ ] T023 [P] [US2] Add component tests for note version conflicts, multiple file selection, three append batches, per-file progress/failure/retry, and successful-item retention in `frontend/tests/component/calendar-event-note.spec.ts`
+- [x] T023 [P] [US2] Add component tests for note version conflicts, multiple file selection, three append batches, per-file progress/failure/retry, and successful-item retention in `frontend/tests/component/calendar-event-note.spec.ts`
 - [ ] T024 [P] [US2] Extend the Playwright journey with text-only, image-only, multi-batch, partial-failure, reload, and private preview checks in `frontend/tests/e2e/calendar-event-actions.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T025 [P] [US2] Enforce `task_note_image` image MIME/size rules and expose the upload purpose in `backend/app/modules/uploads/router.py` and `backend/app/modules/uploads/service.py`
-- [ ] T026 [US2] Implement owned/versioned note create-update-read, first-batch attachment, append-only association, audit, job, and Outbox transactions in `backend/app/modules/tasks/note_service.py`
-- [ ] T027 [US2] Implement strict note/asset schemas, REST endpoints, preview/original authorization, and router registration in `backend/app/modules/tasks/note_router.py`, `backend/app/modules/tasks/schemas.py`, and `backend/app/main.py`
+- [x] T025 [P] [US2] Enforce `task_note_image` image MIME/size rules and expose the upload purpose in `backend/app/modules/uploads/router.py` and `backend/app/modules/uploads/service.py`
+- [x] T026 [US2] Implement owned/versioned note create-update-read, first-batch attachment, append-only association, audit, job, and Outbox transactions in `backend/app/modules/tasks/note_service.py`
+- [x] T027 [US2] Implement strict note/asset schemas, REST endpoints, preview/original authorization, and router registration in `backend/app/modules/tasks/note_router.py`, `backend/app/modules/tasks/schemas.py`, and `backend/app/main.py`
 - [ ] T028 [US2] Generalize image validation/preview helpers and add idempotent task-note preview processing with durable job transitions in `backend/app/modules/captures/upload_service.py` and `backend/app/workers/tasks/images.py`
 - [ ] T029 [P] [US2] Add ownership-safe cleanup for expired unassociated `task_note_image` uploads and schedule it through the existing maintenance cadence in `backend/app/workers/tasks/maintenance.py` and `backend/app/workers/beat_schedule.py`
-- [ ] T030 [P] [US2] Add typed note/asset/access APIs and a per-file `Promise.allSettled` upload/append flow in `frontend/src/api/taskNotes.ts` and `frontend/src/modules/calendar/useTaskNoteUploads.ts`
-- [ ] T031 [US2] Implement the note editor with text/image-only save, repeated multiple selection, ordered previews, progress, failure, and retry UI in `frontend/src/modules/calendar/CalendarEventNoteEditor.vue`
-- [ ] T032 [US2] Integrate note loading/editing into the event popover while preserving saved state when the panel closes or a file fails in `frontend/src/modules/calendar/CalendarEventPopover.vue` and `frontend/src/modules/calendar/CalendarPage.vue`
+- [x] T030 [P] [US2] Add typed note/asset/access APIs and a per-file `Promise.allSettled` upload/append flow in `frontend/src/api/taskNotes.ts` and `frontend/src/modules/calendar/useTaskNoteUploads.ts`
+- [x] T031 [US2] Implement the note editor with text/image-only save, repeated multiple selection, ordered previews, progress, failure, and retry UI in `frontend/src/modules/calendar/CalendarEventNoteEditor.vue`
+- [x] T032 [US2] Integrate note loading/editing into the event popover while preserving saved state when the panel closes or a file fails in `frontend/src/modules/calendar/CalendarEventPopover.vue` and `frontend/src/modules/calendar/CalendarPage.vue`
 
 **Checkpoint**: User Story 2 passes independently; image failures do not lose note text or already accepted images.
 

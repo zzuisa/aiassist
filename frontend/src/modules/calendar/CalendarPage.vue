@@ -12,6 +12,7 @@ import { computeSlotRange } from '@/modules/calendar/slotRange'
 import { useTasksStore } from '@/stores/tasks'
 import SchedulePreviewDrawer from '@/modules/calendar/SchedulePreviewDrawer.vue'
 import CalendarEventPopover from '@/modules/calendar/CalendarEventPopover.vue'
+import CalendarEventNoteEditor from '@/modules/calendar/CalendarEventNoteEditor.vue'
 
 const tasks = useTasksStore()
 const week = ref<WeekCalendar | null>(null)
@@ -20,6 +21,14 @@ const banner = ref('')
 const dragging = ref(false)
 const pop = ref<{ task: Task; x: number; y: number } | null>(null)
 const popBusy = ref(false)
+const editorTask = ref<Task | null>(null)
+
+function openNote(): void {
+  if (pop.value) {
+    editorTask.value = pop.value.task
+    closePop()
+  }
+}
 // Drives the elapsed-time shading; refreshed every minute so the past/future
 // boundary follows the clock (FR-015).
 const nowTick = ref(Date.now())
@@ -320,8 +329,20 @@ const options = computed<CalendarOptions>(() => ({
         :style="{ left: pop.x + 'px', top: pop.y + 'px' }"
         @toggle-complete="toggleComplete"
         @toggle-important="toggleImportant"
-        @add-note="() => (banner = '备注功能即将上线')"
+        @add-note="openNote"
         @close="closePop"
+      />
+    </div>
+    <div
+      v-if="editorTask"
+      class="note-overlay"
+      @click="editorTask = null"
+    >
+      <CalendarEventNoteEditor
+        :task-id="editorTask.id"
+        :title="editorTask.title"
+        @saved="tasks.markChanged()"
+        @close="editorTask = null"
       />
     </div>
     <SchedulePreviewDrawer
@@ -426,5 +447,14 @@ const options = computed<CalendarOptions>(() => ({
   position: fixed;
   inset: 0;
   z-index: 35;
+}
+.note-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  padding: var(--space-4);
 }
 </style>

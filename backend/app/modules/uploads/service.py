@@ -23,6 +23,7 @@ _MAX_BYTES = {
     "capture": "upload_image_max_bytes",
     "post_cover": "upload_image_max_bytes",
     "attachment": "upload_markdown_max_bytes",
+    "task_note_image": "upload_image_max_bytes",
 }
 
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -48,7 +49,7 @@ def create_session(
         raise ValidationError(
             f"Declared size exceeds limit ({max_bytes})", code="payload_too_large", status=413
         )
-    if purpose in ("capture", "post_cover") and media_type not in _ALLOWED_IMAGE_TYPES:
+    if purpose in ("capture", "post_cover", "task_note_image") and media_type not in _ALLOWED_IMAGE_TYPES:
         raise ValidationError("Unsupported image type", code="unsupported_media", status=415)
     if purpose == "voice" and not media_type.startswith(_ALLOWED_AUDIO_PREFIX):
         raise ValidationError("Unsupported audio type", code="unsupported_media", status=415)
