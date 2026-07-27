@@ -4,6 +4,7 @@ import { tasksApi, type Task, type TodayDashboard } from '@/api/tasks'
 import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
 import QuickTaskInput from '@/modules/tasks/QuickTaskInput.vue'
+import QuickPlanReview from '@/modules/today/QuickPlanReview.vue'
 import TaskCard from '@/modules/tasks/TaskCard.vue'
 import VoiceRecorder from '@/modules/voice/VoiceRecorder.vue'
 import VoiceConfirmDrawer from '@/modules/voice/VoiceConfirmDrawer.vue'
@@ -91,9 +92,22 @@ onMounted(async () => {
   }
 })
 
+// Quick-add routes through the analysis panel: the LLM splits it into scheduled
+// tasks and may ask a couple of questions; the user can answer, save the plan, or
+// bail out to a plain todo at any time.
+const planText = ref<string | null>(null)
 async function onCreate(title: string): Promise<void> {
+  planText.value = title
+}
+async function onPlanSaved(): Promise<void> {
+  planText.value = null
+  await refresh()
+  store.markChanged()
+}
+async function onPlanSaveRaw(title: string): Promise<void> {
+  planText.value = null
   await store.create({ title })
-  await refresh() // reflect the new task immediately
+  await refresh()
 }
 
 async function onComplete(task: Task): Promise<void> {
@@ -251,6 +265,14 @@ async function onAddToCalendar(task: Task): Promise<void> {
         @discard="confirmCandidate = null"
       />
     </div>
+
+    <QuickPlanReview
+      v-if="planText"
+      :text="planText"
+      @saved="onPlanSaved"
+      @save-raw="onPlanSaveRaw"
+      @close="planText = null"
+    />
   </main>
 </template>
 

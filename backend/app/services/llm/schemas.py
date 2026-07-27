@@ -52,6 +52,20 @@ class VoiceTasksV1(BaseModel):
     tasks: list[VoiceTaskV1] = Field(min_length=1, max_length=20)
 
 
+class QuickPlanV1(BaseModel):
+    """quick-plan.v1: analysis of a quick-add line into scheduled task candidates.
+
+    The model splits the input into tasks with concrete times/importance, may ask a
+    few (bounded) clarifying questions, and explains its plan in one line. Nothing is
+    created here — the user reviews, optionally answers, or saves as-is.
+    """
+
+    model_config = _STRICT
+    tasks: list[VoiceTaskV1] = Field(max_length=20)
+    questions: list[str] = Field(max_length=2)
+    summary: str = Field(max_length=500)
+
+
 class CaptureCategory(BaseModel):
     model_config = _STRICT
     name: str = Field(max_length=120)
