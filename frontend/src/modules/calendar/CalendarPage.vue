@@ -4,19 +4,73 @@ import FullCalendar from '@fullcalendar/vue3'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
-import type { CalendarOptions, EventDropArg } from '@fullcalendar/core'
+import type { CalendarOptions, EventClickArg, EventDropArg } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import { calendarApi, type SchedulePreview, type Task, type WeekCalendar } from '@/api/calendar'
 import { persistReschedule } from '@/modules/calendar/useReschedule'
 import { computeSlotRange } from '@/modules/calendar/slotRange'
 import { useTasksStore } from '@/stores/tasks'
 import SchedulePreviewDrawer from '@/modules/calendar/SchedulePreviewDrawer.vue'
+import CalendarEventPopover from '@/modules/calendar/CalendarEventPopover.vue'
 
 const tasks = useTasksStore()
 const week = ref<WeekCalendar | null>(null)
 const preview = ref<SchedulePreview | null>(null)
 const banner = ref('')
 const dragging = ref(false)
+const pop = ref<{ task: Task; x: number; y: number } | null>(null)
+const popBusy = ref(false)
+
+function onEventClick(arg: EventClickArg): void {
+  const task = arg.event.extendedProps.task as Task
+  const rect = (arg.el as HTMLElement).getBoundingClientRect()
+  // Keep the popover inside the viewport on both desktop and mobile.
+  const x = rect.right + 268 > window.innerWidth ? Math.max(8, rect.left - 268) : rect.right + 8
+  const y = Math.min(rect.top, window.innerHeight - 220)
+  pop.value = { task, x, y }
+}
+function closePop(): void {
+  pop.value = null
+}
+
+async function afterPopMutation(): Promise<void> {
+  await load()
+  tasks.markChanged()
+  if (pop.value) {
+    const fresh = (week.value?.events ?? []).find((e) => e.id === pop.value!.task.id)
+    if (fresh) pop.value = { ...pop.value, task: fresh }
+    else closePop()
+  }
+}
+
+async function toggleComplete(): Promise<void> {
+  if (!pop.value) return
+  const t = pop.value.task
+  popBusy.value = true
+  try {
+    if (t.status === 'completed') await tasks.patch(t.id, { version: t.version, status: 'todo' })
+    else await tasks.complete(t)
+    await afterPopMutation()
+  } catch {
+    banner.value = '保存失败，请重试。'
+  } finally {
+    popBusy.value = false
+  }
+}
+
+async function toggleImportant(): Promise<void> {
+  if (!pop.value) return
+  const t = pop.value.task
+  popBusy.value = true
+  try {
+    await tasks.patch(t.id, { version: t.version, importance: t.importance > 0 ? 0 : 4 })
+    await afterPopMutation()
+  } catch {
+    banner.value = '保存失败，请重试。'
+  } finally {
+    popBusy.value = false
+  }
+}
 
 function mondayOf(d: Date): string {
   const day = d.getDay() || 7
@@ -162,6 +216,29 @@ const options = computed<CalendarOptions>(() => ({
   moreLinkContent: (arg) => `+${arg.num} 更多`,
   headerToolbar: { left: 'prev,next', center: 'title', right: 'timeGridWeek,listWeek' },
   events: calendarEvents.value,
+  eventClick: onEventClick,
+  eventClassNames: (arg) => {
+    const t = arg.event.extendedProps.task as Task
+    const c: string[] = []
+    if (t.importance > 0) c.push('evt-important')
+    if (t.status === 'completed') c.push('evt-done')
+    return c
+  },
+  eventContent: (arg) => {
+    // Name first, time below (FR-017); a completed event shows an emoji.
+    const t = arg.event.extendedProps.task as Task
+    const wrap = document.createElement('div')
+    wrap.className = 'evt'
+    const title = document.createElement('div')
+    title.className = 'evt-title'
+    title.textContent = (t.status === 'completed' ? '\u2705 ' : '') + t.title
+    const time = document.createElement('div')
+    time.className = 'evt-time'
+    time.textContent = arg.timeText
+    wrap.appendChild(title)
+    wrap.appendChild(time)
+    return { domNodes: [wrap] }
+  },
   eventDrop: onChange,
   eventResize: onChange,
   eventDragStart: () => (dragging.value = true),
@@ -209,6 +286,21 @@ const options = computed<CalendarOptions>(() => ({
       </p>
       <FullCalendar :options="options" />
     </main>
+    <div
+      v-if="pop"
+      class="pop-backdrop"
+      @click="closePop"
+    >
+      <CalendarEventPopover
+        :task="pop.task"
+        :busy="popBusy"
+        :style="{ left: pop.x + 'px', top: pop.y + 'px' }"
+        @toggle-complete="toggleComplete"
+        @toggle-important="toggleImportant"
+        @add-note="() => (banner = '备注功能即将上线')"
+        @close="closePop"
+      />
+    </div>
     <SchedulePreviewDrawer
       v-if="preview"
       :preview="preview"
@@ -286,5 +378,30 @@ const options = computed<CalendarOptions>(() => ({
   .calendar-layout :deep(.fc-timegrid-event) {
     transition: none;
   }
+}
+/* Event card: name first, time below (FR-017). */
+.calendar-layout :deep(.evt-title) {
+  font-weight: 600;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calendar-layout :deep(.evt-time) {
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+/* Important: soft red background with readable text; never color-only. */
+.calendar-layout :deep(.evt-important) {
+  background: var(--status-important-bg) !important;
+  border-color: var(--status-urgent) !important;
+  color: var(--status-important-text) !important;
+}
+.calendar-layout :deep(.evt-done) {
+  opacity: 0.9;
+}
+.pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
 }
 </style>

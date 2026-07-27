@@ -48,19 +48,19 @@
 
 - [ ] T007 [P] [US1] Add pure rule tests for start-minus-four-hours, less-than-four-hours, missing/past start, reschedule, cancellation, and sent-reminder idempotency in `backend/tests/unit/test_important_reminder_rules.py`
 - [ ] T008 [P] [US1] Add REST contract tests for status/importance patches, optimistic conflicts, reminder summaries, and completed events in week responses in `backend/tests/contract/test_calendar_event_actions_api.py`
-- [ ] T009 [P] [US1] Add integration tests for reversible completion, completed-event calendar visibility, important reminder lifecycle, activity log, and Outbox atomicity in `backend/tests/integration/test_calendar_event_actions.py` and `backend/tests/integration/test_important_reminders.py`
+- [x] T009 [P] [US1] Add integration tests for reversible completion, completed-event calendar visibility, important reminder lifecycle, activity log, and Outbox atomicity in `backend/tests/integration/test_calendar_event_actions.py` and `backend/tests/integration/test_important_reminders.py`
 - [ ] T010 [P] [US1] Add failure-path tests for SMTP unconfigured/failure, worker redelivery, and duplicate reminder prevention in `backend/tests/reliability/test_calendar_event_action_failures.py`
-- [ ] T011 [P] [US1] Add component tests for desktop click/mobile tap, popover focus/close behavior, state toggles, combined emoji/important state, and error rollback in `frontend/tests/component/calendar-event-actions.spec.ts`
+- [x] T011 [P] [US1] Add component tests for desktop click/mobile tap, popover focus/close behavior, state toggles, combined emoji/important state, and error rollback in `frontend/tests/component/calendar-event-actions.spec.ts`
 - [ ] T012 [P] [US1] Add a failing Playwright journey for popover state persistence and reminder feedback in `frontend/tests/e2e/calendar-event-actions.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement dedicated `important_start_4h` scheduling, stable idempotency, reschedule/cancel rules, and delivery-derived summaries in `backend/app/modules/notifications/reminder_service.py`
-- [ ] T014 [US1] Make completion reversible, clear/set `completed_at`, synchronize important reminders in the task transaction, and retain completed scheduled events in `backend/app/modules/tasks/service.py` and `backend/app/modules/tasks/calendar_service.py`
-- [ ] T015 [US1] Expose reminder summaries and state mutations through owned, version-checked responses in `backend/app/modules/tasks/schemas.py`, `backend/app/modules/tasks/router.py`, and `backend/app/modules/tasks/calendar_router.py`
-- [ ] T016 [P] [US1] Extend frontend Task/reminder types and mutation helpers without bypassing the shared changed signal in `frontend/src/api/tasks.ts`, `frontend/src/api/calendar.ts`, and `frontend/src/stores/tasks.ts`
-- [ ] T017 [P] [US1] Add semantic important-background tokens and implement the accessible state-action popover component in `frontend/src/styles/tokens.css` and `frontend/src/modules/calendar/CalendarEventPopover.vue`
-- [ ] T018 [US1] Wire FullCalendar event click/tap, popover anchoring, optimistic busy/error states, reload, and shared-store synchronization in `frontend/src/modules/calendar/CalendarPage.vue`
+- [x] T013 [US1] Implement dedicated `important_start_4h` scheduling, stable idempotency, reschedule/cancel rules, and delivery-derived summaries in `backend/app/modules/notifications/reminder_service.py`
+- [x] T014 [US1] Make completion reversible, clear/set `completed_at`, synchronize important reminders in the task transaction, and retain completed scheduled events in `backend/app/modules/tasks/service.py` and `backend/app/modules/tasks/calendar_service.py`
+- [x] T015 [US1] Expose reminder summaries and state mutations through owned, version-checked responses in `backend/app/modules/tasks/schemas.py`, `backend/app/modules/tasks/router.py`, and `backend/app/modules/tasks/calendar_router.py`
+- [x] T016 [P] [US1] Extend frontend Task/reminder types and mutation helpers without bypassing the shared changed signal in `frontend/src/api/tasks.ts`, `frontend/src/api/calendar.ts`, and `frontend/src/stores/tasks.ts`
+- [x] T017 [P] [US1] Add semantic important-background tokens and implement the accessible state-action popover component in `frontend/src/styles/tokens.css` and `frontend/src/modules/calendar/CalendarEventPopover.vue`
+- [x] T018 [US1] Wire FullCalendar event click/tap, popover anchoring, optimistic busy/error states, reload, and shared-store synchronization in `frontend/src/modules/calendar/CalendarPage.vue`
 
 **Checkpoint**: User Story 1 passes independently and is a deployable MVP without event notes or past-slot styling.
 

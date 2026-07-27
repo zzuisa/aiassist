@@ -75,12 +75,16 @@ def get_week(
         select(Task).where(
             Task.user_id == user_id,
             Task.deleted_at.is_(None),
-            Task.status.in_(["todo", "in_progress"]),
+            # Completed events remain visible on the calendar; only the
+            # unscheduled list below excludes them.
+            Task.status.in_(["todo", "in_progress", "completed"]),
             Task.type != "note",
         )
     ).all()
     events = [t for t in all_open if t.start_at and starts_on_utc <= t.start_at < week_end]
-    unscheduled = [t for t in all_open if t.start_at is None]
+    unscheduled = [
+        t for t in all_open if t.start_at is None and t.status in ("todo", "in_progress")
+    ]
     conflicts = detect_conflicts(events)
     return list(events), unscheduled, conflicts
 
@@ -105,6 +109,9 @@ def reschedule_task(
     task.start_at = start_at
     task.due_at = due_at
     task.version += 1
+    from app.modules.notifications import reminder_service
+
+    reminder_service.sync_important_reminder(session, task)
     session.add(
         ActivityLog(
             user_id=user_id,
@@ -127,6 +134,9 @@ def undo_reschedule(
     prev = datetime.fromisoformat(previous_start_iso) if previous_start_iso else None
     task.start_at = prev
     task.version += 1
+    from app.modules.notifications import reminder_service
+
+    reminder_service.sync_important_reminder(session, task)
     session.add(
         ActivityLog(
             user_id=user_id,

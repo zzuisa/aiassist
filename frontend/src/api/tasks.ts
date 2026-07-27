@@ -1,5 +1,17 @@
 import { api } from '@/api/client'
 
+export interface ImportantReminder {
+  state:
+    | 'scheduled'
+    | 'sending'
+    | 'sent'
+    | 'failed'
+    | 'unconfigured'
+    | 'missing_start'
+    | 'not_applicable'
+  trigger_at: string | null
+}
+
 export interface Task {
   id: string
   type: string
@@ -18,6 +30,7 @@ export interface Task {
   tag_ids: string[]
   version: number
   completed_at?: string | null
+  important_reminder?: ImportantReminder | null
   created_at: string
   updated_at: string
 }
