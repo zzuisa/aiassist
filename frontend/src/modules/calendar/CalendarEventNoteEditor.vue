@@ -29,7 +29,7 @@ async function load(): Promise<void> {
   content.value = note.content
   version.value = note.version
   assets.value = note.assets
-  await loadPreviews()
+  loadPreviews()
 }
 
 function isImage(a: NoteAsset): boolean {
@@ -44,17 +44,12 @@ function fileIcon(a: NoteAsset): string {
   if (a.media_type.includes('presentation') || a.media_type.includes('powerpoint')) return '📑'
   return '📎'
 }
-async function loadPreviews(): Promise<void> {
-  // Fetch an access URL for every ready asset: images render as a thumbnail,
-  // other files render as a clickable card that opens the original.
+function loadPreviews(): void {
+  // The access endpoint streams the bytes with cookie auth, so its URL works
+  // directly as an <img> src (images) or a file link (other types).
   for (const a of assets.value) {
-    if (a.processing_status !== 'failed' && !previews.value[a.id]) {
-      try {
-        const { url } = await taskNotesApi.access(props.taskId, a.id)
-        previews.value[a.id] = url
-      } catch {
-        /* access optional */
-      }
+    if (a.processing_status !== 'failed') {
+      previews.value[a.id] = `/api/v1/tasks/${props.taskId}/note/assets/${a.id}/access`
     }
   }
 }

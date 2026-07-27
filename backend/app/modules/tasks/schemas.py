@@ -101,6 +101,7 @@ class TaskOut(BaseModel):
     version: int
     completed_at: datetime | None = None
     important_reminder: dict | None = None
+    has_note: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -110,6 +111,7 @@ class TaskOut(BaseModel):
         task: Task,
         tag_ids: list[uuid.UUID] | None = None,
         important_reminder: dict | None = None,
+        has_note: bool = False,
     ) -> TaskOut:
         data = {
             c: getattr(task, c)
@@ -139,7 +141,12 @@ class TaskOut(BaseModel):
                 "updated_at",
             )
         }
-        return cls(**data, tag_ids=tag_ids or [], important_reminder=important_reminder)
+        return cls(
+            **data,
+            tag_ids=tag_ids or [],
+            important_reminder=important_reminder,
+            has_note=has_note,
+        )
 
 
 class TaskPage(BaseModel):

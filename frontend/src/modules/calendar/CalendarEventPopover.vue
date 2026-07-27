@@ -79,7 +79,7 @@ const reminderText = computed(() => {
         :disabled="busy"
         @click="emit('add-note')"
       >
-        📝 添加备注
+        {{ task.has_note ? '📝 查看备注' : '📝 添加备注' }}
       </button>
     </div>
 

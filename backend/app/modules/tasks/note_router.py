@@ -6,11 +6,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Body, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
+from app.services.storage.providers.local import get_storage
 from app.modules.tasks import note_service
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -88,7 +90,10 @@ def asset_access(
     asset_id: uuid.UUID,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict:
-    access = note_service.asset_access_url(db, user.id, task_id, asset_id)
-    expires = datetime.now(UTC) + timedelta(seconds=access.expires_in_seconds)
-    return {"url": access.url, "expires_at": expires.isoformat()}
+) -> StreamingResponse:
+    """Stream the owned asset's bytes (sanitized preview for images, original for
+    other files). Auth is via the session cookie, so the URL works as an <img> src."""
+    asset = note_service.get_owned_asset(db, user.id, task_id, asset_id)
+    key = asset.preview_storage_key or asset.storage_key
+    content_type = "image/webp" if asset.preview_storage_key else asset.media_type
+    return StreamingResponse(get_storage().open_stream(key), media_type=content_type)

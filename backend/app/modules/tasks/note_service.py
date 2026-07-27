@@ -164,13 +164,33 @@ def attach_images(
     return note, results
 
 
-def asset_access_url(session: Session, user_id: uuid.UUID, task_id: uuid.UUID, asset_id: uuid.UUID):
+def note_exists(session: Session, user_id: uuid.UUID, task_id: uuid.UUID) -> bool:
+    """True when the task already has a (non-deleted) note."""
+    return (
+        session.scalar(
+            select(TaskNote.id).where(
+                TaskNote.user_id == user_id,
+                TaskNote.task_id == task_id,
+                TaskNote.deleted_at.is_(None),
+            )
+        )
+        is not None
+    )
+
+
+def get_owned_asset(
+    session: Session, user_id: uuid.UUID, task_id: uuid.UUID, asset_id: uuid.UUID
+) -> TaskNoteAsset:
+    """Resolve an asset through the owned task + note; foreign ids -> not found."""
     note = get_note(session, user_id, task_id)
     if note is None:
         raise NotFoundError("Note not found")
     asset = session.get(TaskNoteAsset, asset_id)
-    if asset is None or asset.note_id != note.id or asset.user_id != user_id or asset.deleted_at is not None:
+    if (
+        asset is None
+        or asset.note_id != note.id
+        or asset.user_id != user_id
+        or asset.deleted_at is not None
+    ):
         raise NotFoundError("Asset not found")
-    # Serve the sanitized preview; the private original is never returned directly.
-    key = asset.preview_storage_key or asset.storage_key
-    return get_storage().access_url(key)
+    return asset

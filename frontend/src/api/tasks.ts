@@ -31,6 +31,7 @@ export interface Task {
   version: number
   completed_at?: string | null
   important_reminder?: ImportantReminder | null
+  has_note?: boolean
   created_at: string
   updated_at: string
 }
