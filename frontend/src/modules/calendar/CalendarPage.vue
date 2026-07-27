@@ -104,6 +104,22 @@ async function toggleComplete(): Promise<void> {
   }
 }
 
+async function deleteEvent(): Promise<void> {
+  if (!pop.value) return
+  const t = pop.value.task
+  popBusy.value = true
+  try {
+    await tasks.remove(t.id)
+    closePop()
+    await load()
+    tasks.markChanged()
+  } catch {
+    banner.value = '删除失败，请重试。'
+  } finally {
+    popBusy.value = false
+  }
+}
+
 async function toggleImportant(): Promise<void> {
   if (!pop.value) return
   const t = pop.value.task
@@ -366,6 +382,7 @@ const options = computed<CalendarOptions>(() => ({
         @toggle-important="toggleImportant"
         @adjust-time="openPicker"
         @add-note="openNote"
+        @delete="deleteEvent"
         @close="closePop"
       />
     </div>

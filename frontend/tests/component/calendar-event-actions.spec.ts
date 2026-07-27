@@ -31,6 +31,16 @@ describe('CalendarEventPopover (US1)', () => {
     expect(w.text()).toContain('取消重要')
   })
 
+  it('deletes only after a confirm tap', async () => {
+    const w = mount(CalendarEventPopover, { props: { task: makeTask() } })
+    const btn = () => w.findAll('.act').find((b) => b.text().includes('删除'))!
+    await btn().trigger('click')
+    expect(w.emitted('delete')).toBeFalsy() // first tap only arms it
+    expect(btn().text()).toContain('确认删除')
+    await btn().trigger('click')
+    expect(w.emitted('delete')).toBeTruthy()
+  })
+
   it('emits adjust-time from the popover', async () => {
     const w = mount(CalendarEventPopover, { props: { task: makeTask() } })
     const btn = w.findAll('.act').find((b) => b.text().includes('调整时间'))!

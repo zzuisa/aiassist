@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Task } from '@/api/tasks'
 
 const props = defineProps<{ task: Task; busy?: boolean }>()
@@ -8,8 +8,16 @@ const emit = defineEmits<{
   (e: 'toggle-important'): void
   (e: 'adjust-time'): void
   (e: 'add-note'): void
+  (e: 'delete'): void
   (e: 'close'): void
 }>()
+
+// Two-step delete so a tap can't destroy an event by accident (HCD).
+const confirmingDelete = ref(false)
+function onDelete(): void {
+  if (confirmingDelete.value) emit('delete')
+  else confirmingDelete.value = true
+}
 
 const done = computed(() => props.task.status === 'completed')
 const important = computed(() => props.task.importance > 0)
@@ -90,6 +98,15 @@ const reminderText = computed(() => {
       >
         {{ task.has_note ? '📝 查看备注' : '📝 添加备注' }}
       </button>
+      <button
+        type="button"
+        class="act danger"
+        :class="{ confirming: confirmingDelete }"
+        :disabled="busy"
+        @click="onDelete"
+      >
+        {{ confirmingDelete ? '⚠️ 确认删除？' : '🗑 删除' }}
+      </button>
     </div>
 
     <p
@@ -166,6 +183,14 @@ const reminderText = computed(() => {
 .act:disabled {
   opacity: 0.6;
   cursor: default;
+}
+.act.danger {
+  color: var(--status-urgent);
+}
+.act.danger.confirming {
+  background: color-mix(in srgb, var(--status-urgent) 14%, transparent);
+  border-color: var(--status-urgent);
+  font-weight: 600;
 }
 .reminder {
   margin: 0;
