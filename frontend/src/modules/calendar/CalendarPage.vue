@@ -20,6 +20,10 @@ const banner = ref('')
 const dragging = ref(false)
 const pop = ref<{ task: Task; x: number; y: number } | null>(null)
 const popBusy = ref(false)
+// Drives the elapsed-time shading; refreshed every minute so the past/future
+// boundary follows the clock (FR-015).
+const nowTick = ref(Date.now())
+let nowTimer: ReturnType<typeof setInterval> | null = null
 
 function onEventClick(arg: EventClickArg): void {
   const task = arg.event.extendedProps.task as Task
@@ -85,10 +89,13 @@ async function load(): Promise<void> {
   week.value = await calendarApi.week(startsOn.value)
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  nowTimer = setInterval(() => (nowTick.value = Date.now()), 60_000)
+})
 
-const calendarEvents = computed(() =>
-  (week.value?.events ?? []).map((t) => ({
+const calendarEvents = computed(() => {
+  const items = (week.value?.events ?? []).map((t) => ({
     id: t.id,
     title: t.title,
     start: t.start_at ?? undefined,
@@ -96,8 +103,23 @@ const calendarEvents = computed(() =>
     editable: !t.is_fixed, // fixed events are not draggable/resizable
     color: t.is_fixed ? 'var(--status-muted)' : 'var(--status-normal)',
     extendedProps: { task: t },
-  })),
-)
+  })) as Record<string, unknown>[]
+  // Grey the elapsed region: a background span from the week start to now. It
+  // sits behind real events, so event text and important backgrounds stay clear.
+  const weekStart = new Date(startsOn.value)
+  const weekEnd = new Date(weekStart.getTime() + 7 * 864e5)
+  const now = new Date(nowTick.value)
+  if (now > weekStart) {
+    items.push({
+      start: weekStart.toISOString(),
+      end: (now < weekEnd ? now : weekEnd).toISOString(),
+      display: 'background',
+      color: 'var(--status-elapsed-bg)',
+      editable: false,
+    })
+  }
+  return items
+})
 
 // --- Optimistic drag with a debounced batch flush ---------------------------
 // Rapid drags update the screen instantly and are queued locally; we sync to the
@@ -171,6 +193,7 @@ function onHidden(): void {
 onMounted(() => document.addEventListener('visibilitychange', onHidden))
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onHidden)
+  if (nowTimer) clearInterval(nowTimer)
   void flush()
 })
 

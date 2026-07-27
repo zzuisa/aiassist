@@ -109,8 +109,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Implement safe custom event content, title-first/time-second ordering, local-time slot class callbacks, and minute-boundary refresh in `frontend/src/modules/calendar/CalendarPage.vue`
-- [ ] T036 [US3] Add scoped elapsed-grid, completed emoji, important-event, truncation, contrast, and reduced-motion styles in `frontend/src/modules/calendar/CalendarPage.vue` and `frontend/src/styles/tokens.css`
+- [x] T035 [US3] Implement safe custom event content, title-first/time-second ordering, local-time slot class callbacks, and minute-boundary refresh in `frontend/src/modules/calendar/CalendarPage.vue`
+- [x] T036 [US3] Add scoped elapsed-grid, completed emoji, important-event, truncation, contrast, and reduced-motion styles in `frontend/src/modules/calendar/CalendarPage.vue` and `frontend/src/styles/tokens.css`
 
 **Checkpoint**: All three stories work independently and all completion/importance/past-time combinations remain readable.
 
