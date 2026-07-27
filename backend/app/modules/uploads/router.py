@@ -16,7 +16,7 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 class UploadCreate(BaseModel):
     model_config = {"extra": "forbid"}
-    purpose: str = Field(pattern="^(capture|voice|post_cover|attachment)$")
+    purpose: str = Field(pattern="^(capture|voice|post_cover|attachment|task_note_image)$")
     filename: str = Field(max_length=255)
     media_type: str = Field(max_length=120)
     byte_size: int = Field(ge=1)

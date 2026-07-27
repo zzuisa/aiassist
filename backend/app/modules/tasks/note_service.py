@@ -66,14 +66,17 @@ def save_note_text(
     content: str,
     version: int | None = None,
 ) -> TaskNote:
-    note = get_or_create_note(session, user_id, task_id)
-    if version is not None and note.version != version:
-        raise ConflictError("Note was modified elsewhere. Refresh and retry.", code="version_conflict")
     content = (content or "").strip()
     if len(content) > 20000:
         raise ValidationError("Note too long", code="note_too_long")
-    if not content and not list_assets(session, note.id):
-        raise ValidationError("Empty note with no images", code="empty_note")
+    existing = get_note(session, user_id, task_id)
+    # Nothing to persist: no text and no note yet -> return a soft-empty note
+    # instead of erroring (the user simply hasn't written anything).
+    if not content and existing is None:
+        return TaskNote(id=uuid.uuid4(), user_id=user_id, task_id=task_id, content="", version=0)
+    note = get_or_create_note(session, user_id, task_id)
+    if version is not None and note.version != version:
+        raise ConflictError("Note was modified elsewhere. Refresh and retry.", code="version_conflict")
     note.content = content
     note.version += 1
     return note

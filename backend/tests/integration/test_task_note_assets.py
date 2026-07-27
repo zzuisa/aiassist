@@ -104,14 +104,14 @@ def test_partial_failure_isolated(make_user):
         assert len(note_service.list_assets(s, note.id)) == 2  # good + new only
 
 
-def test_empty_note_without_images_rejected(make_user):
-    from app.core.errors import ValidationError
-
+def test_empty_note_save_is_soft_noop(make_user):
+    """Saving empty text with no note yet is a no-op (no error, nothing created)."""
     user = make_user()
     with session_scope() as s:
         task = _make_task(s, user.id)
-        with pytest.raises(ValidationError):
-            note_service.save_note_text(s, user.id, task.id, "   ")
+        note = note_service.save_note_text(s, user.id, task.id, "   ")
+        assert note.version == 0
+        assert note_service.get_note(s, user.id, task.id) is None  # nothing persisted
 
 
 def test_foreign_task_note_not_found(make_user):
