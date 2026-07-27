@@ -10,6 +10,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -23,6 +24,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, uuid_pk
@@ -103,4 +105,76 @@ class TaskTag(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+
+class TaskNote(Base, TimestampMixin):
+    """One mutable user note per task (text + ordered image attachments)."""
+
+    __tablename__ = "task_notes"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "task_id", name="uq_task_notes_user_task"),
+        Index("ix_task_notes_user_task_deleted", "user_id", "task_id", "deleted_at"),
+    )
+
+
+class TaskNoteAsset(Base):
+    """One logical image attached to a task note; binary lives in object storage."""
+
+    __tablename__ = "task_note_assets"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    note_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("task_notes.id", ondelete="CASCADE"), nullable=False
+    )
+    upload_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("upload_sessions.id", ondelete="RESTRICT"), nullable=False
+    )
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    preview_storage_key: Mapped[str | None] = mapped_column(String(512))
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    media_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    processing_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending"
+    )
+    processing_version: Mapped[str | None] = mapped_column(String(64))
+    last_error: Mapped[str | None] = mapped_column(String(255))
+    async_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("upload_id", name="uq_task_note_assets_upload"),
+        UniqueConstraint("note_id", "position", name="uq_task_note_assets_note_position"),
+        CheckConstraint(
+            "processing_status in ('pending','processing','ready','failed','deleted')",
+            name="task_note_asset_status",
+        ),
+        CheckConstraint(
+            "media_type in ('image/jpeg','image/png','image/webp')",
+            name="task_note_asset_media_type",
+        ),
+        Index("ix_task_note_assets_user_note_deleted", "user_id", "note_id", "deleted_at"),
     )

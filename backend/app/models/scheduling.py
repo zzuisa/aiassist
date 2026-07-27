@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import text as _sql_text  # noqa: E402
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,6 +34,8 @@ class Reminder(Base, TimestampMixin):
         ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
     )
     channel: Mapped[str] = mapped_column(String(16), nullable=False, default="in_app")
+    purpose: Mapped[str] = mapped_column(String(24), nullable=False, default="custom")
+    anchor: Mapped[str] = mapped_column(String(16), nullable=False, default="absolute")
     trigger_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     offset_minutes: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="scheduled")
@@ -45,6 +48,20 @@ class Reminder(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("channel in ('in_app','email')", name="reminder_channel"),
+        CheckConstraint(
+            "purpose in ('custom','important_start_4h')", name="reminder_purpose"
+        ),
+        CheckConstraint(
+            "anchor in ('absolute','due_at','start_at')", name="reminder_anchor"
+        ),
+        Index(
+            "uq_reminders_important_start_4h",
+            "user_id",
+            "task_id",
+            "channel",
+            unique=True,
+            postgresql_where=_sql_text("purpose = 'important_start_4h'"),
+        ),
         CheckConstraint(
             "status in ('scheduled','claimed','sent','failed','cancelled')",
             name="reminder_status",
