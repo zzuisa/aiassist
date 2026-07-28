@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/contracts/blog-optimization.v1.json",
+  "title": "BlogOptimizationV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "title",
+    "subtitle",
+    "summary",
+    "markdown",
+    "content_class_suggestion",
+    "content_type_suggestion",
+    "category_suggestions",
+    "tag_suggestions",
+    "keyword_suggestions",
+    "occurred_at",
+    "location",
+    "project",
+    "source_summary",
+    "structured_fields",
+    "related_post_suggestions",
+    "claims",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": { "const": "blog-optimization.v1" },
+    "title": { "type": ["string", "null"], "maxLength": 240 },
+    "subtitle": { "type": ["string", "null"], "maxLength": 240 },
+    "summary": { "type": ["string", "null"], "maxLength": 2000 },
+    "markdown": { "type": ["string", "null"], "maxLength": 200000 },
+    "content_class_suggestion": {
+      "type": ["string", "null"],
+      "enum": [
+        "technical",
+        "project",
+        "learning",
+        "life",
+        "travel",
+        "diary",
+        "essay",
+        "bookmark",
+        "media",
+        "item",
+        "quick",
+        null
+      ]
+    },
+    "content_type_suggestion": { "type": ["string", "null"], "maxLength": 120 },
+    "category_suggestions": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/suggestion" }
+    },
+    "tag_suggestions": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/suggestion" }
+    },
+    "keyword_suggestions": {
+      "type": "array",
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/suggestion" }
+    },
+    "occurred_at": { "type": ["string", "null"], "format": "date-time" },
+    "location": { "type": ["string", "null"], "maxLength": 240 },
+    "project": { "type": ["string", "null"], "maxLength": 240 },
+    "source_summary": { "type": ["string", "null"], "maxLength": 2000 },
+    "structured_fields": {
+      "type": "object",
+      "maxProperties": 100,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+      "additionalProperties": { "$ref": "#/$defs/structuredField" }
+    },
+    "related_post_suggestions": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["post_id", "reason"],
+        "properties": {
+          "post_id": { "type": "string", "format": "uuid" },
+          "reason": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["statement", "support", "evidence_summary"],
+        "properties": {
+          "statement": { "type": "string", "maxLength": 500 },
+          "support": { "enum": ["source", "user_text", "inference", "unknown"] },
+          "evidence_summary": { "type": "string", "maxLength": 500 }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "field", "message", "severity"],
+        "properties": {
+          "code": {
+            "enum": [
+              "possible_new_fact",
+              "protected_token_changed",
+              "privacy_risk",
+              "missing_required_field",
+              "truncated_input",
+              "uncertain_classification",
+              "source_attribution_required",
+              "other"
+            ]
+          },
+          "field": { "type": ["string", "null"], "maxLength": 128 },
+          "message": { "type": "string", "maxLength": 500 },
+          "severity": { "enum": ["info", "warning", "blocking"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "confidence", "reason"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "structuredField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "confidence", "evidence_summary"],
+      "properties": {
+        "value": {
+          "type": ["string", "number", "integer", "boolean", "array", "null"],
+          "items": { "type": ["string", "number", "integer", "boolean"] }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence_summary": { "type": "string", "maxLength": 500 }
+      }
+    }
+  }
+}

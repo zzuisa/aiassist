@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/contracts/blog-skill-config.v1.json",
+  "title": "BlogSkillConfigV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "applicable_content_classes",
+    "applicable_content_type_ids",
+    "processing_goal",
+    "content_rules",
+    "title_rules",
+    "summary_rules",
+    "body_structure",
+    "taxonomy_rules",
+    "keyword_rules",
+    "prohibitions",
+    "field_policies",
+    "output_fields",
+    "output_schema",
+    "validation_rules",
+    "recommended_model",
+    "max_content_chars",
+    "long_content_strategy"
+  ],
+  "properties": {
+    "schema_version": { "const": "blog-skill-config.v1" },
+    "applicable_content_classes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "technical",
+          "project",
+          "learning",
+          "life",
+          "travel",
+          "diary",
+          "essay",
+          "bookmark",
+          "media",
+          "item",
+          "quick"
+        ]
+      }
+    },
+    "applicable_content_type_ids": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "processing_goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "content_rules": { "$ref": "#/$defs/ruleList" },
+    "title_rules": { "$ref": "#/$defs/ruleList" },
+    "summary_rules": { "$ref": "#/$defs/ruleList" },
+    "body_structure": { "$ref": "#/$defs/ruleList" },
+    "taxonomy_rules": { "$ref": "#/$defs/ruleList" },
+    "keyword_rules": { "$ref": "#/$defs/ruleList" },
+    "prohibitions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    },
+    "field_policies": {
+      "type": "object",
+      "maxProperties": 200,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_.]{0,127}$" },
+      "additionalProperties": {
+        "enum": [
+          "forbid",
+          "suggest_only",
+          "require_confirmation",
+          "fill_if_empty",
+          "auto_fill",
+          "allow_overwrite",
+          "keep_both_on_conflict"
+        ]
+      }
+    },
+    "output_fields": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_.]{0,127}$" }
+    },
+    "output_schema": { "const": "blog-optimization.v1" },
+    "validation_rules": { "$ref": "#/$defs/ruleList" },
+    "recommended_model": { "type": ["string", "null"], "maxLength": 120 },
+    "max_content_chars": { "type": "integer", "minimum": 1000, "maximum": 200000 },
+    "long_content_strategy": { "enum": ["reject", "chunk", "summarize_then_process"] }
+  },
+  "$defs": {
+    "ruleList": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    }
+  }
+}
