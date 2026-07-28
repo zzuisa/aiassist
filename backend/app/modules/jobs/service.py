@@ -98,6 +98,10 @@ def _append_event(
         }
     if job.entity_type and job.entity_id:
         payload["entity"] = {"type": job.entity_type, "id": str(job.entity_id)}
+    # Carry the small result payload (e.g. quick-add plan questions) so the client
+    # can act on it straight from the event stream.
+    if job.result_json is not None:
+        payload["result"] = job.result_json
     if extra:
         payload.update(extra)
     session.add(

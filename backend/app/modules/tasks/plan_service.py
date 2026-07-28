@@ -188,6 +188,29 @@ def _job_answers(job: AsyncJob) -> list[tuple[str, str]]:
     return [(a["q"], a["a"]) for a in (job.result_json or {}).get("answers", [])]
 
 
+def _commit_and_record(
+    session: Session, user_id: uuid.UUID, task_dumps: list[dict], data: dict
+) -> tuple[list[Task], dict]:
+    candidates = [VoiceTaskV1.model_validate(t) for t in task_dumps]
+    created = commit(session, user_id, candidates)
+    data["created_ids"] = [str(t.id) for t in created]
+    data["created"] = len(created)
+    return created, data
+
+
+def _delete_recorded(session: Session, user_id: uuid.UUID, data: dict) -> None:
+    """Remove tasks previously auto-created for this plan (before re-analysis)."""
+    from app.modules.tasks import service as task_service
+
+    for tid in data.get("created_ids", []) or []:
+        try:
+            task_service.delete_task(session, user_id, uuid.UUID(tid))
+        except Exception:  # noqa: BLE001 — already gone is fine
+            pass
+    data.pop("created_ids", None)
+    data.pop("auto_committed", None)
+
+
 def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = None) -> AsyncJob:
     """Worker step: analyze; ask (waiting_user) if needed, else create the tasks."""
     job = session.get(AsyncJob, job_id)
@@ -210,6 +233,9 @@ def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = N
         raise exc
 
     if plan.questions and rounds < _MAX_ROUNDS:
+        # Park for answers, but keep a planned default so a 3-minute timeout can
+        # auto-record it. Questions/tasks stay in the result so the client shows
+        # the form and the user can still answer after it auto-commits.
         data.update(
             {
                 "questions": list(plan.questions),
@@ -219,14 +245,36 @@ def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = N
         )
         jobs_service.transition(
             session, job, status="waiting_user", progress=70,
-            current_step="需要你回答几个问题", result=data,
+            current_step="需要你回答几个问题（3 分钟后按默认录入）", result=data,
         )
         return job
 
-    created = commit(session, job.user_id, list(plan.tasks))
+    created, data = _commit_and_record(
+        session, job.user_id, [t.model_dump(mode="json") for t in plan.tasks], data
+    )
+    data["summary"] = plan.summary
+    data.pop("questions", None)
     jobs_service.transition(
         session, job, status="completed", progress=100,
-        current_step=f"已创建 {len(created)} 项", result={"created": len(created), "summary": plan.summary},
+        current_step=f"已创建 {len(created)} 项", result=data,
+    )
+    return job
+
+
+def expire_plan(session: Session, job_id: uuid.UUID) -> AsyncJob | None:
+    """3-minute timeout: record the planned tasks with defaults, but keep the job
+    answerable (status stays waiting_user) so the user can still refine later."""
+    job = session.get(AsyncJob, job_id)
+    if job is None or job.job_type != "plan.analyze" or job.status != "waiting_user":
+        return job
+    data = dict(job.result_json or {})
+    if data.get("auto_committed"):
+        return job
+    created, data = _commit_and_record(session, job.user_id, data.get("tasks", []), data)
+    data["auto_committed"] = True
+    jobs_service.transition(
+        session, job, status="waiting_user", progress=90,
+        current_step=f"已按默认录入 {len(created)} 项，可补充回答后更新", result=data,
     )
     return job
 
@@ -238,6 +286,10 @@ def answer_plan(
     if job.status != "waiting_user":
         raise ConflictError("Job is not awaiting answers", code="not_waiting")
     data = dict(job.result_json or {})
+    # If a 3-minute default was already recorded, drop those tasks — the answer
+    # re-plans and recreates them.
+    if data.get("auto_committed"):
+        _delete_recorded(session, user_id, data)
     stored = list(data.get("answers", []))
     stored.extend({"q": q, "a": a} for q, a in answers if a)
     data["answers"] = stored
@@ -257,10 +309,15 @@ def skip_plan(session: Session, user_id: uuid.UUID, job_id: uuid.UUID) -> AsyncJ
     if job.status != "waiting_user":
         raise ConflictError("Job is not awaiting answers", code="not_waiting")
     data = dict(job.result_json or {})
-    candidates = [VoiceTaskV1.model_validate(t) for t in data.get("tasks", [])]
-    created = commit(session, user_id, candidates)
+    if data.get("auto_committed"):  # already saved by the timeout; just finalize
+        jobs_service.transition(
+            session, job, status="completed", progress=100,
+            current_step=f"已保存 {data.get('created', 0)} 项", result=data,
+        )
+        return job
+    created, data = _commit_and_record(session, user_id, data.get("tasks", []), data)
     jobs_service.transition(
         session, job, status="completed", progress=100,
-        current_step=f"已创建 {len(created)} 项", result={"created": len(created)},
+        current_step=f"已创建 {len(created)} 项", result=data,
     )
     return job

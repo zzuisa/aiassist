@@ -114,3 +114,40 @@ def test_memory_set_get_and_settings_preserves(make_user):
     with session_scope() as s:
         u = s.get(User, user.id)
         assert plan_service.get_user_facts(u) == [{"q": "几点起床？", "a": "07:00"}]
+
+
+def test_expire_auto_records_but_stays_answerable(make_user):
+    user = make_user()
+    text = f"明天上午喝咖啡 <<JSON>>{_plan_json(['几点起床？'])}"
+    with session_scope() as s:
+        jid = plan_service.create_plan_job(s, user.id, text).id
+    with session_scope() as s:
+        plan_service.run_plan(s, jid, llm=_fake())  # waiting_user
+    with session_scope() as s:
+        job = plan_service.expire_plan(s, jid)
+        assert job.status == "waiting_user"  # still answerable
+        assert job.result_json["auto_committed"] is True
+    with session_scope() as s:
+        assert s.scalar(select(func.count()).select_from(Task).where(Task.user_id == user.id)) == 1
+
+
+def test_answer_after_expire_removes_auto_created(make_user):
+    user = make_user()
+    text = f"明天上午喝咖啡 <<JSON>>{_plan_json(['几点起床？'])}"
+    with session_scope() as s:
+        jid = plan_service.create_plan_job(s, user.id, text).id
+    with session_scope() as s:
+        plan_service.run_plan(s, jid, llm=_fake())
+    with session_scope() as s:
+        plan_service.expire_plan(s, jid)  # 1 default task created
+    with session_scope() as s:
+        job = plan_service.answer_plan(s, user.id, jid, [("几点起床？", "07:00")])
+        assert job.status == "queued"
+        assert "created_ids" not in job.result_json  # cleared for re-planning
+    with session_scope() as s:  # the auto task was soft-deleted
+        open_count = s.scalar(
+            select(func.count()).select_from(Task).where(
+                Task.user_id == user.id, Task.deleted_at.is_(None)
+            )
+        )
+        assert open_count == 0
