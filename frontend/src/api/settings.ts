@@ -30,9 +30,16 @@ export interface UserSettings {
   }
 }
 
+export interface MemoryItem {
+  question: string
+  answer: string
+}
+
 export const settingsApi = {
   get: () => api.get<UserSettings>('/settings'),
   patch: (body: Record<string, unknown>) => api.patch<UserSettings>('/settings', body),
+  getMemory: () => api.get<{ items: MemoryItem[] }>('/settings/memory'),
+  putMemory: (items: MemoryItem[]) => api.put<{ items: MemoryItem[] }>('/settings/memory', { items }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<void>('/settings/password', {
       current_password: currentPassword,

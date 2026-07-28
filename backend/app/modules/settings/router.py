@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
 from app.modules.settings import service
+from app.modules.tasks import plan_service
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -82,3 +83,38 @@ def change_password(
     service.change_password(db, user.id, body.current_password, body.new_password)
     db.commit()
     return Response(status_code=204)
+
+
+class MemoryItem(BaseModel):
+    model_config = {"extra": "forbid"}
+    question: str = Field(min_length=1, max_length=500)
+    answer: str = Field(min_length=1, max_length=1000)
+
+
+class MemoryBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    items: list[MemoryItem] = Field(max_length=12)
+
+
+@router.get("/memory")
+def get_memory(
+    user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db_user = service.get_user(db, user.id)
+    facts = plan_service.get_user_facts(db_user)
+    return {"items": [{"question": f["q"], "answer": f["a"]} for f in facts]}
+
+
+@router.put("/memory")
+def put_memory(
+    body: MemoryBody,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict:
+    db_user = service.get_user(db, user.id)
+    plan_service.set_user_facts(
+        db_user, [{"q": i.question, "a": i.answer} for i in body.items]
+    )
+    db.commit()
+    facts = plan_service.get_user_facts(db_user)
+    return {"items": [{"question": f["q"], "answer": f["a"]} for f in facts]}

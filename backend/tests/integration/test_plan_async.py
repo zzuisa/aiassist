@@ -92,3 +92,25 @@ def test_skip_commits_partial_plan(make_user):
 
 
 _ = AsyncJob
+
+
+def test_memory_set_get_and_settings_preserves(make_user):
+    from app.models.foundation import User
+    from app.modules.settings import service as settings_service
+
+    user = make_user()
+    with session_scope() as s:
+        u = s.get(User, user.id)
+        plan_service.set_user_facts(u, [{"q": "几点起床？", "a": "07:00"}, {"q": "", "a": "x"}])
+    with session_scope() as s:
+        u = s.get(User, user.id)
+        facts = plan_service.get_user_facts(u)
+        assert facts == [{"q": "几点起床？", "a": "07:00"}]  # blanks dropped
+    # Updating notification preferences must NOT wipe the _profile memory.
+    with session_scope() as s:
+        settings_service.update_settings(
+            s, user.id, {"notification_preferences": {"in_app_enabled": True, "email_enabled": False}}
+        )
+    with session_scope() as s:
+        u = s.get(User, user.id)
+        assert plan_service.get_user_facts(u) == [{"q": "几点起床？", "a": "07:00"}]

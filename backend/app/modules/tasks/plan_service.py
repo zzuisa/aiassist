@@ -144,6 +144,20 @@ def get_user_facts(user: User) -> list[dict]:
     return list((prefs.get(_FACTS_KEY) or {}).get("qa") or [])
 
 
+def set_user_facts(user: User, items: list[dict]) -> None:
+    """Replace the remembered Q&A (settings edit/delete). Each item is {q, a}."""
+    clean = [
+        {"q": str(i.get("q", "")).strip(), "a": str(i.get("a", "")).strip()}
+        for i in items
+        if str(i.get("q", "")).strip() and str(i.get("a", "")).strip()
+    ][-_MAX_MEMORY_QA:]
+    prefs = dict(user.notification_preferences or {})
+    profile = dict(prefs.get(_FACTS_KEY) or {})
+    profile["qa"] = clean
+    prefs[_FACTS_KEY] = profile
+    user.notification_preferences = prefs
+
+
 def _remember(user: User, qa: list[tuple[str, str]]) -> None:
     """Persist answered Q&A so future quick-adds are smarter (加深记忆)."""
     prefs = dict(user.notification_preferences or {})

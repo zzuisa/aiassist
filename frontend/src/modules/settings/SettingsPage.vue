@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { settingsApi, type UserSettings } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import DependencyBadge from '@/modules/settings/DependencyBadge.vue'
+import MemorySettings from '@/modules/settings/MemorySettings.vue'
 import { ApiError } from '@/api/client'
 
 const auth = useAuthStore()
@@ -159,6 +160,8 @@ async function onLogout(): Promise<void> {
         class="msg"
       >{{ pwMsg }}</span>
     </fieldset>
+
+    <MemorySettings />
 
     <button
       type="button"
