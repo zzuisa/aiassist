@@ -28,15 +28,15 @@ const reminderText = computed(() => {
   if (!r) return ''
   switch (r.state) {
     case 'scheduled':
-      return '⏰ 将于开始前 4 小时邮件提醒'
+      return '⏰ 将于开始前 4 小时发送邮件提醒'
     case 'sending':
-      return '⏰ 提醒发送中…'
+      return '📧 邮件发送中…'
     case 'sent':
-      return '✅ 提醒邮件已发送'
+      return '✅ 邮件已送达'
     case 'failed':
-      return '⚠️ 提醒邮件发送失败'
+      return '⚠️ 邮件发送失败'
     case 'unconfigured':
-      return '⚠️ 邮箱未配置，提醒未发送'
+      return '⚠️ 邮箱未配置，邮件未发送'
     case 'missing_start':
       return 'ℹ️ 设置开始时间后才能安排 4 小时提醒'
     default:

@@ -494,11 +494,16 @@ const options = computed<CalendarOptions>(() => ({
   font-size: 0.72rem;
   opacity: 0.85;
 }
-/* Important: soft red background with readable text; never color-only. */
+/* Important: solid red background with bold white text (never color-only). */
 .calendar-layout :deep(.evt-important) {
-  background: var(--status-important-bg) !important;
+  background: var(--status-urgent) !important;
   border-color: var(--status-urgent) !important;
-  color: var(--status-important-text) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+.calendar-layout :deep(.evt-important .evt-title),
+.calendar-layout :deep(.evt-important .evt-time) {
+  color: #fff !important;
 }
 .calendar-layout :deep(.evt-done) {
   opacity: 0.9;
