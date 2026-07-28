@@ -70,9 +70,21 @@ def scan_due_reminders() -> int:
     from app.modules.notifications import reminder_service
 
     dispatched = 0
+    # Collect (notification_id, critical) and enqueue the actual send AFTER commit,
+    # so the delivery row is durable before the worker looks it up. The outbox only
+    # published the event; nothing bridged it to send_email, so email deliveries
+    # were stuck 'pending' — dispatch the send task directly here.
+    to_send: list[tuple[str, bool]] = []
     with session_scope() as s:
         due = reminder_service.claim_due_reminders(s)
         for reminder in due:
-            reminder_service.dispatch_reminder(s, reminder)
+            notification = reminder_service.dispatch_reminder(s, reminder)
+            if reminder.channel == "email":
+                to_send.append((str(notification.id), reminder.is_critical))
             dispatched += 1
+    for notification_id, critical in to_send:
+        if critical:
+            send_critical_reminder.delay(notification_id)
+        else:
+            send_email.delay(notification_id)
     return dispatched

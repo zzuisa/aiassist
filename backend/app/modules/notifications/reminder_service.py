@@ -237,7 +237,23 @@ def important_reminder_summary(session: Session, task: Task) -> dict | None:
     if reminder.status == "failed":
         state = "unconfigured" if (reminder.last_error or "") == "smtp_unconfigured" else "failed"
         return {"state": state, "trigger_at": trigger_iso}
-    state = {"scheduled": "scheduled", "claimed": "sending", "sent": "sent"}.get(
-        reminder.status, reminder.status
+    if reminder.status in ("scheduled", "claimed"):
+        state = "scheduled" if reminder.status == "scheduled" else "sending"
+        return {"state": state, "trigger_at": trigger_iso}
+    # Dispatched: report the ACTUAL email delivery state, not "dispatched == sent".
+    delivery = session.scalar(
+        select(NotificationDelivery)
+        .where(
+            NotificationDelivery.reminder_id == reminder.id,
+            NotificationDelivery.channel == "email",
+        )
+        .order_by(NotificationDelivery.id.desc())
     )
-    return {"state": state, "trigger_at": trigger_iso}
+    if delivery is None:
+        return {"state": "sending", "trigger_at": trigger_iso}
+    if delivery.status == "sent":
+        return {"state": "sent", "trigger_at": trigger_iso}
+    if delivery.status == "failed":
+        state = "unconfigured" if (delivery.last_error or "") == "smtp_unconfigured" else "failed"
+        return {"state": state, "trigger_at": trigger_iso}
+    return {"state": "sending", "trigger_at": trigger_iso}  # pending / sending
