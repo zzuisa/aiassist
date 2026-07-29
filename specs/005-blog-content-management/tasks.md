@@ -78,9 +78,9 @@
 - [x] T029 [P] [US1] Add raw-before-processing, partial image, URL failure and retry integration tests in `backend/tests/integration/test_blog_capture.py`
 - [x] T030 [P] [US1] Add HTML/Markdown/rich/code/URL-only normalization corpus tests in `backend/tests/unit/test_blog_normalization.py`
 - [x] T031 [P] [US1] Add URL scheme, credential, DNS, IPv4/IPv6, redirect and response-limit security tests in `backend/tests/security/test_blog_url_and_ownership.py`
-- [ ] T032 [P] [US1] Add broker-down, Worker-crash, duplicate-command and timeout survival tests in `backend/tests/reliability/test_blog_failure_matrix.py`
-- [ ] T033 [P] [US1] Add new-source, clipboard preview, URL and quick-record component tests in `frontend/tests/component/blog-capture.spec.ts`
-- [ ] T034 [P] [US1] Add capture happy/failure journey E2E coverage in `frontend/tests/e2e/blog-content-management.spec.ts`
+- [x] T032 [P] [US1] Add broker-down, Worker-crash, duplicate-command and timeout survival tests in `backend/tests/reliability/test_blog_failure_matrix.py`
+- [x] T033 [P] [US1] Add new-source, clipboard preview, URL and quick-record component tests in `frontend/tests/component/blog-capture.spec.ts`
+- [x] T034 [P] [US1] Add capture happy/failure journey E2E coverage in `frontend/tests/e2e/blog-content-management.spec.ts`
 
 ### Implementation for User Story 1
 
@@ -89,12 +89,12 @@
 - [x] T037 [US1] Implement transactional blank, clipboard, URL and quick capture with PostSource, first revision, Job and Outbox ordering in `backend/app/modules/posts/capture_service.py`
 - [x] T038 [US1] Implement capture, source detail, retry and protected snapshot-access endpoints in `backend/app/modules/posts/capture_router.py`
 - [x] T039 [US1] Implement idempotent Trafilatura extraction, optional private snapshot storage, partial result handling and edited-Post protection in `backend/app/workers/tasks/blog.py`
-- [ ] T040 [US1] Implement capture API clients and typed error mapping in `frontend/src/api/blogCapture.ts`
-- [ ] T041 [P] [US1] Implement source-selection and default-summary dialog in `frontend/src/modules/posts/PostCreateDialog.vue`
-- [ ] T042 [P] [US1] Implement permission, detection, preview, URL-only switch and partial-image states in `frontend/src/modules/posts/ClipboardCreateDialog.vue`
-- [ ] T043 [P] [US1] Implement URL, note, usage, saved-before-extract and fallback states in `frontend/src/modules/posts/UrlCreateDialog.vue`
-- [ ] T044 [P] [US1] Implement minimal save/continue/full-edit flow in `frontend/src/modules/posts/QuickCaptureDialog.vue`
-- [ ] T045 [US1] Integrate capture dialogs, default options, source status notifications and redirects into `frontend/src/modules/posts/PostListPage.vue` and `frontend/src/modules/posts/BlogModuleLayout.vue`
+- [x] T040 [US1] Implement capture API clients and typed error mapping in `frontend/src/api/blogCapture.ts`
+- [x] T041 [P] [US1] Implement source-selection and default-summary dialog in `frontend/src/modules/posts/PostCreateDialog.vue`
+- [x] T042 [P] [US1] Implement permission, detection, preview, URL-only switch and partial-image states in `frontend/src/modules/posts/ClipboardCreateDialog.vue`
+- [x] T043 [P] [US1] Implement URL, note, usage, saved-before-extract and fallback states in `frontend/src/modules/posts/UrlCreateDialog.vue`
+- [x] T044 [P] [US1] Implement minimal save/continue/full-edit flow in `frontend/src/modules/posts/QuickCaptureDialog.vue`
+- [x] T045 [US1] Integrate capture dialogs, default options, source status notifications and redirects into `frontend/src/modules/posts/PostListPage.vue` and `frontend/src/modules/posts/BlogModuleLayout.vue`
 
 **Checkpoint**: US1 independently delivers reliable capture even when all intelligence and background processing are unavailable.
 

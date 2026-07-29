@@ -33,6 +33,7 @@ export default tseslint.config(
         AbortSignal: 'readonly',
         MessageEvent: 'readonly',
         Event: 'readonly',
+        KeyboardEvent: 'readonly',
         BodyInit: 'readonly',
         console: 'readonly',
         setTimeout: 'readonly',
