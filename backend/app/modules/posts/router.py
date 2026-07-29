@@ -5,60 +5,32 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.db.session import get_db
-from app.models.posts import Post
 from app.modules.posts import rendering, service
+from app.modules.posts.schemas import (
+    GenerateBody,
+    PostCreate,
+    PostOut,
+    PublishBody,
+    RestoreRevisionBody,
+    post_out,
+    revision_out,
+)
 
 private_router = APIRouter(prefix="/posts", tags=["posts"])
 public_router = APIRouter(prefix="/public", tags=["public"])
 
 
-class PostCreate(BaseModel):
-    model_config = {"extra": "forbid"}
-    title: str = Field(min_length=1, max_length=240)
-    markdown: str = Field(max_length=200000)
-    source_refs: list[dict] = Field(default_factory=list)
-    version: int | None = None
-
-
-class GenerateBody(BaseModel):
-    model_config = {"extra": "forbid"}
-    scenario: str = Field(pattern="^(generate_blog|optimize_blog|translate_blog)$")
-    source_refs: list[dict] = Field(default_factory=list, max_length=50)
-    instruction: str | None = Field(default=None, max_length=2000)
-
-
-class PublishBody(BaseModel):
-    model_config = {"extra": "forbid"}
-    published: bool
-    version: int
-
-
-def _post_out(p: Post) -> dict:
-    return {
-        "id": str(p.id),
-        "title": p.title,
-        "markdown": p.markdown,
-        "status": p.status,
-        "slug": p.slug,
-        "version": p.version,
-        "current_revision_id": str(p.current_revision_id) if p.current_revision_id else None,
-        "created_at": p.created_at.isoformat(),
-        "published_at": p.published_at.isoformat() if p.published_at else None,
-    }
-
-
 @private_router.get("")
 def list_posts(
     user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)
-) -> list[dict]:
-    return [_post_out(p) for p in service.list_posts(db, user.id)]
+) -> list[PostOut]:
+    return [post_out(p) for p in service.list_posts(db, user.id)]
 
 
 @private_router.post("", status_code=201)
@@ -66,12 +38,12 @@ def create_post(
     body: PostCreate,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.create_post(
         db, user.id, title=body.title, markdown=body.markdown, source_refs=body.source_refs
     )
     db.commit()
-    return _post_out(post)
+    return post_out(post)
 
 
 @private_router.get("/{post_id}")
@@ -79,8 +51,8 @@ def get_post(
     post_id: uuid.UUID,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict:
-    return _post_out(service.get_post(db, user.id, post_id))
+) -> PostOut:
+    return post_out(service.get_post(db, user.id, post_id))
 
 
 @private_router.patch("/{post_id}")
@@ -89,12 +61,12 @@ def update_post(
     body: PostCreate,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.save_user_revision(
         db, user.id, post_id, title=body.title, markdown=body.markdown, version=body.version or 1
     )
     db.commit()
-    return _post_out(post)
+    return post_out(post)
 
 
 @private_router.delete("/{post_id}", status_code=204)
@@ -173,10 +145,26 @@ def apply(
     revision_id: uuid.UUID,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.apply_revision(db, user.id, post_id, revision_id)
     db.commit()
-    return _post_out(post)
+    return post_out(post)
+
+
+@private_router.post("/{post_id}/revisions/{revision_id}/restore")
+def restore_revision(
+    post_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    body: RestoreRevisionBody,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> PostOut:
+    """Restore a past revision as a new user_edit revision (non-destructive)."""
+    post = service.restore_revision(
+        db, user.id, post_id, revision_id, current_version=body.version
+    )
+    db.commit()
+    return post_out(post)
 
 
 @private_router.post("/{post_id}/publish")
@@ -185,10 +173,10 @@ def publish(
     body: PublishBody,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.set_published(db, user.id, post_id, body.published, body.version)
     db.commit()
-    return _post_out(post)
+    return post_out(post)
 
 
 # ------------------------------------------------------------------ public

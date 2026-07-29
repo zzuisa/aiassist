@@ -51,8 +51,8 @@
 - [x] T015 [P] Implement BlogSkill, BlogSkillVersion and BlogSkillDefault models in `backend/app/models/blog.py`
 - [x] T016 Implement PostAIRun, PostAICandidate, PostCandidateDecision, BlogSettings and PostWordCloudSnapshot models in `backend/app/models/blog.py`
 - [x] T017 Register all feature models for migrations and test metadata in `backend/app/models/__init__.py`
-- [ ] T018 Refactor Post request/response and revision schemas out of the router and add strict blog DTOs in `backend/app/modules/posts/schemas.py`
-- [ ] T019 Implement complete snapshot creation, projection application, restore-as-new-version and selected-field path validation in `backend/app/modules/posts/service.py`
+- [x] T018 Refactor Post request/response and revision schemas out of the router and add strict blog DTOs in `backend/app/modules/posts/schemas.py`
+- [x] T019 Implement complete snapshot creation, projection application, restore-as-new-version and selected-field path validation in `backend/app/modules/posts/service.py`
 - [ ] T020 [P] Implement content-class constants, content-type schema validation and initial per-user content-type seeding in `backend/app/modules/posts/content_types.py`
 - [ ] T021 [P] Implement safe blog settings defaults, schema validation, stricter-policy merge and invalid-reference warnings in `backend/app/modules/posts/settings_service.py`
 - [ ] T022 Implement base Skill version validation and deterministic manual/type/class/global matching in `backend/app/modules/posts/skill_service.py`
