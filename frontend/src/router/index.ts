@@ -44,6 +44,25 @@ const routes: RouteRecordRaw[] = [
         name: 'post-editor',
         component: () => import('@/modules/posts/PostEditorPage.vue'),
       },
+      // Spec 005 blog module. Wraps the article views in a layout with child
+      // navigation; later user stories add triage/skills/taxonomy/settings
+      // children. The legacy /posts routes above stay for compatibility.
+      {
+        path: 'blog',
+        component: () => import('@/modules/posts/BlogModuleLayout.vue'),
+        children: [
+          {
+            path: '',
+            name: 'blog',
+            component: () => import('@/modules/posts/PostListPage.vue'),
+          },
+          {
+            path: ':id',
+            name: 'blog-post-editor',
+            component: () => import('@/modules/posts/PostEditorPage.vue'),
+          },
+        ],
+      },
       {
         path: 'assistant',
         name: 'assistant',

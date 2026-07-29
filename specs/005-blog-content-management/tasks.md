@@ -37,9 +37,9 @@
 
 ### Foundational tests — write and observe failure first
 
-- [ ] T007 [P] Add upgrade/backfill/public-state/downgrade migration tests in `backend/tests/integration/test_blog_content_migration.py`
-- [ ] T008 [P] Add OpenAPI, AsyncAPI and JSON Schema parse/drift tests in `backend/tests/contract/test_blog_content_contracts.py`
-- [ ] T009 [P] Add model ownership, unique-default, immutable-version and status-constraint tests in `backend/tests/unit/test_blog_models.py`
+- [x] T007 [P] Add upgrade/backfill/public-state/downgrade migration tests in `backend/tests/integration/test_blog_content_migration.py`
+- [x] T008 [P] Add OpenAPI, AsyncAPI and JSON Schema parse/drift tests in `backend/tests/contract/test_blog_content_contracts.py`
+- [x] T009 [P] Add model ownership, unique-default, immutable-version and status-constraint tests in `backend/tests/unit/test_blog_models.py`
 - [ ] T010 [P] Add complete Post revision snapshot, restore and optimistic-conflict tests in `backend/tests/integration/test_blog_editor_versions.py`
 - [ ] T011 [P] Extend existing Posts public/publish/RSS regression coverage for additive fields in `backend/tests/contract/test_posts_api.py`
 
@@ -53,14 +53,14 @@
 - [x] T017 Register all feature models for migrations and test metadata in `backend/app/models/__init__.py`
 - [x] T018 Refactor Post request/response and revision schemas out of the router and add strict blog DTOs in `backend/app/modules/posts/schemas.py`
 - [x] T019 Implement complete snapshot creation, projection application, restore-as-new-version and selected-field path validation in `backend/app/modules/posts/service.py`
-- [ ] T020 [P] Implement content-class constants, content-type schema validation and initial per-user content-type seeding in `backend/app/modules/posts/content_types.py`
-- [ ] T021 [P] Implement safe blog settings defaults, schema validation, stricter-policy merge and invalid-reference warnings in `backend/app/modules/posts/settings_service.py`
-- [ ] T022 Implement base Skill version validation and deterministic manual/type/class/global matching in `backend/app/modules/posts/skill_service.py`
-- [ ] T023 Add strict `BlogOptimizationV1` and `BlogSkillConfigV1` Pydantic models that match checked-in schemas in `backend/app/services/llm/schemas.py`
-- [ ] T024 Extend generic Job serialization with blog scope, business stage and derived display status without changing global status storage in `backend/app/modules/jobs/schemas.py` and `backend/app/modules/jobs/service.py`
-- [ ] T025 Register additive capture, Skill, taxonomy, AI and query routers under existing `/api/v1` in `backend/app/main.py` and `backend/app/modules/posts/router.py`
-- [ ] T026 Add blog module layout, child navigation and lazy route records while preserving existing `/posts` compatibility in `frontend/src/modules/posts/BlogModuleLayout.vue` and `frontend/src/router/index.ts`
-- [ ] T027 Run and fix foundation migration, contract, model and existing Posts regression suites in `backend/tests/integration/test_blog_content_migration.py`, `backend/tests/contract/test_blog_content_contracts.py`, `backend/tests/unit/test_blog_models.py`, and `backend/tests/contract/test_posts_api.py`
+- [x] T020 [P] Implement content-class constants, content-type schema validation and initial per-user content-type seeding in `backend/app/modules/posts/content_types.py`
+- [x] T021 [P] Implement safe blog settings defaults, schema validation, stricter-policy merge and invalid-reference warnings in `backend/app/modules/posts/settings_service.py`
+- [x] T022 Implement base Skill version validation and deterministic manual/type/class/global matching in `backend/app/modules/posts/skill_service.py`
+- [x] T023 Add strict `BlogOptimizationV1` and `BlogSkillConfigV1` Pydantic models that match checked-in schemas in `backend/app/services/llm/schemas.py`
+- [x] T024 Extend generic Job serialization with blog scope, business stage and derived display status without changing global status storage in `backend/app/modules/jobs/schemas.py` and `backend/app/modules/jobs/service.py`
+- [x] T025 Register additive capture, Skill, taxonomy, AI and query routers under existing `/api/v1` in `backend/app/main.py` and `backend/app/modules/posts/router.py`
+- [x] T026 Add blog module layout, child navigation and lazy route records while preserving existing `/posts` compatibility in `frontend/src/modules/posts/BlogModuleLayout.vue` and `frontend/src/router/index.ts`
+- [x] T027 Run and fix foundation migration, contract, model and existing Posts regression suites in `backend/tests/integration/test_blog_content_migration.py`, `backend/tests/contract/test_blog_content_contracts.py`, `backend/tests/unit/test_blog_models.py`, and `backend/tests/contract/test_posts_api.py`
 
 **Checkpoint**: Existing Posts remain compatible; new schema and full snapshots are ready; all following stories may branch from this point.
 

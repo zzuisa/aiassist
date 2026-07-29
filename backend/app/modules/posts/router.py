@@ -25,6 +25,15 @@ from app.modules.posts.schemas import (
 private_router = APIRouter(prefix="/posts", tags=["posts"])
 public_router = APIRouter(prefix="/public", tags=["public"])
 
+# Additive blog routers (spec 005, T025). Endpoints are attached by later user
+# stories; the routers are declared and registered here so the URL surface under
+# /api/v1 is stable and existing /posts routes stay untouched.
+capture_router = APIRouter(prefix="/blog/capture", tags=["blog-capture"])
+skill_router = APIRouter(prefix="/blog/skills", tags=["blog-skills"])
+taxonomy_router = APIRouter(prefix="/blog/taxonomy", tags=["blog-taxonomy"])
+ai_router = APIRouter(prefix="/blog/ai", tags=["blog-ai"])
+query_router = APIRouter(prefix="/blog/query", tags=["blog-query"])
+
 
 @private_router.get("")
 def list_posts(

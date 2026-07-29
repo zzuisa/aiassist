@@ -102,6 +102,15 @@ def _append_event(
     # can act on it straight from the event stream.
     if job.result_json is not None:
         payload["result"] = job.result_json
+    # Blog jobs: carry the derived (presentation-only) scope/stage/display status
+    # so the client can render a business-friendly label straight from the event.
+    if job.job_type.startswith("blog."):
+        from app.modules.jobs.schemas import _derive_blog_fields
+
+        scope, stage, display = _derive_blog_fields(job)
+        payload["scope"] = scope
+        payload["business_stage"] = stage
+        payload["display_status"] = display
     if extra:
         payload.update(extra)
     session.add(
