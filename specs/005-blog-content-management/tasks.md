@@ -41,7 +41,7 @@
 - [x] T008 [P] Add OpenAPI, AsyncAPI and JSON Schema parse/drift tests in `backend/tests/contract/test_blog_content_contracts.py`
 - [x] T009 [P] Add model ownership, unique-default, immutable-version and status-constraint tests in `backend/tests/unit/test_blog_models.py`
 - [x] T010 [P] Add complete Post revision snapshot, restore and optimistic-conflict tests in `backend/tests/integration/test_blog_editor_versions.py`
-- [ ] T011 [P] Extend existing Posts public/publish/RSS regression coverage for additive fields in `backend/tests/contract/test_posts_api.py`
+- [x] T011 [P] Extend existing Posts public/publish/RSS regression coverage for additive fields in `backend/tests/contract/test_posts_api.py`
 
 ### Foundational implementation
 
@@ -141,12 +141,12 @@
 ### Tests for User Story 3 — write first ⚠️
 
 - [x] T062 [P] [US3] Add optimize endpoint, fixed binding and blog Job response contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T063 [P] [US3] Add JSON Schema/Pydantic drift and malformed output tests in `backend/tests/contract/test_blog_ai_schema.py`
+- [x] T063 [P] [US3] Add JSON Schema/Pydantic drift and malformed output tests in `backend/tests/contract/test_blog_ai_schema.py`
 - [x] T064 [P] [US3] Add Skill resolution, duplicate request and stage transition integration tests in `backend/tests/integration/test_blog_ai_pipeline.py`
 - [x] T065 [P] [US3] Add code/command/URL/number/date/quote extraction and comparison tests in `backend/tests/unit/test_blog_protected_tokens.py`
 - [x] T066 [P] [US3] Add field safety ceiling and full/partial/rejected validation tests in `backend/tests/unit/test_blog_field_policy.py`
 - [x] T067 [P] [US3] Add provider timeout, broker outage, cancellation, redelivery and candidate-save crash tests in `backend/tests/reliability/test_blog_failure_matrix.py`
-- [ ] T068 [P] [US3] Add optimize panel, inline status and blog Job list/detail component tests in `frontend/tests/component/blog-ai-candidate.spec.ts`
+- [x] T068 [P] [US3] Add optimize panel, inline status and blog Job list/detail component tests in `frontend/tests/component/blog-ai-candidate.spec.ts`
 
 ### Implementation for User Story 3
 
@@ -158,9 +158,9 @@
 - [x] T074 [US3] Implement atomic AI revision/candidate save, complete/partial outcome and waiting-user Job events in `backend/app/workers/tasks/blog.py`
 - [x] T075 [US3] Extend Job filters, retry dispatch, cancellation checkpoints and blog-safe result summaries in `backend/app/modules/jobs/router.py` and `backend/app/modules/jobs/service.py`
 - [x] T076 [US3] Add completion/failure notifications with links and no article content in `backend/app/modules/notifications/service.py` and `backend/app/workers/tasks/blog.py`
-- [ ] T077 [P] [US3] Implement optimize/run/candidate API types and clients in `frontend/src/api/blogAI.ts`
-- [ ] T078 [P] [US3] Implement optimization type/scope/Skill/model advanced panel in `frontend/src/modules/posts/OptimizePostDialog.vue`
-- [ ] T079 [US3] Implement blog Job list/detail pages and SSE-backed article status summaries in `frontend/src/modules/posts/BlogJobsPage.vue`, `frontend/src/modules/posts/BlogJobDetailPage.vue`, and `frontend/src/stores/jobs.ts`
+- [x] T077 [P] [US3] Implement optimize/run/candidate API types and clients in `frontend/src/api/blogAI.ts`
+- [x] T078 [P] [US3] Implement optimization type/scope/Skill/model advanced panel in `frontend/src/modules/posts/OptimizePostDialog.vue`
+- [x] T079 [US3] Implement blog Job list/detail pages and SSE-backed article status summaries in `frontend/src/modules/posts/BlogJobsPage.vue`, `frontend/src/modules/posts/BlogJobDetailPage.vue`, and `frontend/src/stores/jobs.ts`
 
 **Checkpoint**: US3 creates observable candidates and never mutates current article content.
 

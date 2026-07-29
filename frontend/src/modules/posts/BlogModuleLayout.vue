@@ -3,7 +3,10 @@ import { RouterView } from 'vue-router'
 
 // Only routes that resolve today are listed. Later user stories add triage,
 // skills, taxonomy and settings child routes and extend this list.
-const navItems = [{ to: '/blog', label: '文章', exact: true }]
+const navItems = [
+  { to: '/blog', label: '文章', exact: true },
+  { to: '/blog/jobs', label: 'AI 任务', exact: false },
+]
 </script>
 
 <template>

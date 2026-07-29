@@ -51,6 +51,10 @@ export interface AsyncJob {
   started_at?: string | null
   updated_at: string
   finished_at?: string | null
+  // Derived, presentation-only fields for blog jobs (spec 005, T024/T079).
+  scope?: string | null
+  business_stage?: string | null
+  display_status?: string | null
 }
 
 export interface NotificationItem {

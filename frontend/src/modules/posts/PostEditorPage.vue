@@ -8,17 +8,19 @@
 // Markdown. All saving is delegated to usePostAutosave; the body is one source
 // of truth shared by every mode.
 import { computed, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { postsApi, type Post, type PostPatch } from '@/api/posts'
 import { usePostAutosave } from '@/modules/posts/usePostAutosave'
 import MarkdownSourceEditor from '@/modules/posts/MarkdownSourceEditor.vue'
 import RichMarkdownEditor from '@/modules/posts/RichMarkdownEditor.vue'
 import MarkdownPreview from '@/modules/posts/MarkdownPreview.vue'
 import PostPropertySidebar from '@/modules/posts/PostPropertySidebar.vue'
+import OptimizePostDialog from '@/modules/posts/OptimizePostDialog.vue'
 
 type Mode = 'source' | 'rich' | 'split' | 'preview'
 
 const route = useRoute()
+const router = useRouter()
 const post = ref<Post | null>(null)
 const markdown = ref('')
 const title = ref('')
@@ -26,8 +28,25 @@ const mode = ref<Mode>('source')
 const focus = ref(false)
 const fullscreen = ref(false)
 const publishing = ref(false)
+const optimizing = ref(false)
 
 const autosave = usePostAutosave(post)
+
+// Open the AI optimize dialog only after any pending edit is persisted, so the
+// run binds to the revision the user is actually looking at.
+async function openOptimize(): Promise<void> {
+  if (!post.value) return
+  if (autosave.isDirty()) {
+    const ok = await autosave.save()
+    if (!ok) return
+  }
+  optimizing.value = true
+}
+
+function onOptimizeSubmitted(jobId: string): void {
+  optimizing.value = false
+  router.push({ name: 'blog-jobs', query: { focus: jobId } })
+}
 
 async function load(): Promise<void> {
   const id = route.params.id as string
@@ -143,6 +162,14 @@ onBeforeRouteLeave(async () => {
         >{{ saveLabel }}</span>
         <button
           type="button"
+          class="optimize-btn"
+          :disabled="optimizing"
+          @click="openOptimize"
+        >
+          AI 优化
+        </button>
+        <button
+          type="button"
           :disabled="publishing"
           @click="togglePublish"
         >
@@ -150,6 +177,14 @@ onBeforeRouteLeave(async () => {
         </button>
       </div>
     </header>
+
+    <OptimizePostDialog
+      v-if="optimizing && post"
+      :post-id="post.id"
+      :post-version="post.version"
+      @close="optimizing = false"
+      @submitted="onOptimizeSubmitted"
+    />
 
     <div
       v-if="autosave.state.value === 'conflict'"

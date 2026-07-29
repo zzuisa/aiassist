@@ -101,3 +101,81 @@ def test_rss_lists_published(client, make_user):
     rss = client.get("/api/v1/public/rss.xml")
     assert rss.status_code == 200
     assert "RSS 文章" in rss.text
+
+
+# ---------------------------------------------------------------------------
+# Additive-field regression (spec 005, US2 fields — T011)
+#
+# US2 added subtitle/summary/content_class/structured_data/etc. to Post. These
+# guard that the additive fields (a) round-trip through PATCH, (b) never leak
+# into the public post projection, and (c) don't break publish or the RSS feed.
+# ---------------------------------------------------------------------------
+
+_PUBLIC_POST_KEYS = {"slug", "title", "html", "excerpt", "published_at"}
+
+
+def _patch_additive(client, h, post):
+    return client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={
+            "version": post["version"],
+            "subtitle": "副标题",
+            "summary": "一句话摘要",
+            "content_class": "technical",
+            "project": "个人博客",
+            "structured_data": {"city": "上海"},
+        },
+        headers=h,
+    )
+
+
+def test_additive_fields_round_trip(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _draft(client, h)
+    r = _patch_additive(client, h, post)
+    assert r.status_code == 200
+    updated = r.json()
+    assert updated["subtitle"] == "副标题"
+    assert updated["summary"] == "一句话摘要"
+    assert updated["content_class"] == "technical"
+    assert updated["project"] == "个人博客"
+    assert updated["structured_data"] == {"city": "上海"}
+    assert updated["version"] == post["version"] + 1
+
+
+def test_public_post_projection_excludes_additive_fields(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _draft(client, h, title="公开文章")
+    updated = _patch_additive(client, h, post).json()
+    published = client.post(
+        f"/api/v1/posts/{post['id']}/publish",
+        json={"published": True, "version": updated["version"]},
+        headers=h,
+    ).json()
+    pub = client.get(f"/api/v1/public/posts/{published['slug']}")
+    assert pub.status_code == 200
+    body = pub.json()
+    # The public contract stays exactly the stable set — additive/private fields
+    # (subtitle, summary, structured_data, project) must not leak.
+    assert set(body) == _PUBLIC_POST_KEYS
+    assert body["title"] == "公开文章"
+
+
+def test_rss_still_lists_post_with_additive_fields(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _draft(client, h, title="含元数据的 RSS 文章")
+    updated = _patch_additive(client, h, post).json()
+    client.post(
+        f"/api/v1/posts/{post['id']}/publish",
+        json={"published": True, "version": updated["version"]},
+        headers=h,
+    )
+    rss = client.get("/api/v1/public/rss.xml")
+    assert rss.status_code == 200
+    assert "含元数据的 RSS 文章" in rss.text
+    # Private additive content is never serialized into the public feed.
+    assert "一句话摘要" not in rss.text
+    assert "上海" not in rss.text

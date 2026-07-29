@@ -28,6 +28,16 @@ export const useJobsStore = defineStore('jobs', () => {
   const unreadCount = computed(
     () => notifications.value.filter((n) => n.status === 'unread').length,
   )
+  // Blog jobs (spec 005, T079): scope is derived server-side; fall back to the
+  // job_type prefix for events that predate the derived field.
+  const blogJobs = computed(() =>
+    [...jobs.value.values()]
+      .filter((j) => j.scope === 'blog' || j.job_type.startsWith('blog.'))
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+  )
+  function getJob(id: string): AsyncJob | undefined {
+    return jobs.value.get(id)
+  }
 
   function applyJobEvent(data: Record<string, unknown>): void {
     const id = data.job_id as string
@@ -54,6 +64,10 @@ export const useJobsStore = defineStore('jobs', () => {
       finished_at: (data.finished_at as string) ?? existing?.finished_at ?? null,
       entity: (data.entity as AsyncJob['entity']) ?? existing?.entity ?? null,
       result: (data.result as AsyncJob['result']) ?? existing?.result ?? null,
+      // Presentation-only derived fields (blog jobs); kept if the event omits them.
+      scope: (data.scope as string) ?? existing?.scope ?? null,
+      business_stage: (data.business_stage as string) ?? existing?.business_stage ?? null,
+      display_status: (data.display_status as string) ?? existing?.display_status ?? null,
     })
     if (((data.job_type as string) ?? existing?.job_type) === 'plan.analyze') {
       planTick.value += 1
@@ -138,6 +152,8 @@ export const useJobsStore = defineStore('jobs', () => {
     activeJobs,
     failedJobs,
     unreadCount,
+    blogJobs,
+    getJob,
     applyJobEvent,
     applySnapshot,
     applyNotification,
