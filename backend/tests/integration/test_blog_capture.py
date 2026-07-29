@@ -1,0 +1,174 @@
+"""Capture durability + URL extraction failure/retry (US1, T029).
+
+Proves the core US1 guarantee: the raw source and first revision are saved before
+any extraction runs, the authored Post text is never overwritten by extraction,
+URL failures are recorded without data loss, and a failed source can be retried
+exactly once into a fresh attempt.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from tests.conftest import requires_db
+
+pytestmark = [pytest.mark.integration]
+
+
+@pytest.fixture
+def user_id(make_user):
+    return make_user().id
+
+
+@requires_db
+def test_capture_saves_source_and_first_revision_before_processing(db_session, user_id):
+    from app.models.posts import PostRevision
+    from app.modules.posts import capture_service
+
+    post, src, job, warnings = capture_service.capture_quick(
+        db_session, user_id, content="raw material"
+    )
+    db_session.commit()
+
+    # Raw content is durable immediately.
+    assert src.original_text == "raw material"
+    assert src.status == "completed"
+    # A first 'capture' revision exists and is current.
+    rev = db_session.get(PostRevision, post.current_revision_id)
+    assert rev is not None
+    assert rev.source == "capture"
+    assert rev.applied_at is not None
+
+
+@requires_db
+def test_url_capture_saves_pending_before_network(db_session, user_id):
+    from app.modules.posts import capture_service
+
+    post, src, job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/a", note="note"
+    )
+    db_session.commit()
+
+    assert post.content_status == "pending_parse"
+    assert src.status == "pending"
+    assert src.original_url == "https://example.com/a"
+    assert job is not None and job.job_type == "blog.parse"
+    assert src.async_job_id == job.id
+
+
+@requires_db
+def test_extraction_never_overwrites_authored_post(db_session, user_id, monkeypatch):
+    from app.models.blog import PostSource
+    from app.models.posts import Post
+    from app.modules.posts import capture_service
+    from app.workers.tasks import blog as blog_task
+    from app.modules.posts import url_extractor
+
+    post, src, _job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/a", note="my own words"
+    )
+    db_session.commit()
+    authored_markdown = post.markdown
+
+    # Simulate a successful fetch + extraction with different body text.
+    monkeypatch.setattr(
+        url_extractor, "fetch_url",
+        lambda url, **kw: url_extractor.FetchResult(
+            final_url=url, status_code=200, content_type="text/html",
+            text="<html><body><article>extracted body</article></body></html>",
+        ),
+    )
+    monkeypatch.setattr(
+        url_extractor, "extract_article",
+        lambda html, url: {"title": "T", "text": "extracted body",
+                            "markdown": "extracted body", "author": None, "site": None},
+    )
+
+    result = blog_task.extract_source(src.id)
+    assert result == "completed"
+
+    db_session.expire_all()
+    refreshed_post = db_session.get(Post, post.id)
+    refreshed_src = db_session.get(PostSource, src.id)
+    # Post body is untouched; only the source carries the extraction.
+    assert refreshed_post.markdown == authored_markdown
+    assert refreshed_src.normalized_markdown == "extracted body"
+    assert refreshed_src.status == "completed"
+
+
+@requires_db
+def test_url_failure_is_recorded_and_retryable_once(db_session, user_id, monkeypatch):
+    from app.models.blog import PostSource
+    from app.modules.posts import capture_service
+    from app.workers.tasks import blog as blog_task
+    from app.modules.posts import url_extractor
+
+    post, src, _job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/a"
+    )
+    db_session.commit()
+
+    def _boom(url, **kw):
+        raise url_extractor.UrlSecurityError("timed out", code="timeout")
+
+    monkeypatch.setattr(url_extractor, "fetch_url", _boom)
+
+    assert blog_task.extract_source(src.id) == "failed"
+    db_session.expire_all()
+    failed = db_session.get(PostSource, src.id)
+    assert failed.status == "failed"
+    assert failed.error_code == "timeout"
+    attempts_before = failed.fetch_attempt_count
+
+    # Retry arms a fresh attempt.
+    job = capture_service.retry_source(db_session, user_id, src.id)
+    db_session.commit()
+    db_session.expire_all()
+    retried = db_session.get(PostSource, src.id)
+    assert retried.status == "pending"
+    assert retried.error_code is None
+    assert retried.fetch_attempt_count == attempts_before + 1
+    assert job.job_type == "blog.parse"
+
+
+@requires_db
+def test_retry_rejected_for_non_failed_source(db_session, user_id):
+    from app.core.errors import ConflictError
+    from app.modules.posts import capture_service
+
+    _post, src, _job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/a"
+    )
+    db_session.commit()
+    # Still pending (never failed) — retry must be refused.
+    with pytest.raises(ConflictError):
+        capture_service.retry_source(db_session, user_id, src.id)
+
+
+@requires_db
+def test_partial_extraction_marks_partial(db_session, user_id, monkeypatch):
+    from app.models.blog import PostSource
+    from app.modules.posts import capture_service
+    from app.workers.tasks import blog as blog_task
+    from app.modules.posts import url_extractor
+
+    _post, src, _job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/a"
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        url_extractor, "fetch_url",
+        lambda url, **kw: url_extractor.FetchResult(
+            final_url=url, status_code=200, content_type="text/html",
+            text="<html></html>", truncated=True,
+        ),
+    )
+    monkeypatch.setattr(
+        url_extractor, "extract_article",
+        lambda html, url: {"title": None, "text": "some", "markdown": "some",
+                           "author": None, "site": None},
+    )
+    assert blog_task.extract_source(src.id) == "partial"
+    db_session.expire_all()
+    assert db_session.get(PostSource, src.id).error_code == "truncated"

@@ -52,3 +52,82 @@ def generate_revision(post_id: uuid.UUID, scenario: str, instruction: str | None
 @celery.task(name="app.workers.tasks.blog.generate", bind=True, max_retries=3)
 def generate(self, post_id: str, scenario: str, instruction: str | None = None) -> str:  # type: ignore[no-untyped-def]
     return generate_revision(uuid.UUID(post_id), scenario, instruction)
+
+
+# ---------------------------------------------------------------------------
+# URL extraction (spec 005, US1, T039)
+#
+# Idempotent: keyed on the PostSource. The authored Post text is NEVER
+# overwritten — extraction only fills the *source* fields (original_text,
+# normalized_markdown, metadata). A partial result (e.g. size-truncated body) is
+# stored with status='partial' so the user can still read and retry once.
+# ---------------------------------------------------------------------------
+
+
+def extract_source(source_id: uuid.UUID) -> str:
+    from datetime import UTC, datetime
+
+    from app.models.blog import PostSource
+    from app.modules.posts.url_extractor import (
+        UrlSecurityError,
+        extract_article,
+        fetch_url,
+    )
+
+    with session_scope() as s:
+        src = s.get(PostSource, source_id)
+        if src is None:
+            return "skipped"
+        # Already completed (idempotent replay) — do nothing.
+        if src.status == "completed":
+            return "skipped"
+        if src.source_type != "url" or not src.original_url:
+            src.status = "failed"
+            src.error_code = "not_url_source"
+            return "failed"
+
+        src.status = "processing"
+        src.fetched_at = datetime.now(UTC)
+        s.flush()
+
+        try:
+            fetched = fetch_url(src.original_url)
+        except UrlSecurityError as exc:
+            src.status = "failed"
+            src.error_code = exc.code
+            src.error_message = str(exc)[:500]
+            log.warning("blog_extract_rejected", source_id=str(source_id), code=exc.code)
+            return "failed"
+
+        try:
+            article = extract_article(fetched.text, fetched.final_url)
+        except Exception as exc:  # extraction library failure is non-fatal
+            article = {"title": None, "text": None, "markdown": None, "author": None, "site": None}
+            log.warning("blog_extract_parse_failed", source_id=str(source_id), error=str(exc)[:200])
+
+        src.original_title = article.get("title")
+        src.original_text = article.get("text")
+        src.normalized_markdown = article.get("markdown")
+        src.source_author = article.get("author")
+        src.source_site = article.get("site")
+        src.extracted_at = datetime.now(UTC)
+
+        has_body = bool(article.get("markdown") or article.get("text"))
+        if fetched.truncated or not has_body:
+            src.status = "partial"
+            src.error_code = "truncated" if fetched.truncated else "no_content_extracted"
+        else:
+            src.status = "completed"
+            src.error_code = None
+            src.error_message = None
+        return src.status
+
+
+@celery.task(
+    name="app.workers.tasks.blog.extract",
+    bind=True,
+    max_retries=2,
+    acks_late=True,
+)
+def extract(self, source_id: str) -> str:  # type: ignore[no-untyped-def]
+    return extract_source(uuid.UUID(source_id))

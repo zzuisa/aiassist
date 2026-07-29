@@ -115,6 +115,96 @@ class RestoreRevisionBody(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Capture request DTOs (spec 005, US1) — mirror openapi ClipboardCapture etc.
+# ---------------------------------------------------------------------------
+
+_DETECTED_FORMATS = ("plain", "markdown", "html", "rich", "url", "code", "image", "mixed")
+_URL_USAGES = (
+    "bookmark", "summary_note", "reading_note", "technical_material",
+    "travel_material", "personal_article", "triage",
+)
+
+
+class BlankCaptureBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    title: str = Field(default="未命名", max_length=240)
+    content_class: str = Field(default="essay", max_length=32)
+    content_type_id: uuid.UUID | None = None
+    language: str = Field(default="zh-CN", max_length=16)
+
+
+class ClipboardCaptureBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    raw_content: str = Field(min_length=1, max_length=2_097_152)
+    normalized_markdown: str | None = Field(default=None, max_length=200_000)
+    detected_format: str = Field(pattern="^(plain|markdown|html|rich|url|code|image|mixed)$")
+    content_class: str = Field(default="quick", max_length=32)
+    content_type_id: uuid.UUID | None = None
+    ai_enabled: bool = False
+    skill_id: uuid.UUID | None = None
+    save_as_defaults: bool = False
+
+
+class UrlCaptureBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    url: str = Field(min_length=1, max_length=4096)
+    note: str | None = Field(default=None, max_length=10000)
+    usage: str = Field(default="triage", pattern="^(bookmark|summary_note|reading_note|technical_material|travel_material|personal_article|triage)$")
+    content_class: str = Field(default="bookmark", max_length=32)
+    content_type_id: uuid.UUID | None = None
+    ai_enabled: bool = False
+    skill_id: uuid.UUID | None = None
+    save_as_defaults: bool = False
+
+
+class QuickCaptureBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    content: str = Field(min_length=1, max_length=20000)
+    content_class: str = Field(default="quick", max_length=32)
+    ai_enabled: bool = False
+    save_and_continue: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Capture response DTOs
+# ---------------------------------------------------------------------------
+
+
+class PostSourceOut(BaseModel):
+    """Owned source metadata + bounded original content (openapi PostSource)."""
+
+    model_config = {"extra": "forbid"}
+    id: str
+    post_id: str | None
+    source_type: str
+    status: str
+    detected_format: str | None
+    original_url: str | None
+    original_title: str | None
+    source_site: str | None
+    source_author: str | None
+    source_published_at: str | None
+    original_text: str | None
+    normalized_markdown: str | None
+    user_note: str | None
+    metadata: dict[str, Any]
+    has_snapshot: bool
+    attempt_count: int
+    captured_at: str | None
+    error: dict[str, Any] | None
+
+
+class CaptureResultOut(BaseModel):
+    """Durable capture result: post + source + optional job + warnings."""
+
+    model_config = {"extra": "forbid"}
+    post: PostOut
+    source: PostSourceOut
+    job: dict[str, Any] | None
+    warnings: list[str]
+
+
+# ---------------------------------------------------------------------------
 # Snapshot DTO — the full storable/restorable post state
 # ---------------------------------------------------------------------------
 
@@ -214,6 +304,33 @@ def post_out(p: Post) -> PostOut:
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat(),
         published_at=p.published_at.isoformat() if p.published_at else None,
+    )
+
+
+def source_out(s: Any) -> PostSourceOut:
+    meta = dict(getattr(s, "metadata_json", None) or {})
+    error = None
+    if s.error_code:
+        error = {"code": s.error_code, "message": s.error_message or "", "retryable": True}
+    return PostSourceOut(
+        id=str(s.id),
+        post_id=str(s.post_id) if s.post_id else None,
+        source_type=s.source_type,
+        status=s.status,
+        detected_format=s.detected_format,
+        original_url=s.original_url,
+        original_title=s.original_title,
+        source_site=s.source_site,
+        source_author=s.source_author,
+        source_published_at=s.source_published_at.isoformat() if s.source_published_at else None,
+        original_text=s.original_text,
+        normalized_markdown=s.normalized_markdown,
+        user_note=s.user_note,
+        metadata=meta,
+        has_snapshot=bool(s.snapshot_object_key),
+        attempt_count=s.fetch_attempt_count,
+        captured_at=s.captured_at.isoformat() if s.captured_at else None,
+        error=error,
     )
 
 
