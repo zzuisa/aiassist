@@ -132,3 +132,131 @@ def test_source_detail_readable_by_owner(client, make_user):
     r = client.get(f"/api/v1/post-sources/{sid}", headers=h)
     assert r.status_code == 200
     assert r.json()["id"] == sid
+
+
+# ---------------------------------------------------------------------------
+# US2: Post patch, content types, source summary (T046)
+# ---------------------------------------------------------------------------
+
+
+def _blank_post(client, h):
+    return client.post(
+        "/api/v1/posts/captures/blank", json={"title": "草稿"}, headers=h
+    ).json()["post"]
+
+
+def test_patch_updates_common_fields_and_bumps_version(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _blank_post(client, h)
+    r = client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={
+            "version": post["version"],
+            "title": "正式标题",
+            "subtitle": "副标题",
+            "markdown": "# 正文",
+            "content_class": "technical",
+            "editor_mode": "rich",
+        },
+        headers=h,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["title"] == "正式标题"
+    assert body["subtitle"] == "副标题"
+    assert body["content_class"] == "technical"
+    assert body["editor_mode"] == "rich"
+    assert body["version"] == post["version"] + 1
+
+
+def test_patch_requires_matching_version(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _blank_post(client, h)
+    r = client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={"version": post["version"] + 99, "title": "x"},
+        headers=h,
+    )
+    assert r.status_code == 409
+
+
+def test_patch_rejects_unknown_content_class(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _blank_post(client, h)
+    r = client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={"version": post["version"], "content_class": "not-a-class"},
+        headers=h,
+    )
+    assert r.status_code == 422
+
+
+def test_get_post_includes_source_summary(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    # A quick capture creates a post with one source.
+    cap = client.post(
+        "/api/v1/posts/captures/quick", json={"content": "来源"}, headers=h
+    ).json()
+    r = client.get(f"/api/v1/posts/{cap['post']['id']}", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["source_summary"]) == 1
+    assert body["source_summary"][0]["source_type"] == "quick"
+    assert body["ai_summary"]["optimization_count"] == 0
+
+
+def test_content_type_create_list_and_update(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    created = client.post(
+        "/api/v1/blog/content-types",
+        json={
+            "content_class": "technical",
+            "key": "my-tutorial",
+            "name": "我的教程",
+            "field_schema": {"type": "object", "properties": {"lang": {"type": "string"}}},
+            "enabled": True,
+        },
+        headers=h,
+    )
+    assert created.status_code == 201
+    ct = created.json()
+    assert ct["key"] == "my-tutorial"
+    assert ct["schema_version"] == 1
+
+    listed = client.get("/api/v1/blog/content-types", headers=h).json()
+    assert any(c["id"] == ct["id"] for c in listed)
+
+    # Changing the field_schema bumps schema_version.
+    updated = client.patch(
+        f"/api/v1/blog/content-types/{ct['id']}",
+        json={
+            "content_class": "technical",
+            "key": "my-tutorial",
+            "name": "我的教程 v2",
+            "field_schema": {"type": "object", "properties": {"lang": {"type": "string"}, "level": {"type": "string"}}},
+            "enabled": True,
+        },
+        headers=h,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "我的教程 v2"
+    assert updated.json()["schema_version"] == 2
+
+
+def test_content_type_rejects_duplicate_key(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    body = {
+        "content_class": "essay",
+        "key": "dup-key",
+        "name": "N",
+        "field_schema": {},
+        "enabled": True,
+    }
+    assert client.post("/api/v1/blog/content-types", json=body, headers=h).status_code == 201
+    assert client.post("/api/v1/blog/content-types", json=body, headers=h).status_code == 422

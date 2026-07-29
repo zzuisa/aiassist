@@ -16,8 +16,10 @@ from app.modules.posts.schemas import (
     GenerateBody,
     PostCreate,
     PostOut,
+    PostPatch,
     PublishBody,
     RestoreRevisionBody,
+    post_detail_out,
     post_out,
     revision_out,
 )
@@ -61,21 +63,22 @@ def get_post(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostOut:
-    return post_out(service.get_post(db, user.id, post_id))
+    return post_detail_out(db, service.get_post(db, user.id, post_id))
 
 
 @private_router.patch("/{post_id}")
 def update_post(
     post_id: uuid.UUID,
-    body: PostCreate,
+    body: PostPatch,
+    response: Response,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> PostOut:
-    post = service.save_user_revision(
-        db, user.id, post_id, title=body.title, markdown=body.markdown, version=body.version or 1
-    )
+    post, warnings = service.patch_post(db, user.id, post_id, body)
     db.commit()
-    return post_out(post)
+    if warnings:
+        response.headers["X-Blog-Warnings"] = "; ".join(warnings)
+    return post_detail_out(db, post)
 
 
 @private_router.delete("/{post_id}", status_code=204)

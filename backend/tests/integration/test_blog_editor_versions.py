@@ -114,3 +114,110 @@ def test_save_with_stale_version_is_rejected(make_user):
             post_service.save_user_revision(
                 s, user.id, pid, title="v3", markdown="v3", version=stale_version
             )
+
+
+# ---------------------------------------------------------------------------
+# US2: full-field patch, hidden dynamic fields, concurrent autosave (T047)
+# ---------------------------------------------------------------------------
+
+
+class _Patch:
+    """Lightweight stand-in for the PostPatch DTO in service-level tests."""
+
+    def __init__(self, version, **fields):
+        self.version = version
+        self._fields = fields
+        for k, v in fields.items():
+            setattr(self, k, v)
+
+    def provided_fields(self):
+        return set(self._fields)
+
+
+def test_patch_persists_all_common_and_dynamic_fields(make_user):
+    user = make_user()
+    with session_scope() as s:
+        post = post_service.create_post(s, user.id, title="t", markdown="body")
+        pid, ver = post.id, post.version
+
+    with session_scope() as s:
+        post_service.patch_post(
+            s, user.id, pid,
+            _Patch(
+                ver, title="新标题", subtitle="副标题", summary="摘要",
+                content_class="technical", language="en-US", editor_mode="rich",
+                location="Shanghai", project="AIAssist",
+                structured_data={"difficulty": "advanced"},
+            ),
+        )
+
+    with session_scope() as s:
+        p = s.get(Post, pid)
+        assert p.title == "新标题"
+        assert p.subtitle == "副标题"
+        assert p.content_class == "technical"
+        assert p.editor_mode == "rich"
+        assert p.location_text == "Shanghai"
+        assert p.project_text == "AIAssist"
+        # Hidden dynamic field survives even though it is not a first-class column.
+        assert p.structured_data_json["difficulty"] == "advanced"
+        assert p.version == ver + 1
+
+
+def test_changing_content_type_keeps_hidden_structured_data(make_user):
+    """Switching content types must not drop structured_data the new type hides."""
+    user = make_user()
+    with session_scope() as s:
+        post = post_service.create_post(s, user.id, title="t", markdown="b")
+        pid = post.id
+        post_service.patch_post(
+            s, user.id, pid,
+            _Patch(post.version, structured_data={"language": "python", "extra": "keep-me"}),
+        )
+
+    with session_scope() as s:
+        p = s.get(Post, pid)
+        # Change an unrelated field twice; structured_data is preserved verbatim.
+        post_service.patch_post(s, user.id, pid, _Patch(p.version, title="x"))
+    with session_scope() as s:
+        p = s.get(Post, pid)
+        post_service.patch_post(s, user.id, pid, _Patch(p.version, title="y"))
+
+    with session_scope() as s:
+        p = s.get(Post, pid)
+        assert p.structured_data_json == {"language": "python", "extra": "keep-me"}
+
+
+def test_concurrent_autosave_conflict_is_rejected(make_user):
+    """Two autosaves from the same base version: the second must 409."""
+    user = make_user()
+    with session_scope() as s:
+        post = post_service.create_post(s, user.id, title="t", markdown="b")
+        pid, base = post.id, post.version
+
+    with session_scope() as s:
+        post_service.patch_post(s, user.id, pid, _Patch(base, markdown="edit-A"))
+
+    with session_scope() as s:
+        with pytest.raises(VersionConflictError):
+            post_service.patch_post(s, user.id, pid, _Patch(base, markdown="edit-B"))
+
+
+def test_patch_creates_user_edit_revision_on_content_change(make_user):
+    user = make_user()
+    with session_scope() as s:
+        post = post_service.create_post(s, user.id, title="t", markdown="b")
+        pid = post.id
+        post_service.patch_post(s, user.id, pid, _Patch(post.version, markdown="changed body"))
+
+    with session_scope() as s:
+        latest = (
+            s.query(PostRevision)
+            .filter(PostRevision.post_id == pid)
+            .order_by(PostRevision.created_at.desc())
+            .first()
+        )
+        assert latest.source == "user_edit"
+        assert latest.markdown == "changed body"
+        p = s.get(Post, pid)
+        assert p.current_revision_id == latest.id

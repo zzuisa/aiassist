@@ -249,6 +249,198 @@ def save_user_revision(
     return post
 
 
+_CONTENT_STATUSES = frozenset(
+    {
+        "pending_capture", "pending_parse", "triage", "draft", "ai_queued",
+        "ai_processing", "ai_review", "merge_required", "completed", "archived", "discarded",
+    }
+)
+# Status transitions the *user* may drive directly from the editor. AI-only
+# states (ai_queued/ai_processing/ai_review/merge_required) are set by the
+# pipeline, never by a manual patch.
+_USER_SETTABLE_STATUS = frozenset({"triage", "draft", "completed", "archived", "discarded"})
+
+
+def patch_post(
+    session: Session,
+    user_id: uuid.UUID,
+    post_id: uuid.UUID,
+    patch: Any,
+) -> tuple[Post, list[str]]:
+    """Apply a partial update to a post (spec 005 US2, T051).
+
+    Validates ownership of every referenced taxonomy entity, guards status
+    transitions, validates structured_data against the content type, records a
+    ``user_edit`` revision when content changed, and appends a search Outbox event.
+    Returns ``(post, warnings)``; raises on version conflict or invalid reference.
+    """
+    from app.models.blog import PostContentType, PostKeyword, PostKeywordLink
+    from app.models.foundation import Category, Tag
+    from app.models.posts import PostTag
+    from app.modules.posts import content_types
+
+    post = get_post(session, user_id, post_id)
+    if post.version != patch.version:
+        raise VersionConflictError("Post was modified; refresh", code="version_conflict")
+
+    provided = patch.provided_fields()
+    warnings: list[str] = []
+    content_changed = False
+
+    if "content_class" in provided and patch.content_class is not None:
+        content_types.validate_content_class(patch.content_class)
+        post.content_class = patch.content_class
+
+    if "content_type_id" in provided:
+        if patch.content_type_id is not None:
+            ct = session.get(PostContentType, patch.content_type_id)
+            if ct is None or ct.user_id != user_id or not ct.enabled:
+                raise ValidationError(
+                    "content_type_id not found or disabled", code="invalid_content_type"
+                )
+        post.content_type_id = patch.content_type_id
+
+    # Scalar common fields.
+    if "title" in provided and patch.title is not None:
+        post.title = patch.title
+    if "subtitle" in provided:
+        post.subtitle = patch.subtitle
+    if "summary" in provided:
+        post.summary = patch.summary
+    if "language" in provided and patch.language is not None:
+        post.language = patch.language
+    if "editor_mode" in provided and patch.editor_mode is not None:
+        post.editor_mode = patch.editor_mode
+    if "occurred_at" in provided:
+        post.occurred_at = patch.occurred_at
+    if "location" in provided:
+        post.location_text = patch.location
+    if "project" in provided:
+        post.project_text = patch.project
+
+    if "markdown" in provided and patch.markdown is not None:
+        if patch.markdown != post.markdown:
+            post.markdown = patch.markdown
+            content_changed = True
+
+    if "structured_data" in provided and patch.structured_data is not None:
+        if post.content_type_id:
+            warnings.extend(
+                content_types.validate_structured_data(
+                    session, user_id, post.content_type_id, patch.structured_data
+                )
+            )
+        post.structured_data_json = patch.structured_data
+        content_changed = True
+
+    if "content_status" in provided and patch.content_status is not None:
+        new_status = patch.content_status
+        if new_status not in _CONTENT_STATUSES:
+            raise ValidationError("invalid content_status", code="invalid_content_status")
+        if new_status not in _USER_SETTABLE_STATUS:
+            raise ValidationError(
+                f"content_status '{new_status}' is not user-settable", code="invalid_transition"
+            )
+        post.content_status = new_status
+
+    # Category (single, owned).
+    if "category_id" in provided:
+        if patch.category_id is not None:
+            cat = session.get(Category, patch.category_id)
+            if cat is None or cat.user_id != user_id:
+                raise ValidationError("category_id not found", code="invalid_category")
+        post.category_id = patch.category_id
+
+    # Tags (replace set; each must be owned).
+    if "tag_ids" in provided and patch.tag_ids is not None:
+        _replace_links(
+            session, user_id, post, patch.tag_ids, Tag, PostTag, "tag_id", "invalid_tag"
+        )
+
+    # Keywords (replace set; each must be owned).
+    if "keyword_ids" in provided and patch.keyword_ids is not None:
+        _replace_keyword_links(
+            session, user_id, post, patch.keyword_ids, PostKeyword, PostKeywordLink
+        )
+
+    # Record an immutable user_edit revision only when the canonical text changed.
+    if content_changed:
+        revision = _new_revision(
+            session, post, post.markdown, "user_edit", post.current_revision_id
+        )
+        revision.applied_at = datetime.now(UTC)
+        post.current_revision_id = revision.id
+
+    post.version += 1
+    session.add(
+        ActivityLog(
+            user_id=user_id,
+            actor_type="user",
+            action="post.updated",
+            entity_type="post",
+            entity_id=post.id,
+        )
+    )
+    # Keep the search index in sync.
+    append_event(
+        session,
+        event_type="post.updated",
+        aggregate_type="post",
+        aggregate_id=post.id,
+        routing_key="search.index.post.updated",
+        payload={"post_id": str(post.id)},
+        user_id=user_id,
+    )
+    return post, warnings
+
+
+def _replace_links(
+    session: Session,
+    user_id: uuid.UUID,
+    post: Post,
+    ids: list[uuid.UUID],
+    owner_model: Any,
+    link_model: Any,
+    link_attr: str,
+    err_code: str,
+) -> None:
+    """Replace a post's M2M links (e.g. tags) with *ids*, validating ownership."""
+    unique = list(dict.fromkeys(ids))
+    for oid in unique:
+        owner = session.get(owner_model, oid)
+        if owner is None or owner.user_id != user_id:
+            raise ValidationError(f"{link_attr} {oid} not found", code=err_code)
+    for existing in session.scalars(
+        select(link_model).where(link_model.post_id == post.id)
+    ).all():
+        session.delete(existing)
+    session.flush()
+    for oid in unique:
+        session.add(link_model(post_id=post.id, user_id=user_id, **{link_attr: oid}))
+
+
+def _replace_keyword_links(
+    session: Session,
+    user_id: uuid.UUID,
+    post: Post,
+    ids: list[uuid.UUID],
+    keyword_model: Any,
+    link_model: Any,
+) -> None:
+    unique = list(dict.fromkeys(ids))
+    for kid in unique:
+        kw = session.get(keyword_model, kid)
+        if kw is None or kw.user_id != user_id:
+            raise ValidationError(f"keyword {kid} not found", code="invalid_keyword")
+    for existing in session.scalars(
+        select(link_model).where(link_model.post_id == post.id)
+    ).all():
+        session.delete(existing)
+    session.flush()
+    for kid in unique:
+        session.add(link_model(post_id=post.id, keyword_id=kid, user_id=user_id, source="user"))
+
+
 def create_ai_revision(
     session: Session,
     post: Post,
@@ -424,7 +616,7 @@ def restore_revision(
             action="post.revision_restored",
             entity_type="post",
             entity_id=post.id,
-            details={"restored_from": str(revision_id)},
+            after_summary_json={"restored_from": str(revision_id)},
         )
     )
     return post

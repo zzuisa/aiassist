@@ -79,17 +79,69 @@ class PostCreate(BaseModel):
     version: int | None = None
 
 
+_UNSET = object()
+
+
 class PostPatch(BaseModel):
-    """Partial update — only supplied fields are applied (PATCH semantics)."""
+    """Partial update — only supplied fields are applied (PATCH semantics).
+
+    ``version`` is required (optimistic lock).  Nullable fields use a sentinel so
+    an explicit ``null`` (clear the field) is distinguishable from "omitted".
+    """
 
     model_config = {"extra": "forbid"}
+    version: int
     title: str | None = Field(default=None, min_length=1, max_length=240)
+    subtitle: str | None = Field(default=None, max_length=240)
+    summary: str | None = Field(default=None, max_length=2000)
     markdown: str | None = Field(default=None, max_length=200_000)
-    content_class: str | None = Field(default=None, max_length=16)
+    content_status: str | None = Field(default=None, max_length=24)
+    content_class: str | None = Field(default=None, max_length=32)
     content_type_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    tag_ids: list[uuid.UUID] | None = Field(default=None, max_length=50)
+    keyword_ids: list[uuid.UUID] | None = Field(default=None, max_length=100)
     language: str | None = Field(default=None, max_length=16)
+    editor_mode: str | None = Field(default=None, pattern="^(markdown|rich|split)$")
+    occurred_at: datetime | None = None
+    location: str | None = Field(default=None, max_length=240)
+    project: str | None = Field(default=None, max_length=240)
     structured_data: dict[str, Any] | None = None
-    version: int | None = None
+
+    def provided_fields(self) -> set[str]:
+        """Field names the client actually sent (excludes version)."""
+        return set(self.model_fields_set) - {"version"}
+
+
+# ---------------------------------------------------------------------------
+# Content-type DTOs (spec 005, US2)
+# ---------------------------------------------------------------------------
+
+
+class ContentTypeWrite(BaseModel):
+    model_config = {"extra": "forbid"}
+    content_class: str = Field(max_length=32)
+    key: str = Field(pattern="^[a-z][a-z0-9_-]{0,63}$")
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    field_schema: dict[str, Any] = Field(default_factory=dict)
+    sort_order: int = 0
+    enabled: bool = True
+
+
+class ContentTypeOut(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: str
+    content_class: str
+    key: str
+    name: str
+    description: str | None
+    field_schema: dict[str, Any]
+    sort_order: int
+    enabled: bool
+    schema_version: int
+    created_at: str
+    updated_at: str
 
 
 class GenerateBody(BaseModel):
@@ -235,8 +287,32 @@ class PostSnapshot(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class PostSourceSummary(BaseModel):
+    """Compact source descriptor embedded in a post's source_summary."""
+
+    model_config = {"extra": "forbid"}
+    id: str
+    source_type: str
+    status: str
+    original_url: str | None = None
+    original_title: str | None = None
+    captured_at: str | None = None
+
+
+class PostAiSummary(BaseModel):
+    """Presentation-only AI status roll-up for a post (openapi PostAiSummary)."""
+
+    model_config = {"extra": "forbid"}
+    display_status: str | None
+    optimization_count: int
+    first_optimized_at: str | None = None
+    last_optimized_at: str | None = None
+    latest_job_id: str | None = None
+    pending_candidate_id: str | None = None
+
+
 class PostOut(BaseModel):
-    """Private post response — full internal projection."""
+    """Private post response — full internal projection (spec 005 US2)."""
 
     model_config = {"extra": "forbid"}
     id: str
@@ -249,8 +325,17 @@ class PostOut(BaseModel):
     content_status: str
     content_class: str
     content_type_id: str | None
+    category_id: str | None = None
+    tag_ids: list[str] = Field(default_factory=list)
+    keyword_ids: list[str] = Field(default_factory=list)
     language: str
+    editor_mode: str = "markdown"
+    occurred_at: str | None = None
+    location: str | None = None
+    project: str | None = None
     structured_data: dict[str, Any]
+    source_summary: list[PostSourceSummary] = Field(default_factory=list)
+    ai_summary: PostAiSummary | None = None
     version: int
     current_revision_id: str | None
     created_at: str
@@ -285,7 +370,25 @@ class RevisionDetailOut(RevisionOut):
 from app.models.posts import Post, PostRevision  # noqa: E402 (local import avoids circular)
 
 
+def _ai_summary(p: Post) -> PostAiSummary:
+    return PostAiSummary(
+        display_status=getattr(p, "latest_ai_status", None),
+        optimization_count=getattr(p, "ai_optimization_count", 0) or 0,
+        first_optimized_at=(
+            p.first_ai_optimized_at.isoformat()
+            if getattr(p, "first_ai_optimized_at", None)
+            else None
+        ),
+        last_optimized_at=(
+            p.last_ai_optimized_at.isoformat()
+            if getattr(p, "last_ai_optimized_at", None)
+            else None
+        ),
+    )
+
+
 def post_out(p: Post) -> PostOut:
+    """Lightweight projection (no relation queries) for lists and captures."""
     return PostOut(
         id=str(p.id),
         title=p.title,
@@ -297,13 +400,70 @@ def post_out(p: Post) -> PostOut:
         content_status=getattr(p, "content_status", "draft"),
         content_class=getattr(p, "content_class", "essay"),
         content_type_id=str(p.content_type_id) if getattr(p, "content_type_id", None) else None,
+        category_id=str(p.category_id) if getattr(p, "category_id", None) else None,
         language=getattr(p, "language", "zh-CN"),
+        editor_mode=getattr(p, "editor_mode", "markdown"),
+        occurred_at=p.occurred_at.isoformat() if getattr(p, "occurred_at", None) else None,
+        location=getattr(p, "location_text", None),
+        project=getattr(p, "project_text", None),
         structured_data=getattr(p, "structured_data_json", {}) or {},
+        ai_summary=_ai_summary(p),
         version=p.version,
         current_revision_id=str(p.current_revision_id) if p.current_revision_id else None,
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat(),
         published_at=p.published_at.isoformat() if p.published_at else None,
+    )
+
+
+def post_detail_out(session: Any, p: Post) -> PostOut:
+    """Full single-post projection: adds taxonomy relations and source summary."""
+    from app.models.blog import PostSource
+    from app.models.posts import PostTag
+    from app.models.blog import PostKeywordLink
+    from sqlalchemy import select
+
+    out = post_out(p)
+    out.tag_ids = [
+        str(t) for t in session.scalars(
+            select(PostTag.tag_id).where(PostTag.post_id == p.id)
+        ).all()
+    ]
+    out.keyword_ids = [
+        str(k) for k in session.scalars(
+            select(PostKeywordLink.keyword_id).where(PostKeywordLink.post_id == p.id)
+        ).all()
+    ]
+    sources = session.scalars(
+        select(PostSource).where(PostSource.post_id == p.id).order_by(PostSource.created_at)
+    ).all()
+    out.source_summary = [
+        PostSourceSummary(
+            id=str(s.id),
+            source_type=s.source_type,
+            status=s.status,
+            original_url=s.original_url,
+            original_title=s.original_title,
+            captured_at=s.captured_at.isoformat() if s.captured_at else None,
+        )
+        for s in sources
+    ]
+    return out
+
+
+def content_type_out(ct: Any) -> ContentTypeOut:
+    return ContentTypeOut(
+        id=str(ct.id),
+        content_class=ct.content_class,
+        key=ct.key,
+        name=ct.name,
+        description=ct.description,
+        field_schema=ct.field_schema_json or {},
+        sort_order=ct.sort_order,
+        enabled=ct.enabled,
+        schema_version=ct.schema_version,
+        created_at=ct.created_at.isoformat(),
+        updated_at=ct.updated_at.isoformat(),
     )
 
 

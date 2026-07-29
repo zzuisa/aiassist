@@ -14,7 +14,7 @@ import jsonschema
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ValidationError
+from app.core.errors import NotFoundError, ValidationError
 from app.models.blog import PostContentType
 
 # ---------------------------------------------------------------------------
@@ -194,3 +194,104 @@ def get_content_type(
             PostContentType.user_id == user_id,
         )
     )
+
+
+def list_all_content_types(session: Session, user_id: uuid.UUID) -> list[PostContentType]:
+    """List owned content types (enabled and disabled), for management UIs."""
+    return list(
+        session.scalars(
+            select(PostContentType)
+            .where(PostContentType.user_id == user_id)
+            .order_by(PostContentType.sort_order, PostContentType.name)
+        ).all()
+    )
+
+
+def _validate_field_schema(field_schema: dict[str, Any]) -> None:
+    """Reject a field_schema that is not itself a valid JSON Schema."""
+    if not field_schema:
+        return
+    try:
+        jsonschema.Draft202012Validator.check_schema(field_schema)
+    except jsonschema.SchemaError as exc:
+        raise ValidationError(f"Invalid field_schema: {exc.message}", code="invalid_field_schema") from exc
+
+
+def create_content_type(
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    content_class: str,
+    key: str,
+    name: str,
+    field_schema: dict[str, Any],
+    description: str | None = None,
+    sort_order: int = 0,
+    enabled: bool = True,
+) -> PostContentType:
+    validate_content_class(content_class)
+    _validate_field_schema(field_schema)
+    existing = session.scalar(
+        select(PostContentType).where(
+            PostContentType.user_id == user_id, PostContentType.key == key
+        )
+    )
+    if existing is not None:
+        raise ValidationError(f"content type key '{key}' already exists", code="duplicate_key")
+    ct = PostContentType(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        content_class=content_class,
+        key=key,
+        name=name,
+        description=description,
+        field_schema_json=field_schema,
+        schema_version=1,
+        sort_order=sort_order,
+        enabled=enabled,
+    )
+    session.add(ct)
+    session.flush()
+    return ct
+
+
+def update_content_type(
+    session: Session,
+    user_id: uuid.UUID,
+    content_type_id: uuid.UUID,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    field_schema: dict[str, Any] | None = None,
+    sort_order: int | None = None,
+    enabled: bool | None = None,
+) -> tuple[PostContentType, list[str]]:
+    """Update a content type; bump schema_version when the field_schema changes.
+
+    Returns ``(content_type, warnings)``.  A schema change warns because existing
+    posts keep their stored structured_data (never rewritten) and may no longer
+    validate against the new schema.
+    """
+    ct = get_content_type(session, user_id, content_type_id)
+    if ct is None:
+        raise NotFoundError("Content type not found")
+    warnings: list[str] = []
+    if name is not None:
+        ct.name = name
+    if description is not None:
+        ct.description = description
+    if sort_order is not None:
+        ct.sort_order = sort_order
+    if enabled is not None:
+        ct.enabled = enabled
+    if field_schema is not None and field_schema != (ct.field_schema_json or {}):
+        _validate_field_schema(field_schema)
+        ct.field_schema_json = field_schema
+        ct.schema_version += 1
+        warnings.append(
+            "field_schema changed; existing posts keep their stored data and may "
+            "need review against schema version "
+            f"{ct.schema_version}"
+        )
+    session.flush()
+    return ct, warnings
