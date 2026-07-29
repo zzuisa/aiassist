@@ -8,6 +8,8 @@ signed URLs, raw prompts or media bytes.
 from __future__ import annotations
 
 import logging
+import logging.handlers
+import os
 import re
 import secrets
 from collections.abc import MutableMapping
@@ -63,8 +65,38 @@ def _redact_processor(
     return event_dict
 
 
-def configure_logging(level: str = "INFO") -> None:
-    logging.basicConfig(level=level.upper(), format="%(message)s")
+def configure_logging(level: str = "INFO", service: str = "backend") -> None:
+    """Configure structlog to write JSON to stdout and, when LOG_DIR is set,
+    also to a rotating file at ``$LOG_DIR/<service>.log`` (10 MiB × 5 files).
+    The file handler is added to the root logger so every stdlib log (SQLAlchemy,
+    uvicorn, celery, …) also flows there; structlog uses the same root handler.
+    """
+    root = logging.getLogger()
+    root.setLevel(level.upper())
+
+    # --- stdout handler (always) -------------------------------------------
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(logging.Formatter("%(message)s"))
+    root.addHandler(stream_handler)
+
+    # --- file handler (when LOG_DIR is injected by compose) -----------------
+    log_dir = os.environ.get("LOG_DIR", "")
+    if log_dir:
+        log_path = os.path.join(log_dir, f"{service}.log")
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_path,
+                maxBytes=10 * 1024 * 1024,  # 10 MiB
+                backupCount=5,
+                encoding="utf-8",
+            )
+            file_handler.setFormatter(logging.Formatter("%(message)s"))
+            root.addHandler(file_handler)
+        except OSError:
+            # Mount may not be ready yet; fall back to stdout-only gracefully.
+            pass
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -73,6 +105,7 @@ def configure_logging(level: str = "INFO") -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.JSONRenderer(),
         ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(level.upper())),
         cache_logger_on_first_use=True,
     )

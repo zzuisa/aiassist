@@ -2,6 +2,14 @@
 # All middleware versions come from specs/001-personal-life-os/deployment.md §7.
 # Only the internal nginx gateway publishes a port, bound to 127.0.0.1.
 
+# Shared log rotation for all services. stdout is captured by Docker and rotated
+# here; structured JSON logs from the app are also written to /www/wwwlogs/aiassist/.
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 x-backend-image: &backend-image
   build:
     context: ./backend
@@ -18,12 +26,16 @@ x-backend-image: &backend-image
     RABBITMQ_PASSWORD_FILE: /run/secrets/rabbitmq_password
     SMTP_PASSWORD_FILE: /run/secrets/smtp_password
     LLM_PROVIDER_KEY_FILE: /run/secrets/llm_provider_key
+    LOG_DIR: /logs/aiassist
   secrets:
     - postgres_password
     - jwt_signing_key
     - rabbitmq_password
     - smtp_password
     - llm_provider_key
+  volumes:
+    - /www/wwwlogs/aiassist:/logs/aiassist
+  logging: *logging
   networks: [internal]
 
 services:
@@ -100,6 +112,7 @@ services:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
     volumes:
       - assets:/data/assets
+      - /www/wwwlogs/aiassist:/logs/aiassist
     healthcheck:
       test: ["CMD", "python", "-m", "app.cli.main", "healthcheck", "--url", "http://localhost:8000/health/ready"]
       interval: 15s
@@ -139,6 +152,7 @@ services:
        "--prefetch-multiplier", "1", "-n", "fast@%h"]
     volumes:
       - assets:/data/assets
+      - /www/wwwlogs/aiassist:/logs/aiassist
     healthcheck:
       test:
         ["CMD-SHELL", "celery -A app.workers.celery_app.celery inspect ping --destination fast@$$HOSTNAME --timeout 10 | grep -q pong"]
@@ -162,6 +176,7 @@ services:
        "--prefetch-multiplier", "1", "--max-tasks-per-child", "20", "-n", "heavy@%h"]
     volumes:
       - assets:/data/assets
+      - /www/wwwlogs/aiassist:/logs/aiassist
     healthcheck:
       test:
         ["CMD-SHELL", "celery -A app.workers.celery_app.celery inspect ping --destination heavy@$$HOSTNAME --timeout 10 | grep -q pong"]
@@ -205,6 +220,7 @@ services:
         VITE_BASE_URL: ${VITE_BASE_URL:-/}
     image: aiassist-frontend:local
     restart: unless-stopped
+    logging: *logging
     networks: [internal]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
@@ -222,6 +238,8 @@ services:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
       - assets:/data/assets:ro
+      - /www/wwwlogs/aiassist/nginx:/logs/aiassist/nginx
+    logging: *logging
     depends_on:
       backend:
         condition: service_healthy

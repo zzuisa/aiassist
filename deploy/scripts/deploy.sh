@@ -66,11 +66,26 @@ export_rabbitmq_pass() {
   export RABBITMQ_DEFAULT_PASS
 }
 
+ensure_log_dirs() {
+  # Create per-service log directories under /www/wwwlogs/aiassist/ and make
+  # them world-writable so containers (uid 10001 backend, root nginx) can write
+  # without requiring a matching host user.
+  local log_root="/www/wwwlogs/aiassist"
+  for svc in backend outbox-publisher worker-fast worker-heavy celery-beat nginx; do
+    mkdir -p "$log_root/$svc"
+  done
+  # nginx writes directly into log_root/nginx
+  mkdir -p "$log_root/nginx"
+  chmod -R 777 "$log_root"
+  log "Log directories ready under $log_root"
+}
+
 cmd_up() {
   require_compose_v2
   check_capacity
   check_env_and_secrets
   export_rabbitmq_pass
+  ensure_log_dirs
   log "Validating compose configuration..."
   docker compose config --quiet
   log "Pulling pinned middleware images..."

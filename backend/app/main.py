@@ -34,7 +34,7 @@ API_PREFIX = "/api/v1"
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, service="backend")
     ensure_dev_signing_key()
     settings.validate_startup()
 
