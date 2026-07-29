@@ -1,15 +1,70 @@
 import { api } from '@/api/client'
 
+export interface PostSourceSummary {
+  id: string
+  source_type: string
+  status: string
+  original_url?: string | null
+  original_title?: string | null
+  captured_at?: string | null
+}
+
+export interface PostAiSummary {
+  display_status: string | null
+  optimization_count: number
+  first_optimized_at?: string | null
+  last_optimized_at?: string | null
+  latest_job_id?: string | null
+  pending_candidate_id?: string | null
+}
+
 export interface Post {
   id: string
   title: string
+  subtitle: string | null
+  summary: string | null
   markdown: string
   status: 'draft' | 'private' | 'published'
   slug: string | null
+  content_status: string
+  content_class: string
+  content_type_id: string | null
+  category_id: string | null
+  tag_ids: string[]
+  keyword_ids: string[]
+  language: string
+  editor_mode: string
+  occurred_at: string | null
+  location: string | null
+  project: string | null
+  structured_data: Record<string, unknown>
+  source_summary: PostSourceSummary[]
+  ai_summary: PostAiSummary | null
   version: number
   current_revision_id: string | null
   created_at: string
+  updated_at: string
   published_at: string | null
+}
+
+// Every field a PATCH may carry (all optional; version is added at call time).
+export interface PostPatch {
+  title?: string
+  subtitle?: string | null
+  summary?: string | null
+  markdown?: string
+  content_status?: string
+  content_class?: string
+  content_type_id?: string | null
+  category_id?: string | null
+  tag_ids?: string[]
+  keyword_ids?: string[]
+  language?: string
+  editor_mode?: string
+  occurred_at?: string | null
+  location?: string | null
+  project?: string | null
+  structured_data?: Record<string, unknown>
 }
 
 export interface RevisionDiff {
@@ -23,6 +78,8 @@ export const postsApi = {
   get: (id: string) => api.get<Post>(`/posts/${id}`),
   create: (title: string, markdown: string, sourceRefs: Array<{ type: string; id: string }> = []) =>
     api.post<Post>('/posts', { title, markdown, source_refs: sourceRefs }),
+  patch: (id: string, patch: PostPatch, version: number) =>
+    api.patch<Post>(`/posts/${id}`, { ...patch, version }),
   save: (id: string, title: string, markdown: string, version: number) =>
     api.patch<Post>(`/posts/${id}`, { title, markdown, version }),
   generate: (id: string, scenario: string, instruction?: string) =>

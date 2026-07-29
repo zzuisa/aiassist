@@ -55,3 +55,49 @@ test('url capture rejects an unsafe address (failure path)', async ({ page }) =>
 
   await expect(page.getByText('该链接不被允许（可能是内网地址或非法协议）。')).toBeVisible()
 })
+
+// --- US2: editing an article ---
+
+async function newBlankPost(page: Page): Promise<void> {
+  await page.goto('/blog')
+  await page.getByRole('button', { name: '新建内容' }).click()
+  await page.getByText('空白文章', { exact: true }).click()
+  await expect(page).toHaveURL(/\/blog\/[0-9a-f-]+$/)
+}
+
+test('edit an article in source mode and see it autosave', async ({ page }) => {
+  await login(page)
+  await newBlankPost(page)
+
+  await page.getByRole('button', { name: '源码' }).click()
+  await page.locator('textarea.md-source').fill(
+    '# 标题\n\n> 引用\n\n- 一\n- 二\n\n```js\nconst x = 1\n```',
+  )
+  // Autosave shows a visible state.
+  await expect(page.locator('.save-state')).toHaveText(/保存中|已保存/)
+
+  // Preview renders the supported blocks.
+  await page.getByRole('button', { name: '预览' }).click()
+  await expect(page.locator('.md-preview h1')).toHaveText('标题')
+  await expect(page.locator('.md-preview blockquote')).toHaveText('引用')
+  await expect(page.locator('.md-code')).toContainText('const x = 1')
+})
+
+test('focus mode hides the outline and sidebar', async ({ page }) => {
+  await login(page)
+  await newBlankPost(page)
+  await page.locator('textarea.md-source').fill('# H\n\ntext')
+  await expect(page.locator('.outline')).toBeVisible()
+  await page.getByRole('button', { name: '专注' }).click()
+  await expect(page.locator('.outline')).toBeHidden()
+  await expect(page.locator('.sidebar')).toHaveCount(0)
+})
+
+test('narrow viewport stacks the workbench', async ({ page }) => {
+  await page.setViewportSize({ width: 400, height: 800 })
+  await login(page)
+  await newBlankPost(page)
+  await expect(page.locator('.workbench')).toBeVisible()
+  await page.locator('textarea.md-source').fill('内容')
+  await expect(page.locator('.save-state')).toHaveText(/保存中|已保存/)
+})

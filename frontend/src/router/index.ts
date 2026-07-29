@@ -61,6 +61,11 @@ const routes: RouteRecordRaw[] = [
             name: 'blog-post-editor',
             component: () => import('@/modules/posts/PostEditorPage.vue'),
           },
+          {
+            path: ':id/view',
+            name: 'blog-post-view',
+            component: () => import('@/modules/posts/PostViewPage.vue'),
+          },
         ],
       },
       {

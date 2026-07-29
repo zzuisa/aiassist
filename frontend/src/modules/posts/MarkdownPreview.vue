@@ -1,0 +1,230 @@
+<script setup lang="ts">
+// Sanitized Markdown preview (spec 005, US2, T057).
+//
+// Dependency-free and XSS-safe: all raw HTML in the source is escaped before any
+// Markdown structure is applied, so no author or pasted markup can inject nodes.
+// Fenced code gets a copy button; ```mermaid``` and $$…$$ blocks are shown as
+// clearly-labelled read-only source (no external renderer is loaded).
+import { computed, ref } from 'vue'
+
+const props = defineProps<{ markdown: string }>()
+
+interface Block {
+  kind: 'html' | 'code' | 'mermaid' | 'formula'
+  content: string
+  lang?: string
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function inline(s: string): string {
+  // Operates on already-escaped text; only introduces our own safe tags.
+  return s
+    .replace(/`([^`]+)`/g, (_m, c) => `<code>${c}</code>`)
+    .replace(/\*\*([^*]+)\*\*/g, (_m, c) => `<strong>${c}</strong>`)
+    .replace(/(^|[^*])\*([^*]+)\*/g, (_m, p, c) => `${p}<em>${c}</em>`)
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt, src) =>
+      /^https?:\/\//.test(src) ? `<img alt="${alt}" src="${src}">` : escapeHtml(`![${alt}](${src})`),
+    )
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, txt, href) =>
+      /^https?:\/\//.test(href)
+        ? `<a href="${href}" rel="noopener noreferrer nofollow" target="_blank">${txt}</a>`
+        : escapeHtml(`[${txt}](${href})`),
+    )
+}
+
+function renderMarkdownBlock(src: string): string {
+  const lines = src.split('\n')
+  const html: string[] = []
+  let inList = false
+  const closeList = (): void => {
+    if (inList) {
+      html.push('</ul>')
+      inList = false
+    }
+  }
+  for (const raw of lines) {
+    const line = raw
+    const h = /^(#{1,6})\s+(.*)$/.exec(line)
+    if (h) {
+      closeList()
+      const level = h[1].length
+      html.push(`<h${level}>${inline(h[2])}</h${level}>`)
+      continue
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      if (!inList) {
+        html.push('<ul>')
+        inList = true
+      }
+      html.push(`<li>${inline(line.replace(/^\s*[-*]\s+/, ''))}</li>`)
+      continue
+    }
+    // Text reaching here is already HTML-escaped, so a blockquote's ">" marker
+    // appears as "&gt;".
+    if (/^\s*(&gt;|>)\s?/.test(line)) {
+      closeList()
+      html.push(`<blockquote>${inline(line.replace(/^\s*(&gt;|>)\s?/, ''))}</blockquote>`)
+      continue
+    }
+    if (line.trim() === '') {
+      closeList()
+      continue
+    }
+    closeList()
+    html.push(`<p>${inline(line)}</p>`)
+  }
+  closeList()
+  return html.join('\n')
+}
+
+const blocks = computed<Block[]>(() => {
+  const escaped = escapeHtml(props.markdown)
+  const out: Block[] = []
+  const fence = /```(\w+)?\n([\s\S]*?)```/g
+  let lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = fence.exec(escaped)) !== null) {
+    if (m.index > lastIndex) {
+      out.push({ kind: 'html', content: renderMarkdownBlock(escaped.slice(lastIndex, m.index)) })
+    }
+    const lang = (m[1] || '').toLowerCase()
+    const code = m[2].replace(/\n$/, '')
+    out.push({ kind: lang === 'mermaid' ? 'mermaid' : 'code', content: code, lang })
+    lastIndex = fence.lastIndex
+  }
+  let tail = escaped.slice(lastIndex)
+  // Read-only formula blocks ($$ … $$) are surfaced as labelled source.
+  const formula = /\$\$([\s\S]*?)\$\$/g
+  const tailOut: Block[] = []
+  let fLast = 0
+  let fm: RegExpExecArray | null
+  while ((fm = formula.exec(tail)) !== null) {
+    if (fm.index > fLast)
+      tailOut.push({ kind: 'html', content: renderMarkdownBlock(tail.slice(fLast, fm.index)) })
+    tailOut.push({ kind: 'formula', content: fm[1].trim() })
+    fLast = formula.lastIndex
+  }
+  if (fLast < tail.length)
+    tailOut.push({ kind: 'html', content: renderMarkdownBlock(tail.slice(fLast)) })
+  return [...out, ...tailOut]
+})
+
+const copied = ref<number | null>(null)
+async function copy(text: string, i: number): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    copied.value = i
+    setTimeout(() => (copied.value = null), 1500)
+  } catch {
+    /* clipboard unavailable — ignore */
+  }
+}
+</script>
+
+<template>
+  <div class="md-preview">
+    <template
+      v-for="(b, i) in blocks"
+      :key="i"
+    >
+      <!-- eslint-disable vue/no-v-html -- b.content is fully HTML-escaped in renderMarkdownBlock before any tags are added, so it cannot inject markup -->
+      <div
+        v-if="b.kind === 'html'"
+        class="md-body"
+        v-html="b.content"
+      />
+      <!-- eslint-enable vue/no-v-html -->
+      <figure
+        v-else-if="b.kind === 'mermaid'"
+        class="md-special"
+      >
+        <figcaption>Mermaid（只读）</figcaption>
+        <pre>{{ b.content }}</pre>
+      </figure>
+      <figure
+        v-else-if="b.kind === 'formula'"
+        class="md-special"
+      >
+        <figcaption>公式（只读）</figcaption>
+        <pre>{{ b.content }}</pre>
+      </figure>
+      <div
+        v-else
+        class="md-code"
+      >
+        <button
+          type="button"
+          class="md-copy"
+          @click="copy(b.content, i)"
+        >
+          {{ copied === i ? '已复制' : '复制' }}
+        </button>
+        <pre><code>{{ b.content }}</code></pre>
+      </div>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.md-preview {
+  padding: var(--space-4);
+  overflow-y: auto;
+  line-height: 1.7;
+}
+.md-body :deep(h1),
+.md-body :deep(h2),
+.md-body :deep(h3) {
+  margin: 1em 0 0.5em;
+}
+.md-body :deep(a) {
+  color: var(--color-accent, #4f46e5);
+}
+.md-body :deep(code) {
+  background: var(--color-surface-muted, #f1f5f9);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+.md-body :deep(img) {
+  max-width: 100%;
+}
+.md-code {
+  position: relative;
+  margin: var(--space-3) 0;
+}
+.md-code pre,
+.md-special pre {
+  background: var(--color-surface-muted, #0f172a);
+  color: var(--color-code-text, #e2e8f0);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 0;
+}
+.md-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+}
+.md-special {
+  margin: var(--space-3) 0;
+}
+.md-special figcaption {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.25rem;
+}
+</style>

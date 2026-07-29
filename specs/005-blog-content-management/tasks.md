@@ -110,23 +110,23 @@
 
 - [x] T046 [P] [US2] Add Post patch, content-type and source-summary contract tests in `backend/tests/contract/test_blog_content_api.py`
 - [x] T047 [P] [US2] Add full-field snapshot, hidden dynamic field and concurrent autosave integration tests in `backend/tests/integration/test_blog_editor_versions.py`
-- [ ] T048 [P] [US2] Add supported Markdown round-trip fixtures for rich/source conversion in `frontend/tests/unit/blog-markdown-roundtrip.spec.ts`
-- [ ] T049 [P] [US2] Add editor modes, save states, conversion warning and property-sidebar component tests in `frontend/tests/component/blog-editor.spec.ts`
-- [ ] T050 [P] [US2] Add keyboard, focus, narrow viewport and article-edit E2E coverage in `frontend/tests/e2e/blog-content-management.spec.ts`
+- [x] T048 [P] [US2] Add supported Markdown round-trip fixtures for rich/source conversion in `frontend/tests/unit/blog-markdown-roundtrip.spec.ts`
+- [x] T049 [P] [US2] Add editor modes, save states, conversion warning and property-sidebar component tests in `frontend/tests/component/blog-editor.spec.ts`
+- [x] T050 [P] [US2] Add keyboard, focus, narrow viewport and article-edit E2E coverage in `frontend/tests/e2e/blog-content-management.spec.ts`
 
 ### Implementation for User Story 2
 
 - [x] T051 [US2] Extend Post save validation for all common/dynamic fields, owned taxonomy relations, status transitions and search Outbox in `backend/app/modules/posts/service.py`
 - [x] T052 [US2] Implement content-type list/create/update endpoints and schema-version warnings in `backend/app/modules/posts/query_router.py` and `backend/app/modules/posts/content_types.py`
 - [x] T053 [US2] Extend private Post GET/PATCH serialization with sources, AI summary, organization fields and strict optimistic version in `backend/app/modules/posts/router.py`
-- [ ] T054 [P] [US2] Implement typed current Post, content-type and revision API clients in `frontend/src/api/posts.ts` and `frontend/src/api/blogQueries.ts`
-- [ ] T055 [P] [US2] Implement canonical source-mode editor with cursor retention and local unsaved buffer in `frontend/src/modules/posts/MarkdownSourceEditor.vue`
-- [ ] T056 [P] [US2] Implement Milkdown rich editor with the MVP supported-block matrix and Markdown update listener in `frontend/src/modules/posts/RichMarkdownEditor.vue`
-- [ ] T057 [P] [US2] Implement sanitized Markdown preview, code copy/highlight, Mermaid and formula read-only rendering in `frontend/src/modules/posts/MarkdownPreview.vue`
-- [ ] T058 [P] [US2] Implement class/type/category/tag/keyword/source/status/time/Skill/version property controls in `frontend/src/modules/posts/PostPropertySidebar.vue`
-- [ ] T059 [US2] Rebuild the editor shell with mode switching, split/fullscreen/focus modes, outline and conversion-risk confirmation in `frontend/src/modules/posts/PostEditorPage.vue`
-- [ ] T060 [US2] Implement debounced autosave, explicit save, navigation guard, conflict reload and visible save state in `frontend/src/modules/posts/usePostAutosave.ts`
-- [ ] T061 [US2] Implement read-only article rendering with separate source and user-content regions in `frontend/src/modules/posts/PostViewPage.vue`
+- [x] T054 [P] [US2] Implement typed current Post, content-type and revision API clients in `frontend/src/api/posts.ts` and `frontend/src/api/blogQueries.ts`
+- [x] T055 [P] [US2] Implement canonical source-mode editor with cursor retention and local unsaved buffer in `frontend/src/modules/posts/MarkdownSourceEditor.vue`
+- [x] T056 [P] [US2] Implement Milkdown rich editor with the MVP supported-block matrix and Markdown update listener in `frontend/src/modules/posts/RichMarkdownEditor.vue`
+- [x] T057 [P] [US2] Implement sanitized Markdown preview, code copy/highlight, Mermaid and formula read-only rendering in `frontend/src/modules/posts/MarkdownPreview.vue`
+- [x] T058 [P] [US2] Implement class/type/category/tag/keyword/source/status/time/Skill/version property controls in `frontend/src/modules/posts/PostPropertySidebar.vue`
+- [x] T059 [US2] Rebuild the editor shell with mode switching, split/fullscreen/focus modes, outline and conversion-risk confirmation in `frontend/src/modules/posts/PostEditorPage.vue`
+- [x] T060 [US2] Implement debounced autosave, explicit save, navigation guard, conflict reload and visible save state in `frontend/src/modules/posts/usePostAutosave.ts`
+- [x] T061 [US2] Implement read-only article rendering with separate source and user-content regions in `frontend/src/modules/posts/PostViewPage.vue`
 
 **Checkpoint**: US2 is a complete non-AI writing and organization tool built on durable versions.
 
