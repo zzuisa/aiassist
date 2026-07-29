@@ -62,3 +62,6 @@ export interface NotificationItem {
   entity?: EntityRef | null
   created_at: string
 }
+
+// Blog content-management types (spec 005) live in a dedicated module.
+export * from './blogTypes'

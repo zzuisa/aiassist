@@ -18,12 +18,12 @@
 
 **Purpose**: Add approved dependencies, contract assets and module entry points without changing behavior.
 
-- [ ] T001 Add Trafilatura 2.1 compatible dependency and lock metadata for URL extraction in `backend/pyproject.toml` and `backend/uv.lock`
-- [ ] T002 [P] Add Milkdown Vue/Crepe compatible dependencies and lock metadata in `frontend/package.json` and `frontend/package-lock.json`
-- [ ] T003 [P] Add checked-in AI and Skill JSON schemas to the backend contract test manifest in `backend/tests/contract/test_blog_ai_schema.py`
-- [ ] T004 [P] Create shared blog API type modules and exports in `frontend/src/api/blogTypes.ts` and `frontend/src/api/types.ts`
-- [ ] T005 [P] Create the posts submodule package files for capture, Skill, taxonomy, AI and query services in `backend/app/modules/posts/__init__.py`
-- [ ] T006 Add blog content, extraction and word-cloud task routes without adding Worker processes in `backend/app/workers/celery_app.py` and `compose.yaml`
+- [x] T001 Add Trafilatura 2.1 compatible dependency and lock metadata for URL extraction in `backend/pyproject.toml` and `backend/uv.lock` — pyproject updated (`trafilatura>=2.1,<3`); real lock is `backend/requirements.lock.txt` (no uv.lock in repo) — regenerated in-container, `+13` pins incl. `trafilatura==2.1.0`; also updated `requirements-dev.lock.txt`; verified `import trafilatura` OK
+- [x] T002 [P] Add Milkdown Vue/Crepe compatible dependencies and lock metadata in `frontend/package.json` and `frontend/package-lock.json` — package.json updated (`@milkdown/crepe|kit|vue ^7.5.0`); `package-lock.json` regenerated in Node 24 container (10388→12861 lines), `npm ci` consistency verified
+- [x] T003 [P] Add checked-in AI and Skill JSON schemas to the backend contract test manifest in `backend/tests/contract/test_blog_ai_schema.py`
+- [x] T004 [P] Create shared blog API type modules and exports in `frontend/src/api/blogTypes.ts` and `frontend/src/api/types.ts`
+- [x] T005 [P] Create the posts submodule package files for capture, Skill, taxonomy, AI and query services in `backend/app/modules/posts/__init__.py`
+- [x] T006 Add blog content, extraction and word-cloud task routes without adding Worker processes in `backend/app/workers/celery_app.py` and `compose.yaml` — verified: `app.workers.tasks.blog.*` → `llm` queue (worker-heavy), no new Worker
 
 **Checkpoint**: Dependencies resolve and existing backend/frontend builds still start before schema work.
 
