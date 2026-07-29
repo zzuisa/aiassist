@@ -260,3 +260,86 @@ def test_content_type_rejects_duplicate_key(client, make_user):
     }
     assert client.post("/api/v1/blog/content-types", json=body, headers=h).status_code == 201
     assert client.post("/api/v1/blog/content-types", json=body, headers=h).status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# US3: optimize endpoint contract (T062)
+# ---------------------------------------------------------------------------
+
+
+def _seed_global_skill(user_id):
+    """Create a complete Skill + global default directly so optimize can resolve."""
+    import uuid as _uuid
+
+    from app.db.session import session_scope
+    from app.models.blog import BlogSkill, BlogSkillDefault, BlogSkillVersion
+
+    config = {
+        "schema_version": "blog-skill-config.v1",
+        "applicable_content_classes": ["essay"],
+        "applicable_content_type_ids": [],
+        "processing_goal": "improve",
+        "content_rules": [], "title_rules": [], "summary_rules": [], "body_structure": [],
+        "taxonomy_rules": [], "keyword_rules": [], "prohibitions": ["no invention"],
+        "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
+        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "long_content_strategy": "reject",
+    }
+    with session_scope() as s:
+        skill = BlogSkill(id=_uuid.uuid4(), user_id=user_id, name="s", enabled=True)
+        s.add(skill)
+        s.flush()
+        v = BlogSkillVersion(
+            id=_uuid.uuid4(), user_id=user_id, skill_id=skill.id, version_number=1,
+            config_json=config, schema_version="blog-skill-config.v1",
+            recommended_model="m", max_content_chars=200000, long_content_strategy="reject",
+        )
+        s.add(v)
+        s.flush()
+        skill.current_version_id = v.id
+        s.add(BlogSkillDefault(
+            id=_uuid.uuid4(), user_id=user_id, scope_type="global", scope_key="*", skill_id=skill.id,
+        ))
+
+
+def test_optimize_returns_blog_job_202(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    _seed_global_skill(user.id)
+    post = _blank_post(client, h)
+    r = client.post(
+        f"/api/v1/posts/{post['id']}/optimize",
+        json={"post_version": post["version"], "optimization_type": "full"},
+        headers=h,
+    )
+    assert r.status_code == 202
+    body = r.json()
+    assert body["job_type"] == "blog.optimize"
+    assert body["display_status"] in ("ai_queued", "ai_processing", "ai_review")
+    assert body["status"] in ("pending", "queued", "processing", "waiting_user")
+
+
+def test_optimize_rejects_stale_version(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    _seed_global_skill(user.id)
+    post = _blank_post(client, h)
+    r = client.post(
+        f"/api/v1/posts/{post['id']}/optimize",
+        json={"post_version": post["version"] + 5, "optimization_type": "full"},
+        headers=h,
+    )
+    assert r.status_code == 409
+
+
+def test_optimize_without_skill_is_404(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = _blank_post(client, h)
+    r = client.post(
+        f"/api/v1/posts/{post['id']}/optimize",
+        json={"post_version": post["version"], "optimization_type": "full"},
+        headers=h,
+    )
+    assert r.status_code == 404

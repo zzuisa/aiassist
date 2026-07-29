@@ -166,6 +166,20 @@ class RestoreRevisionBody(BaseModel):
     version: int  # optimistic lock — must match current post.version
 
 
+class OptimizeBody(BaseModel):
+    """Submit an AI optimization bound to the current revision (openapi OptimizationRequest)."""
+
+    model_config = {"extra": "forbid"}
+    post_version: int = Field(ge=1)
+    optimization_type: str = Field(pattern="^(full|language|structure|metadata|check|reoptimize)$")
+    scope: str = Field(default="all", pattern="^(all|body|metadata|selected_fields)$")
+    selected_fields: list[str] = Field(default_factory=list, max_length=200)
+    skill_id: uuid.UUID | None = None
+    model_key: str | None = Field(default=None, max_length=120)
+    instruction: str | None = Field(default=None, max_length=2000)
+    request_nonce: str | None = Field(default=None, max_length=64)
+
+
 # ---------------------------------------------------------------------------
 # Capture request DTOs (spec 005, US1) — mirror openapi ClipboardCapture etc.
 # ---------------------------------------------------------------------------

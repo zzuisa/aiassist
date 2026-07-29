@@ -71,6 +71,7 @@ _DISPLAY_STATUS = {
     ("optimizing", "queued"): "ai_queued",
     ("optimizing", "pending"): "ai_queued",
     ("optimizing", "processing"): "ai_processing",
+    ("optimizing", "waiting_user"): "ai_review",
     ("optimizing", "completed"): "ai_review",
     ("aggregating", "processing"): "aggregating",
 }
