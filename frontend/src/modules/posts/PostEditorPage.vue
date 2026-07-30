@@ -149,8 +149,31 @@ async function togglePublish(): Promise<void> {
   }
 }
 
+// Hard delete (soft-delete server-side): removes the article from every list.
+// A published article must be unpublished first so a live URL is never broken.
+const deleting = ref(false)
+async function deletePost(): Promise<void> {
+  if (!post.value) return
+  if (post.value.status === 'published') {
+    window.alert('已发布的文章请先取消发布再删除。')
+    return
+  }
+  if (!window.confirm('确定要删除这篇文章吗？删除后将不再出现在列表中。')) return
+  deleting.value = true
+  try {
+    await postsApi.remove(post.value.id)
+    // The `deleting` flag short-circuits the unsaved-changes route guard below.
+    router.push({ name: 'blog' })
+  } catch {
+    deleting.value = false
+    window.alert('删除失败，请稍后重试。')
+  }
+}
+
 // Navigation guard: never leave with unsaved changes silently.
 onBeforeRouteLeave(async () => {
+  if (deleting.value) return true
+  if (!autosave.isDirty()) return true
   if (!autosave.isDirty()) return true
   const saved = await autosave.save()
   if (saved) return true
@@ -204,6 +227,14 @@ onBeforeRouteLeave(async () => {
           @click="togglePublish"
         >
           {{ post.status === 'published' ? '取消发布' : '发布' }}
+        </button>
+        <button
+          type="button"
+          class="delete-btn"
+          :disabled="deleting"
+          @click="deletePost"
+        >
+          删除
         </button>
       </div>
     </header>
@@ -357,6 +388,13 @@ onBeforeRouteLeave(async () => {
   background: var(--status-normal);
   color: #fff;
   cursor: pointer;
+}
+.actions .delete-btn {
+  background: var(--status-danger, #dc2626);
+}
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .save-state {
   font-size: 0.8rem;

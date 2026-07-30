@@ -52,6 +52,23 @@ async function archiveArticle(mode: 'archive' | 'discard'): Promise<void> {
   router.push({ name: 'blog' })
 }
 
+// Hard delete (soft-delete on the server: removes it from every list). Published
+// articles must be unpublished first so a live URL is never silently broken.
+async function deleteArticle(): Promise<void> {
+  if (!post.value) return
+  if (post.value.status === 'published') {
+    window.alert('已发布的文章请先取消发布再删除。')
+    return
+  }
+  if (!window.confirm('确定要删除这篇文章吗？删除后将不再出现在列表中。')) return
+  try {
+    await postsApi.remove(post.value.id)
+    router.push({ name: 'blog' })
+  } catch {
+    window.alert('删除失败，请稍后重试。')
+  }
+}
+
 async function loadSources(): Promise<void> {
   showSource.value = !showSource.value
   if (showSource.value && post.value && sources.value.length === 0) {
@@ -114,6 +131,13 @@ async function loadSources(): Promise<void> {
           @click="archiveArticle('discard')"
         >
           丢弃
+        </button>
+        <button
+          type="button"
+          class="ghost danger"
+          @click="deleteArticle"
+        >
+          删除
         </button>
       </div>
     </header>
