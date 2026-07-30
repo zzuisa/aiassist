@@ -238,6 +238,27 @@ class SkillDefaultBody(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Article management DTOs (spec 005, US6)
+# ---------------------------------------------------------------------------
+
+
+class MergeBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    primary_id: uuid.UUID
+    secondary_id: uuid.UUID
+    primary_version: int = Field(ge=1)
+    order: str = Field(default="primary_first", pattern="^(primary_first|secondary_first)$")
+    title: str | None = Field(default=None, max_length=240)
+
+
+class BatchBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    post_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    op: str = Field(pattern="^(set_class|set_status|set_category|add_tags|archive|discard)$")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
 # Capture request DTOs (spec 005, US1) — mirror openapi ClipboardCapture etc.
 # ---------------------------------------------------------------------------
 

@@ -363,3 +363,52 @@ def test_stale_version_blocks_decision(db_session, user_id):
             db_session, user_id, candidate.id,
             action="apply_all", current_version=post.version - 1,
         )
+
+
+# ---------------------------------------------------------------------------
+# Batch partial failure + archive/discard recoverability (spec 005, US6, T114)
+# ---------------------------------------------------------------------------
+
+
+def test_batch_partial_failure_does_not_roll_back_successes(db_session, user_id):
+    """One bad item must not undo the others (per-item SAVEPOINT isolation)."""
+    import uuid
+
+    from app.models.posts import Post
+    from app.modules.posts import service
+
+    a = service.create_post(db_session, user_id, title="a", markdown="x")
+    b = service.create_post(db_session, user_id, title="b", markdown="y")
+    db_session.commit()
+    bogus = uuid.uuid4()
+
+    results = service.batch_operation(
+        db_session, user_id, [a.id, bogus, b.id], "set_class", {"content_class": "life"}
+    )
+    db_session.commit()
+
+    ok = {r["id"]: r["ok"] for r in results}
+    assert ok[str(a.id)] is True and ok[str(b.id)] is True
+    assert ok[str(bogus)] is False
+    # The successful items persisted despite the failure in between.
+    assert db_session.get(Post, a.id).content_class == "life"
+    assert db_session.get(Post, b.id).content_class == "life"
+
+
+def test_archive_and_discard_are_recoverable_states(db_session, user_id):
+    """Archive/discard change status only — the row and its data survive."""
+    from app.models.posts import Post
+    from app.modules.posts import service
+
+    a = service.create_post(db_session, user_id, title="a", markdown="keep me")
+    b = service.create_post(db_session, user_id, title="b", markdown="keep me too")
+    db_session.commit()
+
+    service.batch_operation(db_session, user_id, [a.id], "archive", {})
+    service.batch_operation(db_session, user_id, [b.id], "discard", {})
+    db_session.commit()
+
+    ra = db_session.get(Post, a.id)
+    rb = db_session.get(Post, b.id)
+    assert ra.content_status == "archived" and ra.deleted_at is None and ra.markdown == "keep me"
+    assert rb.content_status == "discarded" and rb.deleted_at is None

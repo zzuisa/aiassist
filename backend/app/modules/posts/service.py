@@ -704,3 +704,148 @@ def list_published(session: Session, limit: int = 50) -> list[Post]:
             .limit(limit)
         ).all()
     )
+
+
+# ---------------------------------------------------------------------------
+# Ordered merge (spec 005, US6, T118)
+# ---------------------------------------------------------------------------
+
+
+def merge_posts(
+    session: Session,
+    user_id: uuid.UUID,
+    primary_id: uuid.UUID,
+    secondary_id: uuid.UUID,
+    *,
+    order: str = "primary_first",
+    title: str | None = None,
+    current_version: int,
+) -> Post:
+    """Merge *secondary* into *primary* in a chosen order, losing no sources.
+
+    The two bodies are concatenated in ``order``; the result becomes a new
+    ``merge`` revision on the primary. The secondary's capture sources are
+    re-parented to the primary (so no source is lost) and a ``merged_from``
+    relation records provenance. The secondary is marked ``discarded`` — kept and
+    recoverable, never hard-deleted. Uses the primary's optimistic version lock.
+    """
+    from app.models.blog import PostSource
+
+    if primary_id == secondary_id:
+        raise ValidationError("Cannot merge a post with itself", code="merge_self")
+    primary = get_post(session, user_id, primary_id)
+    secondary = get_post(session, user_id, secondary_id)
+    if primary.version != current_version:
+        raise VersionConflictError("Post was modified; refresh", code="version_conflict")
+
+    if order == "secondary_first":
+        merged = f"{secondary.markdown}\n\n---\n\n{primary.markdown}"
+    else:
+        merged = f"{primary.markdown}\n\n---\n\n{secondary.markdown}"
+
+    primary.markdown = merged
+    if title:
+        primary.title = title
+    primary.version += 1
+
+    # Re-parent the secondary's sources so the merged article keeps them all.
+    for src in session.scalars(
+        select(PostSource).where(PostSource.post_id == secondary_id)
+    ).all():
+        src.post_id = primary_id
+
+    rev = _new_revision(
+        session, primary, merged, "merge", primary.current_revision_id,
+        change_summary=f"合并自 {secondary_id}",
+    )
+    rev.applied_at = datetime.now(UTC)
+    primary.current_revision_id = rev.id
+
+    session.add(
+        EntityRelation(
+            id=uuid.uuid4(), user_id=user_id,
+            source_type="post", source_id=primary_id,
+            target_type="post", target_id=secondary_id,
+            relation_type="derived_from",
+            metadata_json={"merge": True, "order": order},
+        )
+    )
+    # The secondary is retained but removed from active lists (recoverable).
+    secondary.content_status = "discarded"
+    session.add(
+        ActivityLog(
+            user_id=user_id, actor_type="user", action="post.merged",
+            entity_type="post", entity_id=primary_id,
+            after_summary_json={"merged_from": str(secondary_id), "order": order},
+        )
+    )
+    return primary
+
+
+# ---------------------------------------------------------------------------
+# Itemized batch operations (spec 005, US6, T119)
+# ---------------------------------------------------------------------------
+
+_BATCH_OPS = ("set_class", "set_status", "set_category", "add_tags", "archive", "discard")
+
+
+def batch_operation(
+    session: Session,
+    user_id: uuid.UUID,
+    post_ids: list[uuid.UUID],
+    op: str,
+    params: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Apply *op* to each post independently — one failure never rolls back the rest.
+
+    Each item runs in its own SAVEPOINT; a failing item is reported with its error
+    and the batch continues. Returns a per-item result list preserving input order.
+    """
+    if op not in _BATCH_OPS:
+        raise ValidationError(f"Unknown batch op '{op}'", code="invalid_batch_op")
+    params = params or {}
+    results: list[dict[str, Any]] = []
+    for pid in post_ids:
+        try:
+            with session.begin_nested():
+                post = get_post(session, user_id, pid)
+                _apply_batch_op(session, user_id, post, op, params)
+            results.append({"id": str(pid), "ok": True})
+        except Exception as exc:  # noqa: BLE001 — itemized isolation is the point
+            code = getattr(exc, "code", None) or exc.__class__.__name__
+            results.append({"id": str(pid), "ok": False, "error": code})
+    return results
+
+
+def _apply_batch_op(
+    session: Session, user_id: uuid.UUID, post: Post, op: str, params: dict[str, Any]
+) -> None:
+    if op == "set_class":
+        value = params.get("content_class")
+        if not value:
+            raise ValidationError("content_class required", code="missing_param")
+        post.content_class = value
+    elif op == "set_status":
+        value = params.get("content_status")
+        if not value:
+            raise ValidationError("content_status required", code="missing_param")
+        post.content_status = value
+    elif op == "set_category":
+        post.category_id = params.get("category_id")
+    elif op == "add_tags":
+        from app.models.posts import PostTag
+
+        existing = {
+            t for t in session.scalars(
+                select(PostTag.tag_id).where(PostTag.post_id == post.id)
+            ).all()
+        }
+        for tid in params.get("tag_ids", []):
+            tid_u = uuid.UUID(tid) if isinstance(tid, str) else tid
+            if tid_u not in existing:
+                session.add(PostTag(post_id=post.id, user_id=user_id, tag_id=tid_u))
+    elif op == "archive":
+        post.content_status = "archived"
+    elif op == "discard":
+        post.content_status = "discarded"
+    post.version += 1

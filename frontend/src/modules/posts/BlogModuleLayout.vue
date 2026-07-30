@@ -5,6 +5,7 @@ import { RouterView } from 'vue-router'
 // skills, taxonomy and settings child routes and extend this list.
 const navItems = [
   { to: '/blog', label: '文章', exact: true },
+  { to: '/blog/triage', label: '待整理', exact: false },
   { to: '/blog/jobs', label: 'AI 任务', exact: false },
   { to: '/blog/skills', label: 'AI 技能', exact: false },
 ]

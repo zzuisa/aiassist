@@ -558,3 +558,95 @@ def test_skill_enable_disable(client, make_user):
     off = client.post(f"/api/v1/blog/skills/{sid}/enabled", json={"enabled": False}, headers=h)
     assert off.status_code == 200
     assert off.json()["enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# Article management: list / triage / batch / merge (spec 005, US6, T112)
+# ---------------------------------------------------------------------------
+
+
+def test_article_list_shape_and_filters(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    _blank_post(client, h)
+    r = client.get("/api/v1/blog/articles", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"items", "next_cursor", "total", "counts_by_status"}
+    assert body["total"] >= 1
+    assert isinstance(body["counts_by_status"], dict)
+    row = body["items"][0]
+    assert set(row) >= {"id", "title", "content_status", "ai_state", "source_count"}
+
+
+def test_triage_shape(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    _blank_post(client, h)
+    r = client.get("/api/v1/blog/triage", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"items", "counts_by_reason"}
+    assert set(body["counts_by_reason"]) == {"quick", "failed", "stale", "draft"}
+
+
+def test_batch_reports_per_item_partial_failure(client, make_user):
+    import uuid as _uuid
+
+    user = make_user()
+    h = _login(client, user.email)
+    good = _blank_post(client, h)["id"]
+    bogus = str(_uuid.uuid4())  # not owned → this item fails, the good one succeeds
+    r = client.post(
+        "/api/v1/blog/articles/batch",
+        json={"post_ids": [good, bogus], "op": "set_class", "params": {"content_class": "life"}},
+        headers=h,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    by_id = {x["id"]: x for x in body["results"]}
+    assert by_id[good]["ok"] is True
+    assert by_id[bogus]["ok"] is False and "error" in by_id[bogus]
+
+
+def test_merge_endpoint_orders_and_discards_secondary(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    primary = _blank_post(client, h)
+    secondary = _blank_post(client, h)
+    # Give each a distinct body.
+    client.patch(f"/api/v1/posts/{primary['id']}",
+                 json={"version": primary["version"], "markdown": "正文甲"}, headers=h)
+    client.patch(f"/api/v1/posts/{secondary['id']}",
+                 json={"version": secondary["version"], "markdown": "正文乙"}, headers=h)
+    got = client.get(f"/api/v1/posts/{primary['id']}", headers=h).json()
+
+    r = client.post(
+        "/api/v1/blog/articles/merge",
+        json={
+            "primary_id": primary["id"], "secondary_id": secondary["id"],
+            "primary_version": got["version"], "order": "primary_first",
+        },
+        headers=h,
+    )
+    assert r.status_code == 200
+    merged = r.json()
+    assert merged["markdown"].index("正文甲") < merged["markdown"].index("正文乙")
+    # Secondary is discarded (excluded from the default list).
+    listed = client.get("/api/v1/blog/articles", headers=h).json()
+    assert secondary["id"] not in {i["id"] for i in listed["items"]}
+
+
+def test_article_export_returns_markdown(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    p = _blank_post(client, h)
+    client.patch(f"/api/v1/posts/{p['id']}",
+                 json={"version": p["version"], "markdown": "# 导出内容"}, headers=h)
+    r = client.get(f"/api/v1/blog/articles/{p['id']}/export", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["markdown"] == "# 导出内容"
+    assert body["filename"].endswith(".md")

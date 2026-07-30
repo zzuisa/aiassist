@@ -57,6 +57,11 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/modules/posts/PostListPage.vue'),
           },
           {
+            path: 'triage',
+            name: 'blog-triage',
+            component: () => import('@/modules/posts/TriagePage.vue'),
+          },
+          {
             path: 'jobs',
             name: 'blog-jobs',
             component: () => import('@/modules/posts/BlogJobsPage.vue'),

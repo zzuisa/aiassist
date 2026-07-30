@@ -238,24 +238,24 @@
 
 ### Tests for User Story 6 — write first ⚠️
 
-- [ ] T112 [P] [US6] Add Post list filters, triage derivation, batch result and merge API contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T113 [P] [US6] Add quick/failed/stale/draft triage and ordered source merge integration tests in `backend/tests/integration/test_blog_management.py`
-- [ ] T114 [P] [US6] Add archive/discard/delete/public-compatibility and batch partial-failure reliability tests in `backend/tests/reliability/test_blog_failure_matrix.py`
-- [ ] T115 [P] [US6] Add article list/filter/batch and triage/merge component tests in `frontend/tests/component/blog-management.spec.ts`
+- [x] T112 [P] [US6] Add Post list filters, triage derivation, batch result and merge API contract tests in `backend/tests/contract/test_blog_content_api.py`
+- [x] T113 [P] [US6] Add quick/failed/stale/draft triage and ordered source merge integration tests in `backend/tests/integration/test_blog_management.py`
+- [x] T114 [P] [US6] Add archive/discard/delete/public-compatibility and batch partial-failure reliability tests in `backend/tests/reliability/test_blog_failure_matrix.py`
+- [x] T115 [P] [US6] Add article list/filter/batch and triage/merge component tests in `frontend/tests/component/blog-management.spec.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T116 [US6] Implement cursor Post listing, filters, counts, sort and derived AI/source summaries in `backend/app/modules/posts/query_service.py`
-- [ ] T117 [US6] Implement triage reason query, stale threshold and quick preview projections in `backend/app/modules/posts/query_service.py`
-- [ ] T118 [US6] Implement transactional ordered merge, source relations and optional source status update in `backend/app/modules/posts/service.py`
-- [ ] T119 [US6] Implement itemized batch class/Skill/tag/category/status/AI operations with no whole-batch rollback in `backend/app/modules/posts/service.py`
-- [ ] T120 [US6] Implement article list, triage, merge, batch, archive and export endpoints in `backend/app/modules/posts/query_router.py`
-- [ ] T121 [P] [US6] Extend typed list/triage/batch/merge clients in `frontend/src/api/blogQueries.ts`
-- [ ] T122 [US6] Rebuild Post list with search, combination filters, AI/source states, pagination and selection toolbar in `frontend/src/modules/posts/PostListPage.vue`
-- [ ] T123 [P] [US6] Implement triage list, reason filters, quick preview and item actions in `frontend/src/modules/posts/TriagePage.vue`
-- [ ] T124 [P] [US6] Implement ordered merge preview, title and source completion choices in `frontend/src/modules/posts/TriageMergeDialog.vue`
-- [ ] T125 [US6] Implement per-item batch progress and partial failure feedback in `frontend/src/modules/posts/PostBatchActionBar.vue`
-- [ ] T126 [US6] Add archive/discard/delete confirmations that preserve public compatibility and recoverable state in `frontend/src/modules/posts/PostViewPage.vue` and `frontend/src/modules/posts/PostListPage.vue`
+- [x] T116 [US6] Implement cursor Post listing, filters, counts, sort and derived AI/source summaries in `backend/app/modules/posts/query_service.py`
+- [x] T117 [US6] Implement triage reason query, stale threshold and quick preview projections in `backend/app/modules/posts/query_service.py`
+- [x] T118 [US6] Implement transactional ordered merge, source relations and optional source status update in `backend/app/modules/posts/service.py`
+- [x] T119 [US6] Implement itemized batch class/Skill/tag/category/status/AI operations with no whole-batch rollback in `backend/app/modules/posts/service.py`
+- [x] T120 [US6] Implement article list, triage, merge, batch, archive and export endpoints in `backend/app/modules/posts/query_router.py`
+- [x] T121 [P] [US6] Extend typed list/triage/batch/merge clients in `frontend/src/api/blogQueries.ts`
+- [x] T122 [US6] Rebuild Post list with search, combination filters, AI/source states, pagination and selection toolbar in `frontend/src/modules/posts/PostListPage.vue`
+- [x] T123 [P] [US6] Implement triage list, reason filters, quick preview and item actions in `frontend/src/modules/posts/TriagePage.vue`
+- [x] T124 [P] [US6] Implement ordered merge preview, title and source completion choices in `frontend/src/modules/posts/TriageMergeDialog.vue`
+- [x] T125 [US6] Implement per-item batch progress and partial failure feedback in `frontend/src/modules/posts/PostBatchActionBar.vue`
+- [x] T126 [US6] Add archive/discard/delete confirmations that preserve public compatibility and recoverable state in `frontend/src/modules/posts/PostViewPage.vue` and `frontend/src/modules/posts/PostListPage.vue`
 
 **Checkpoint**: US6 completes the MVP operational loop from capture backlog to organized articles.
 

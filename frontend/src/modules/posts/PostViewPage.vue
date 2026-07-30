@@ -37,6 +37,21 @@ async function load(): Promise<void> {
 }
 onMounted(load)
 
+// Archive/discard keep the article recoverable (status-only) and never break a
+// published slug — publishing must be undone first, which the confirmation notes.
+async function archiveArticle(mode: 'archive' | 'discard'): Promise<void> {
+  if (!post.value) return
+  if (post.value.status === 'published') {
+    window.alert('已发布的文章请先取消发布再归档/丢弃。')
+    return
+  }
+  const verb = mode === 'archive' ? '归档' : '丢弃'
+  if (!window.confirm(`确定要${verb}这篇文章吗？此操作可恢复。`)) return
+  const { articlesApi } = await import('@/api/blogQueries')
+  await articlesApi.batch([post.value.id], mode)
+  router.push({ name: 'blog' })
+}
+
 async function loadSources(): Promise<void> {
   showSource.value = !showSource.value
   if (showSource.value && post.value && sources.value.length === 0) {
@@ -78,13 +93,29 @@ async function loadSources(): Promise<void> {
       >
         {{ post.subtitle }}
       </p>
-      <button
-        type="button"
-        class="edit"
-        @click="router.push(`/blog/${post.id}`)"
-      >
-        编辑
-      </button>
+      <div class="head-actions">
+        <button
+          type="button"
+          class="edit"
+          @click="router.push(`/blog/${post.id}`)"
+        >
+          编辑
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          @click="archiveArticle('archive')"
+        >
+          归档
+        </button>
+        <button
+          type="button"
+          class="ghost danger"
+          @click="archiveArticle('discard')"
+        >
+          丢弃
+        </button>
+      </div>
     </header>
 
     <p
@@ -165,16 +196,24 @@ async function loadSources(): Promise<void> {
   color: var(--color-text-muted);
   margin: 0.25rem 0 0;
 }
-.edit {
+.head-actions {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  gap: var(--space-2);
+}
+.edit,
+.ghost {
   min-height: 34px;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   cursor: pointer;
+}
+.ghost.danger {
+  color: var(--status-danger, #dc2626);
 }
 .summary {
   font-style: italic;
