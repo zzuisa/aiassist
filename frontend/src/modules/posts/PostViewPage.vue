@@ -4,10 +4,11 @@
 // Renders the user's canonical content and, separately and clearly labelled, the
 // captured original source(s). Keeping the two regions distinct means an AI- or
 // user-authored article is never confused with the raw material it came from.
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { postsApi, type Post } from '@/api/posts'
 import { blogCaptureApi, type CaptureSource } from '@/api/blogCapture'
+import { blogAIApi } from '@/api/blogAI'
 import MarkdownPreview from '@/modules/posts/MarkdownPreview.vue'
 
 const route = useRoute()
@@ -15,6 +16,20 @@ const router = useRouter()
 const post = ref<Post | null>(null)
 const sources = ref<CaptureSource[]>([])
 const showSource = ref(false)
+
+const reviewPending = computed(() => post.value?.content_status === 'ai_review')
+
+async function goReview(): Promise<void> {
+  if (!post.value) return
+  const candidates = await blogAIApi.listCandidates(post.value.id)
+  const pending = candidates.find((c) => c.status === 'pending' || c.status === 'merge_required')
+  if (pending) {
+    router.push({
+      name: 'blog-candidate-compare',
+      params: { id: post.value.id, candidateId: pending.id },
+    })
+  }
+}
 
 async function load(): Promise<void> {
   const id = route.params.id as string
@@ -43,6 +58,18 @@ async function loadSources(): Promise<void> {
     v-if="post"
     class="view"
   >
+    <div
+      v-if="reviewPending"
+      class="review-banner"
+    >
+      <span>有一份 AI 优化候选待审核。</span>
+      <button
+        type="button"
+        @click="goReview"
+      >
+        去审核
+      </button>
+    </div>
     <header class="head">
       <h1>{{ post.title }}</h1>
       <p

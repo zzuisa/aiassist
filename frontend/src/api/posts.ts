@@ -73,6 +73,38 @@ export interface RevisionDiff {
   unified_diff: string
 }
 
+export interface RevisionSummary {
+  id: string
+  post_id: string
+  source: string
+  version: number
+  change_summary: string | null
+  created_at: string
+  applied_at: string | null
+}
+
+// Structured body diff (spec 005, US4) — mirrors diffing.body_diff.
+export interface BodyDiff {
+  from_label: string
+  to_label: string
+  unified_diff: string
+  hunks: Array<{
+    op: 'replace' | 'delete' | 'insert'
+    old_start: number
+    old_lines: string[]
+    new_start: number
+    new_lines: string[]
+  }>
+  changed: boolean
+}
+
+export interface RevisionCompare {
+  from_revision_id: string
+  to_revision_id: string
+  body_diff: BodyDiff
+  field_diff: Record<string, { base: unknown; current: unknown; candidate: unknown; status: string }>
+}
+
 export const postsApi = {
   list: () => api.get<Post[]>('/posts'),
   get: (id: string) => api.get<Post>(`/posts/${id}`),
@@ -91,4 +123,14 @@ export const postsApi = {
   publish: (id: string, published: boolean, version: number) =>
     api.post<Post>(`/posts/${id}/publish`, { published, version }),
   remove: (id: string) => api.del<void>(`/posts/${id}`),
+  // Version timeline + compare + restore (spec 005, US4, T091).
+  listRevisions: (id: string) =>
+    api.get<RevisionSummary[]>(`/posts/${id}/revisions`),
+  compareRevisions: (id: string, fromRevision: string, toRevision: string) =>
+    api.get<RevisionCompare>(
+      `/posts/${id}/revisions/compare`,
+      { from_revision: fromRevision, to_revision: toRevision },
+    ),
+  restoreRevision: (id: string, revisionId: string, version: number) =>
+    api.post<Post>(`/posts/${id}/revisions/${revisionId}/restore`, { version }),
 }

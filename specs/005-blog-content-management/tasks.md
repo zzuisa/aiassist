@@ -174,26 +174,26 @@
 
 ### Tests for User Story 4 — write first ⚠️
 
-- [ ] T080 [P] [US4] Add candidate list/detail/decision and version compare contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T081 [P] [US4] Add unchanged auto-fill, changed forced-merge and selected-field apply integration tests in `backend/tests/integration/test_blog_candidate_merge.py`
-- [ ] T082 [P] [US4] Add apply-versus-save race, duplicate decision and stale candidate reliability tests in `backend/tests/reliability/test_blog_failure_matrix.py`
-- [ ] T083 [P] [US4] Add cross-user candidate/revision/decision isolation tests in `backend/tests/security/test_blog_url_and_ownership.py`
-- [ ] T084 [P] [US4] Add three-way body/field diff, risk filter and selected-field component tests in `frontend/tests/component/blog-ai-candidate.spec.ts`
-- [ ] T085 [P] [US4] Add summary-and-tags-only application E2E coverage in `frontend/tests/e2e/blog-content-management.spec.ts`
+- [x] T080 [P] [US4] Add candidate list/detail/decision and version compare contract tests in `backend/tests/contract/test_blog_content_api.py`
+- [x] T081 [P] [US4] Add unchanged auto-fill, changed forced-merge and selected-field apply integration tests in `backend/tests/integration/test_blog_candidate_merge.py`
+- [x] T082 [P] [US4] Add apply-versus-save race, duplicate decision and stale candidate reliability tests in `backend/tests/reliability/test_blog_failure_matrix.py`
+- [x] T083 [P] [US4] Add cross-user candidate/revision/decision isolation tests in `backend/tests/security/test_blog_url_and_ownership.py`
+- [x] T084 [P] [US4] Add three-way body/field diff, risk filter and selected-field component tests in `frontend/tests/component/blog-ai-candidate.spec.ts`
+- [x] T085 [P] [US4] Add summary-and-tags-only application E2E coverage in `frontend/tests/e2e/blog-content-management.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T086 [P] [US4] Implement stable body diff and typed field diff generation for arbitrary revision pairs in `backend/app/modules/posts/diffing.py`
-- [ ] T087 [US4] Implement candidate conflict derivation, three-way comparison and validation summaries in `backend/app/modules/posts/ai_service.py`
-- [ ] T088 [US4] Implement transactional candidate decision locking, version recheck, selected-field merge and new revision creation in `backend/app/modules/posts/ai_service.py`
-- [ ] T089 [US4] Implement candidate list/detail/decide plus version list/detail/compare/restore endpoints in `backend/app/modules/posts/ai_router.py` and `backend/app/modules/posts/router.py`
-- [ ] T090 [US4] Record candidate selections, rejects, copies, applied revision and safe Activity summaries in `backend/app/modules/posts/ai_service.py`
-- [ ] T091 [P] [US4] Extend candidate comparison and decision API clients in `frontend/src/api/blogAI.ts` and `frontend/src/api/posts.ts`
-- [ ] T092 [P] [US4] Upgrade reusable body diff rendering for base/current/candidate modes in `frontend/src/modules/posts/RevisionDiff.vue`
-- [ ] T093 [US4] Implement risk-first three-way compare, field selection and final impact confirmation in `frontend/src/modules/posts/CandidateComparePage.vue`
-- [ ] T094 [P] [US4] Implement version timeline, two-version compare, restore and create-copy controls in `frontend/src/modules/posts/PostVersionsPage.vue`
-- [ ] T095 [US4] Add pending-review/merge badges and navigation from editor, view, list and Job pages in `frontend/src/modules/posts/PostEditorPage.vue`, `frontend/src/modules/posts/PostViewPage.vue`, and `frontend/src/modules/posts/PostListPage.vue`
-- [ ] T096 [US4] Verify every candidate terminal action leaves immutable candidate/run/version history in `backend/tests/integration/test_blog_candidate_merge.py`
+- [x] T086 [P] [US4] Implement stable body diff and typed field diff generation for arbitrary revision pairs in `backend/app/modules/posts/diffing.py`
+- [x] T087 [US4] Implement candidate conflict derivation, three-way comparison and validation summaries in `backend/app/modules/posts/ai_service.py`
+- [x] T088 [US4] Implement transactional candidate decision locking, version recheck, selected-field merge and new revision creation in `backend/app/modules/posts/ai_service.py`
+- [x] T089 [US4] Implement candidate list/detail/decide plus version list/detail/compare/restore endpoints in `backend/app/modules/posts/ai_router.py` and `backend/app/modules/posts/router.py`
+- [x] T090 [US4] Record candidate selections, rejects, copies, applied revision and safe Activity summaries in `backend/app/modules/posts/ai_service.py`
+- [x] T091 [P] [US4] Extend candidate comparison and decision API clients in `frontend/src/api/blogAI.ts` and `frontend/src/api/posts.ts`
+- [x] T092 [P] [US4] Upgrade reusable body diff rendering for base/current/candidate modes in `frontend/src/modules/posts/RevisionDiff.vue`
+- [x] T093 [US4] Implement risk-first three-way compare, field selection and final impact confirmation in `frontend/src/modules/posts/CandidateComparePage.vue`
+- [x] T094 [P] [US4] Implement version timeline, two-version compare, restore and create-copy controls in `frontend/src/modules/posts/PostVersionsPage.vue`
+- [x] T095 [US4] Add pending-review/merge badges and navigation from editor, view, list and Job pages in `frontend/src/modules/posts/PostEditorPage.vue`, `frontend/src/modules/posts/PostViewPage.vue`, and `frontend/src/modules/posts/PostListPage.vue`
+- [x] T096 [US4] Verify every candidate terminal action leaves immutable candidate/run/version history in `backend/tests/integration/test_blog_candidate_merge.py`
 
 **Checkpoint**: US4 completes the safe AI review loop with reversible, field-level application.
 

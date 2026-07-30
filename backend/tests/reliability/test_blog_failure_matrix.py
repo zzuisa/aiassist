@@ -286,3 +286,80 @@ def test_duplicate_worker_delivery_is_idempotent(db_session, user_id, monkeypatc
         select(func.count()).select_from(PostAICandidate).where(PostAICandidate.ai_run_id == run.id)
     )
     assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# Candidate decision race + duplicate + staleness (spec 005, US4, T082)
+# ---------------------------------------------------------------------------
+
+
+def _seed_candidate(session, user_id):
+    from app.modules.posts import ai_service, service
+
+    _seed_skill(session, user_id)
+    post = service.create_post(session, user_id, title="V1标题", markdown="V1正文")
+    post.summary = "V1摘要"
+    session.flush()
+    _j, run, _ = ai_service.submit_optimization(
+        session, user_id, post.id, post_version=post.version, optimization_type="full",
+    )
+    candidate = ai_service.save_candidate(
+        session, run, candidate_markdown="AI正文",
+        field_diff={
+            "summary": {"from": "V1摘要", "to": "AI摘要", "classification": "allow_overwrite"},
+            "markdown": {"from": "V1正文", "to": "AI正文", "classification": "allow_overwrite"},
+        },
+        validation={"outcome": "complete"}, outcome="complete",
+    )
+    session.commit()
+    return post, candidate
+
+
+def test_duplicate_decision_is_rejected(db_session, user_id):
+    """A second terminal decision on the same candidate must fail, not double-apply."""
+    from app.core.errors import ConflictError
+    from app.models.posts import Post
+    from app.modules.posts import ai_service
+
+    post, candidate = _seed_candidate(db_session, user_id)
+    ai_service.decide_candidate(
+        db_session, user_id, candidate.id, action="apply_all", current_version=post.version,
+    )
+    db_session.commit()
+    p = db_session.get(Post, post.id)
+    with pytest.raises(ConflictError):
+        ai_service.decide_candidate(
+            db_session, user_id, candidate.id, action="reject", current_version=p.version,
+        )
+
+
+def test_apply_after_user_edit_never_clobbers_body(db_session, user_id):
+    """Apply-vs-save race: user edits body, then applies only metadata → body kept."""
+    from app.models.posts import Post
+    from app.modules.posts import ai_service
+
+    post, candidate = _seed_candidate(db_session, user_id)
+    post.markdown = "用户并发编辑V2"
+    post.version += 1
+    db_session.commit()
+
+    ai_service.decide_candidate(
+        db_session, user_id, candidate.id,
+        action="apply_fields", selected_fields=["summary"], current_version=post.version,
+    )
+    db_session.commit()
+    p = db_session.get(Post, post.id)
+    assert p.markdown == "用户并发编辑V2"  # concurrent edit survives
+    assert p.summary == "AI摘要"
+
+
+def test_stale_version_blocks_decision(db_session, user_id):
+    from app.core.errors import VersionConflictError
+    from app.modules.posts import ai_service
+
+    post, candidate = _seed_candidate(db_session, user_id)
+    with pytest.raises(VersionConflictError):
+        ai_service.decide_candidate(
+            db_session, user_id, candidate.id,
+            action="apply_all", current_version=post.version - 1,
+        )

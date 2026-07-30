@@ -101,3 +101,38 @@ test('narrow viewport stacks the workbench', async ({ page }) => {
   await page.locator('textarea.md-source').fill('内容')
   await expect(page.locator('.save-state')).toHaveText(/保存中|已保存/)
 })
+
+// --- US4: review an AI candidate and apply only selected fields ---
+//
+// Requires a configured Skill + AI provider, so it self-skips unless the caller
+// opts in with E2E_AI=1. Verifies the safety promise: applying only the summary
+// leaves the user's body untouched.
+test('apply only summary from an AI candidate keeps the body unchanged', async ({ page }) => {
+  test.skip(process.env.E2E_AI !== '1', 'E2E_AI not enabled')
+  await login(page)
+  await newBlankPost(page)
+
+  const body = '# 我的正文\n\n这段正文不应被 AI 覆盖。'
+  await page.locator('textarea.md-source').fill(body)
+  await expect(page.locator('.save-state')).toHaveText(/已保存/)
+
+  // Kick off an optimization and land on the job list.
+  await page.getByRole('button', { name: 'AI 优化' }).click()
+  await page.getByRole('button', { name: '开始优化' }).click()
+  await expect(page).toHaveURL(/\/blog\/jobs/)
+
+  // Once the candidate is ready, open the review from the job detail.
+  await page.getByText('待审核').first().click()
+  await page.getByRole('link', { name: '去审核文章' }).click()
+  await page.getByRole('button', { name: /待审核 AI 优化/ }).click()
+  await expect(page).toHaveURL(/\/candidates\//)
+
+  // Select only summary, deselect everything else, then apply.
+  await page.locator('input[aria-label="应用 markdown"]').uncheck()
+  await page.locator('input[aria-label="应用 summary"]').check()
+  await page.getByRole('button', { name: /应用所选/ }).click()
+
+  // Back in the editor, the user body is intact.
+  await expect(page).toHaveURL(/\/blog\/[^/]+$/)
+  await expect(page.locator('textarea.md-source')).toHaveValue(body)
+})

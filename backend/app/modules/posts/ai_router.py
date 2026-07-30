@@ -17,7 +17,7 @@ from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
 from app.modules.jobs.schemas import serialize_job
 from app.modules.posts import ai_service
-from app.modules.posts.schemas import OptimizeBody
+from app.modules.posts.schemas import CandidateDecisionBody, OptimizeBody
 
 # Optimize lives under /posts to match the contract; a separate router keeps the
 # AI run endpoints under /blog/ai.
@@ -79,3 +79,46 @@ def cancel_run(
     job = ai_service.cancel_run(db, user.id, run_id)
     db.commit()
     return serialize_job(job).model_dump(mode="json")
+
+
+# ---------------------------------------------------------------------------
+# Candidate review + decision (spec 005, US4, T089)
+# ---------------------------------------------------------------------------
+
+
+@optimize_router.get("/{post_id}/candidates")
+def list_candidates(
+    post_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return [
+        ai_service.serialize_candidate(c)
+        for c in ai_service.list_candidates(db, user.id, post_id)
+    ]
+
+
+@ai_router.get("/candidates/{candidate_id}")
+def get_candidate(
+    candidate_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Three-way (base/current/candidate) comparison for review."""
+    return ai_service.compare_candidate(db, user.id, candidate_id)
+
+
+@ai_router.post("/candidates/{candidate_id}/decide")
+def decide_candidate(
+    candidate_id: uuid.UUID,
+    body: CandidateDecisionBody,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = ai_service.decide_candidate(
+        db, user.id, candidate_id,
+        action=body.action, selected_fields=body.selected_fields,
+        current_version=body.post_version,
+    )
+    db.commit()
+    return result

@@ -20,9 +20,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError, VersionConflictError
-from app.models.blog import PostAICandidate, PostAIRun
-from app.models.posts import Post
-from app.modules.posts import protected_content, service, skill_service
+from app.models.blog import PostAICandidate, PostAIRun, PostCandidateDecision
+from app.models.foundation import ActivityLog
+from app.models.posts import Post, PostRevision
+from app.modules.posts import diffing, protected_content, service, skill_service
 from app.services.outbox.publisher import append_event
 
 OPTIMIZATION_TYPES = ("full", "language", "structure", "metadata", "check", "reoptimize")
@@ -263,3 +264,265 @@ def mark_run_failed(session: Session, run: PostAIRun, *, code: str) -> None:
         post.latest_ai_status = "failed"
         if post.content_status in ("ai_queued", "ai_processing"):
             post.content_status = "draft"
+
+
+# ---------------------------------------------------------------------------
+# Candidate review + field-level apply (spec 005, US4, T087/T088/T090)
+# ---------------------------------------------------------------------------
+
+_TERMINAL_STATUSES = ("applied", "rejected", "copied")
+_APPLY_ACTIONS = ("apply_all", "apply_body", "apply_metadata", "apply_fields")
+
+
+def get_candidate(
+    session: Session, user_id: uuid.UUID, candidate_id: uuid.UUID, *, lock: bool = False
+) -> PostAICandidate:
+    candidate = session.get(PostAICandidate, candidate_id, with_for_update=lock)
+    if candidate is None or candidate.user_id != user_id:
+        raise NotFoundError("Candidate not found")
+    return candidate
+
+
+def list_candidates(
+    session: Session, user_id: uuid.UUID, post_id: uuid.UUID
+) -> list[PostAICandidate]:
+    service.get_post(session, user_id, post_id)  # ownership + existence
+    return list(
+        session.scalars(
+            select(PostAICandidate)
+            .where(
+                PostAICandidate.post_id == post_id,
+                PostAICandidate.user_id == user_id,
+            )
+            .order_by(PostAICandidate.created_at.desc())
+        ).all()
+    )
+
+
+def _candidate_snapshot(
+    base_snapshot: dict[str, Any],
+    candidate_markdown: str,
+    field_diff: dict[str, Any],
+) -> dict[str, Any]:
+    """The AI's proposed full state: base overlaid with proposed field values."""
+    snap = dict(base_snapshot)
+    snap["structured_data"] = dict(base_snapshot.get("structured_data") or {})
+    snap["markdown"] = candidate_markdown
+    for path, entry in field_diff.items():
+        to_val = entry.get("to")
+        if path.startswith("structured_data."):
+            snap["structured_data"][path.split(".", 1)[1]] = to_val
+        elif path != "markdown":
+            snap[path] = to_val
+    return snap
+
+
+def compare_candidate(
+    session: Session, user_id: uuid.UUID, candidate_id: uuid.UUID
+) -> dict[str, Any]:
+    """Three-way (base / current / candidate) comparison for review."""
+    candidate = get_candidate(session, user_id, candidate_id)
+    post = service.get_post(session, user_id, candidate.post_id)
+    base_rev = session.get(PostRevision, candidate.base_revision_id)
+    cand_rev = session.get(PostRevision, candidate.candidate_revision_id)
+    if base_rev is None or cand_rev is None:
+        raise ConflictError("Candidate revisions missing", code="candidate_corrupt")
+
+    base_snap = dict(base_rev.snapshot_json or {})
+    current_snap = service.build_snapshot(post)
+    cand_snap = _candidate_snapshot(base_snap, cand_rev.markdown, candidate.field_diff_json)
+
+    fields = diffing.field_diff(base_snap, current_snap, cand_snap)
+    body = diffing.body_diff(post.markdown, cand_rev.markdown)
+    conflicts = [f for f, e in fields.items() if e["status"] == diffing.CONFLICT]
+
+    return {
+        "candidate": serialize_candidate(candidate),
+        "post_version": post.version,
+        "field_diff": fields,
+        "body_diff": body,
+        "conflicts": conflicts,
+        "validation": candidate.validation_json,
+    }
+
+
+def serialize_candidate(candidate: PostAICandidate) -> dict[str, Any]:
+    return {
+        "id": str(candidate.id),
+        "post_id": str(candidate.post_id),
+        "ai_run_id": str(candidate.ai_run_id),
+        "base_revision_id": str(candidate.base_revision_id),
+        "candidate_revision_id": str(candidate.candidate_revision_id),
+        "status": candidate.status,
+        "field_diff": candidate.field_diff_json,
+        "validation": candidate.validation_json,
+        "applied_revision_id": (
+            str(candidate.applied_revision_id) if candidate.applied_revision_id else None
+        ),
+        "created_at": candidate.created_at.isoformat(),
+        "reviewed_at": candidate.reviewed_at.isoformat() if candidate.reviewed_at else None,
+    }
+
+
+def _resolve_apply_paths(
+    action: str, selected_fields: list[str], field_diff: dict[str, Any]
+) -> list[str]:
+    proposed = list(field_diff.keys())
+    if action == "apply_all":
+        return proposed
+    if action == "apply_body":
+        return ["markdown"] if "markdown" in proposed else []
+    if action == "apply_metadata":
+        return [p for p in proposed if p != "markdown"]
+    # apply_fields: only the explicitly selected, validated subset.
+    unknown = [f for f in selected_fields if f not in field_diff]
+    if unknown:
+        raise ValidationError(
+            f"Selected fields not in candidate: {unknown}", code="invalid_selected_fields"
+        )
+    return list(selected_fields)
+
+
+def decide_candidate(
+    session: Session,
+    user_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    *,
+    action: str,
+    selected_fields: list[str] | None = None,
+    current_version: int,
+) -> dict[str, Any]:
+    """Apply a terminal decision to a candidate under an optimistic version lock.
+
+    ``apply_*`` merges only the resolved fields into a *new* version-checked
+    revision; the candidate's other proposals and the user's untouched fields are
+    never silently overwritten. ``keep_current``/``reject`` discard the proposal;
+    ``copy`` forks the candidate into a new draft post. Every path records an
+    immutable :class:`PostCandidateDecision` and an activity log.
+    """
+    selected_fields = selected_fields or []
+    candidate = get_candidate(session, user_id, candidate_id, lock=True)
+    if candidate.status in _TERMINAL_STATUSES:
+        raise ConflictError("Candidate already decided", code="candidate_decided")
+
+    post = service.get_post(session, user_id, candidate.post_id)
+    if post.version != current_version:
+        raise VersionConflictError("Post was modified; refresh", code="version_conflict")
+
+    current_before_id = post.current_revision_id
+    result_revision_id: uuid.UUID | None = None
+    applied_paths: list[str] = []
+
+    if action in ("keep_current", "reject"):
+        candidate.status = "rejected"
+    elif action == "copy":
+        new_post = _fork_candidate(session, user_id, post, candidate)
+        candidate.status = "copied"
+        result_revision_id = new_post.current_revision_id
+    elif action in _APPLY_ACTIONS:
+        applied_paths = _resolve_apply_paths(action, selected_fields, candidate.field_diff_json)
+        result_revision_id = _merge_apply(session, user_id, post, candidate, applied_paths)
+        candidate.status = "applied"
+        candidate.applied_revision_id = result_revision_id
+    else:
+        raise ValidationError(f"Unknown action '{action}'", code="invalid_action")
+
+    candidate.reviewed_at = datetime.now(UTC)
+    # Once no pending candidate remains, the article is a normal draft again.
+    if post.content_status == "ai_review":
+        post.content_status = "draft"
+    post.latest_ai_status = candidate.status
+
+    decision = PostCandidateDecision(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        post_id=post.id,
+        candidate_id=candidate.id,
+        action=action,
+        selected_fields_json={"fields": applied_paths},
+        rejected_fields_json={
+            "fields": [p for p in candidate.field_diff_json if p not in applied_paths]
+        },
+        current_revision_before_id=current_before_id,
+        result_revision_id=result_revision_id,
+    )
+    session.add(decision)
+    session.add(
+        ActivityLog(
+            user_id=user_id,
+            actor_type="user",
+            action=f"post.candidate_{candidate.status}",
+            entity_type="post",
+            entity_id=post.id,
+            after_summary_json={
+                "candidate_id": str(candidate.id),
+                "action": action,
+                "applied_fields": applied_paths,
+            },
+        )
+    )
+    session.flush()
+    return {
+        "candidate": serialize_candidate(candidate),
+        "decision_id": str(decision.id),
+        "post_version": post.version,
+        "result_revision_id": str(result_revision_id) if result_revision_id else None,
+    }
+
+
+def _merge_apply(
+    session: Session,
+    user_id: uuid.UUID,
+    post: Post,
+    candidate: PostAICandidate,
+    apply_paths: list[str],
+) -> uuid.UUID:
+    """Merge *apply_paths* from the candidate into a new applied revision."""
+    base_rev = session.get(PostRevision, candidate.base_revision_id)
+    cand_rev = session.get(PostRevision, candidate.candidate_revision_id)
+    if base_rev is None or cand_rev is None:
+        raise ConflictError("Candidate revisions missing", code="candidate_corrupt")
+    base_snap = dict(base_rev.snapshot_json or {})
+    cand_snap = _candidate_snapshot(base_snap, cand_rev.markdown, candidate.field_diff_json)
+
+    # Apply only the selected candidate values onto the *current* post state.
+    service.apply_snapshot(post, cand_snap, apply_paths)
+    post.version += 1
+
+    new_rev = service.new_revision(
+        session,
+        post,
+        post.markdown,
+        "ai_applied",
+        post.current_revision_id,
+        change_summary=f"应用 AI 候选（{len(apply_paths)} 个字段）",
+        snapshot=service.build_snapshot(post),
+    )
+    new_rev.applied_at = datetime.now(UTC)
+    new_rev.base_revision_id = candidate.base_revision_id
+    post.current_revision_id = new_rev.id
+    return new_rev.id
+
+
+def _fork_candidate(
+    session: Session,
+    user_id: uuid.UUID,
+    post: Post,
+    candidate: PostAICandidate,
+) -> Post:
+    """Create an independent draft post from the AI candidate (never touches src)."""
+    cand_rev = session.get(PostRevision, candidate.candidate_revision_id)
+    base_rev = session.get(PostRevision, candidate.base_revision_id)
+    if cand_rev is None or base_rev is None:
+        raise ConflictError("Candidate revisions missing", code="candidate_corrupt")
+    cand_snap = _candidate_snapshot(
+        dict(base_rev.snapshot_json or {}), cand_rev.markdown, candidate.field_diff_json
+    )
+    new_post = service.create_post(
+        session,
+        user_id,
+        title=f"{post.title}（AI 副本）",
+        markdown=cand_rev.markdown,
+    )
+    service.apply_snapshot(new_post, cand_snap)
+    return new_post

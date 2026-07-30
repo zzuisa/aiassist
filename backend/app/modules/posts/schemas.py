@@ -180,6 +180,17 @@ class OptimizeBody(BaseModel):
     request_nonce: str | None = Field(default=None, max_length=64)
 
 
+class CandidateDecisionBody(BaseModel):
+    """Apply a terminal decision to an AI candidate (spec 005, US4)."""
+
+    model_config = {"extra": "forbid"}
+    post_version: int = Field(ge=1)
+    action: str = Field(
+        pattern="^(apply_all|apply_body|apply_metadata|apply_fields|keep_current|reject|copy)$"
+    )
+    selected_fields: list[str] = Field(default_factory=list, max_length=200)
+
+
 # ---------------------------------------------------------------------------
 # Capture request DTOs (spec 005, US1) — mirror openapi ClipboardCapture etc.
 # ---------------------------------------------------------------------------

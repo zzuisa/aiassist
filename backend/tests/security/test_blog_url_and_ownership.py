@@ -114,3 +114,87 @@ def test_snapshot_access_404_without_snapshot(client, make_user):
     source_id = cap["source"]["id"]
     resp = client.get(f"/api/v1/post-sources/{source_id}/snapshot-access", headers=h)
     assert resp.status_code == 404  # no private key leaked when no snapshot
+
+
+# --------------------------------------------------- AI candidate isolation (US4)
+
+
+def _seed_candidate(user_id):
+    """Seed a post + AI run + candidate for *user_id*; returns (post_id, cand_id)."""
+    import uuid as _uuid
+
+    from app.db.session import session_scope
+    from app.models.blog import BlogSkill, BlogSkillDefault, BlogSkillVersion
+    from app.modules.posts import ai_service, service
+
+    config = {
+        "schema_version": "blog-skill-config.v1",
+        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
+        "processing_goal": "improve", "content_rules": [], "title_rules": [],
+        "summary_rules": [], "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
+        "prohibitions": ["no invention"], "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
+        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "long_content_strategy": "reject",
+    }
+    with session_scope() as s:
+        skill = BlogSkill(id=_uuid.uuid4(), user_id=user_id, name="s", enabled=True)
+        s.add(skill)
+        s.flush()
+        v = BlogSkillVersion(
+            id=_uuid.uuid4(), user_id=user_id, skill_id=skill.id, version_number=1,
+            config_json=config, schema_version="blog-skill-config.v1",
+            recommended_model="m", max_content_chars=200000, long_content_strategy="reject",
+        )
+        s.add(v)
+        s.flush()
+        skill.current_version_id = v.id
+        s.add(BlogSkillDefault(
+            id=_uuid.uuid4(), user_id=user_id, scope_type="global", scope_key="*",
+            skill_id=skill.id,
+        ))
+        s.flush()
+        post = service.create_post(s, user_id, title="标题", markdown="正文")
+        s.flush()
+        _job, run, _dup = ai_service.submit_optimization(
+            s, user_id, post.id, post_version=post.version, optimization_type="full",
+        )
+        candidate = ai_service.save_candidate(
+            s, run, candidate_markdown="AI正文",
+            field_diff={"title": {"from": "标题", "to": "AI标题", "classification": "allow_overwrite"}},
+            validation={"outcome": "complete"}, outcome="complete",
+        )
+        return str(post.id), str(candidate.id)
+
+
+@requires_db
+def test_other_user_cannot_read_candidate(client, make_user):
+    owner = make_user()
+    other = make_user()
+    _post_id, cand_id = _seed_candidate(owner.id)
+    ho = _login(client, other.email)
+    assert client.get(f"/api/v1/blog/ai/candidates/{cand_id}", headers=ho).status_code == 404
+
+
+@requires_db
+def test_other_user_cannot_decide_candidate(client, make_user):
+    owner = make_user()
+    other = make_user()
+    _post_id, cand_id = _seed_candidate(owner.id)
+    ho = _login(client, other.email)
+    r = client.post(
+        f"/api/v1/blog/ai/candidates/{cand_id}/decide",
+        json={"post_version": 1, "action": "reject"},
+        headers=ho,
+    )
+    assert r.status_code == 404  # never mutate another user's candidate
+
+
+@requires_db
+def test_other_user_cannot_list_candidates(client, make_user):
+    owner = make_user()
+    other = make_user()
+    post_id, _cand_id = _seed_candidate(owner.id)
+    ho = _login(client, other.email)
+    # The post itself is owned by owner → 404 for other on the nested list.
+    assert client.get(f"/api/v1/posts/{post_id}/candidates", headers=ho).status_code == 404

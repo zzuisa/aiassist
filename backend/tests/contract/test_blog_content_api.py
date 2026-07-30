@@ -343,3 +343,111 @@ def test_optimize_without_skill_is_404(client, make_user):
         headers=h,
     )
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Candidate review + decision + version compare (spec 005, US4, T080)
+# ---------------------------------------------------------------------------
+
+
+def _seed_candidate(user_id, *, base_md="V1正文", cand_md="AI正文"):
+    """Seed a post + AI run + saved candidate directly; returns (post_id, cand_id)."""
+    from app.db.session import session_scope
+    from app.modules.posts import ai_service, service
+
+    _seed_global_skill(user_id)
+    with session_scope() as s:
+        post = service.create_post(s, user_id, title="V1标题", markdown=base_md)
+        post.summary = "V1摘要"
+        s.flush()
+        _job, run, _dup = ai_service.submit_optimization(
+            s, user_id, post.id, post_version=post.version, optimization_type="full",
+        )
+        field_diff = {
+            "title": {"from": "V1标题", "to": "AI标题", "classification": "allow_overwrite"},
+            "summary": {"from": "V1摘要", "to": "AI摘要", "classification": "allow_overwrite"},
+            "markdown": {"from": base_md, "to": cand_md, "classification": "allow_overwrite"},
+        }
+        candidate = ai_service.save_candidate(
+            s, run, candidate_markdown=cand_md, field_diff=field_diff,
+            validation={"outcome": "complete"}, outcome="complete",
+        )
+        return str(post.id), str(candidate.id)
+
+
+def test_candidate_list_and_detail_shape(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post_id, cand_id = _seed_candidate(user.id)
+
+    lst = client.get(f"/api/v1/posts/{post_id}/candidates", headers=h)
+    assert lst.status_code == 200
+    assert any(c["id"] == cand_id and c["status"] == "pending" for c in lst.json())
+
+    detail = client.get(f"/api/v1/blog/ai/candidates/{cand_id}", headers=h)
+    assert detail.status_code == 200
+    body = detail.json()
+    assert set(body) >= {"candidate", "post_version", "field_diff", "body_diff", "conflicts"}
+    assert body["field_diff"]["summary"]["candidate"] == "AI摘要"
+    assert body["body_diff"]["changed"] is True
+
+
+def test_candidate_decision_applies_selected_field(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post_id, cand_id = _seed_candidate(user.id)
+    detail = client.get(f"/api/v1/blog/ai/candidates/{cand_id}", headers=h).json()
+
+    r = client.post(
+        f"/api/v1/blog/ai/candidates/{cand_id}/decide",
+        json={
+            "post_version": detail["post_version"],
+            "action": "apply_fields",
+            "selected_fields": ["summary"],
+        },
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert r.json()["candidate"]["status"] == "applied"
+    # Body stays as V1 (only summary applied).
+    got = client.get(f"/api/v1/posts/{post_id}", headers=h).json()
+    assert got["summary"] == "AI摘要"
+    assert got["markdown"] == "V1正文"
+
+
+def test_candidate_decision_rejects_bad_action(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    _post_id, cand_id = _seed_candidate(user.id)
+    detail = client.get(f"/api/v1/blog/ai/candidates/{cand_id}", headers=h).json()
+    r = client.post(
+        f"/api/v1/blog/ai/candidates/{cand_id}/decide",
+        json={"post_version": detail["post_version"], "action": "explode"},
+        headers=h,
+    )
+    assert r.status_code == 422  # pattern-constrained action
+
+
+def test_version_list_and_compare_shape(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post_id, cand_id = _seed_candidate(user.id)
+    # Apply to create a second applied revision so the timeline has ≥2 entries.
+    detail = client.get(f"/api/v1/blog/ai/candidates/{cand_id}", headers=h).json()
+    client.post(
+        f"/api/v1/blog/ai/candidates/{cand_id}/decide",
+        json={"post_version": detail["post_version"], "action": "apply_all"},
+        headers=h,
+    )
+    revs = client.get(f"/api/v1/posts/{post_id}/revisions", headers=h)
+    assert revs.status_code == 200
+    items = revs.json()
+    assert len(items) >= 2
+    a, b = items[-1]["id"], items[0]["id"]
+    cmp = client.get(
+        f"/api/v1/posts/{post_id}/revisions/compare",
+        params={"from_revision": a, "to_revision": b},
+        headers=h,
+    )
+    assert cmp.status_code == 200
+    assert set(cmp.json()) >= {"from_revision_id", "to_revision_id", "body_diff", "field_diff"}

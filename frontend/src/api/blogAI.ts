@@ -68,6 +68,72 @@ export function classifyOptimizeError(err: unknown): OptimizeErrorKind {
   return 'unknown'
 }
 
+// --- Candidate review + decision (spec 005, US4, T091) ---
+
+export type FieldStatus =
+  | 'unchanged'
+  | 'user_only'
+  | 'ai_only'
+  | 'agreed'
+  | 'conflict'
+
+export interface FieldDiffEntry {
+  base: unknown
+  current: unknown
+  candidate: unknown
+  status: FieldStatus
+}
+
+export interface CandidateSummary {
+  id: string
+  post_id: string
+  ai_run_id: string
+  base_revision_id: string
+  candidate_revision_id: string
+  status: 'pending' | 'merge_required' | 'applied' | 'rejected' | 'copied'
+  field_diff: Record<string, { from: unknown; to: unknown; classification: string }>
+  validation: Record<string, unknown>
+  applied_revision_id: string | null
+  created_at: string
+  reviewed_at: string | null
+}
+
+export interface CandidateCompare {
+  candidate: CandidateSummary
+  post_version: number
+  field_diff: Record<string, FieldDiffEntry>
+  body_diff: {
+    from_label: string
+    to_label: string
+    unified_diff: string
+    changed: boolean
+  }
+  conflicts: string[]
+  validation: Record<string, unknown>
+}
+
+export type DecisionAction =
+  | 'apply_all'
+  | 'apply_body'
+  | 'apply_metadata'
+  | 'apply_fields'
+  | 'keep_current'
+  | 'reject'
+  | 'copy'
+
+export interface DecisionBody {
+  post_version: number
+  action: DecisionAction
+  selected_fields?: string[]
+}
+
+export interface DecisionResult {
+  candidate: CandidateSummary
+  decision_id: string
+  post_version: number
+  result_revision_id: string | null
+}
+
 export const blogAIApi = {
   // Submit an optimization bound to the current revision; returns the Job (202).
   // A duplicate (identical still-active request) returns the existing Job.
@@ -75,4 +141,10 @@ export const blogAIApi = {
     api.post<AsyncJob>(`/posts/${postId}/optimize`, body),
   getRun: (runId: string) => api.get<AIRun>(`/blog/ai/runs/${runId}`),
   cancelRun: (runId: string) => api.post<AsyncJob>(`/blog/ai/runs/${runId}/cancel`),
+  listCandidates: (postId: string) =>
+    api.get<CandidateSummary[]>(`/posts/${postId}/candidates`),
+  compareCandidate: (candidateId: string) =>
+    api.get<CandidateCompare>(`/blog/ai/candidates/${candidateId}`),
+  decideCandidate: (candidateId: string, body: DecisionBody) =>
+    api.post<DecisionResult>(`/blog/ai/candidates/${candidateId}/decide`, body),
 }

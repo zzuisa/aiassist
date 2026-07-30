@@ -622,6 +622,79 @@ def restore_revision(
     return post
 
 
+# ---------------------------------------------------------------------------
+# Public snapshot/revision helpers reused by the AI candidate-merge flow (US4).
+# ---------------------------------------------------------------------------
+
+
+def build_snapshot(post: Post) -> dict[str, Any]:
+    """Public wrapper: full restorable snapshot of *post*'s current state."""
+    return _build_snapshot(post)
+
+
+def apply_snapshot(
+    post: Post, snapshot: dict[str, Any], selected_fields: list[str] | None = None
+) -> None:
+    """Public wrapper: apply *snapshot* (optionally only *selected_fields*)."""
+    _apply_snapshot(post, snapshot, selected_fields)
+
+
+def new_revision(
+    session: Session,
+    post: Post,
+    markdown: str,
+    source: str,
+    parent_id: uuid.UUID | None,
+    *,
+    change_summary: str | None = None,
+    snapshot: dict[str, Any] | None = None,
+) -> PostRevision:
+    """Public wrapper around ``_new_revision`` for cross-module callers."""
+    return _new_revision(
+        session, post, markdown, source, parent_id,
+        change_summary=change_summary, snapshot=snapshot,
+    )
+
+
+def compare_revisions(
+    session: Session,
+    user_id: uuid.UUID,
+    post_id: uuid.UUID,
+    from_revision_id: uuid.UUID,
+    to_revision_id: uuid.UUID,
+) -> dict[str, Any]:
+    """Two-version body + field comparison for the version timeline (US4)."""
+    from app.modules.posts import diffing
+
+    a = get_revision(session, user_id, post_id, from_revision_id)
+    b = get_revision(session, user_id, post_id, to_revision_id)
+    a_snap = dict(a.snapshot_json or {})
+    b_snap = dict(b.snapshot_json or {})
+    # Two-way: any field that differs between a and b surfaces as non-unchanged.
+    fields = diffing.field_diff(a_snap, b_snap, b_snap)
+    return {
+        "from_revision_id": str(a.id),
+        "to_revision_id": str(b.id),
+        "body_diff": diffing.body_diff(a.markdown, b.markdown, from_label="from", to_label="to"),
+        "field_diff": fields,
+    }
+
+
+def list_revisions(
+    session: Session, user_id: uuid.UUID, post_id: uuid.UUID, limit: int = 100
+) -> list[PostRevision]:
+    """Newest-first revision timeline for a post (ownership-checked)."""
+    get_post(session, user_id, post_id)  # ownership + existence
+    return list(
+        session.scalars(
+            select(PostRevision)
+            .where(PostRevision.post_id == post_id, PostRevision.user_id == user_id)
+            .order_by(PostRevision.created_at.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
 def list_published(session: Session, limit: int = 50) -> list[Post]:
     return list(
         session.scalars(

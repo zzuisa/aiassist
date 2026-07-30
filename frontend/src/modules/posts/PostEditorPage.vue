@@ -16,6 +16,7 @@ import RichMarkdownEditor from '@/modules/posts/RichMarkdownEditor.vue'
 import MarkdownPreview from '@/modules/posts/MarkdownPreview.vue'
 import PostPropertySidebar from '@/modules/posts/PostPropertySidebar.vue'
 import OptimizePostDialog from '@/modules/posts/OptimizePostDialog.vue'
+import { blogAIApi } from '@/api/blogAI'
 
 type Mode = 'source' | 'rich' | 'split' | 'preview'
 
@@ -46,6 +47,21 @@ async function openOptimize(): Promise<void> {
 function onOptimizeSubmitted(jobId: string): void {
   optimizing.value = false
   router.push({ name: 'blog-jobs', query: { focus: jobId } })
+}
+
+// A candidate awaits review when the server marks the article `ai_review`.
+const reviewPending = computed(() => post.value?.content_status === 'ai_review')
+
+async function goReview(): Promise<void> {
+  if (!post.value) return
+  const candidates = await blogAIApi.listCandidates(post.value.id)
+  const pending = candidates.find((c) => c.status === 'pending' || c.status === 'merge_required')
+  if (pending) {
+    router.push({
+      name: 'blog-candidate-compare',
+      params: { id: post.value.id, candidateId: pending.id },
+    })
+  }
 }
 
 async function load(): Promise<void> {
@@ -160,6 +176,20 @@ onBeforeRouteLeave(async () => {
           class="save-state"
           :data-state="autosave.state.value"
         >{{ saveLabel }}</span>
+        <button
+          v-if="reviewPending"
+          type="button"
+          class="review-btn"
+          @click="goReview"
+        >
+          待审核 AI 优化
+        </button>
+        <RouterLink
+          class="versions-link"
+          :to="{ name: 'blog-post-versions', params: { id: post.id } }"
+        >
+          版本
+        </RouterLink>
         <button
           type="button"
           class="optimize-btn"

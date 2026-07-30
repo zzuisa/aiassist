@@ -6,11 +6,19 @@ import { mount } from '@vue/test-utils'
 // classifier/types export so the component's imports still resolve.
 vi.mock('@/api/blogAI', async () => {
   const actual = (await vi.importActual('@/api/blogAI')) as Record<string, unknown>
-  return { ...actual, blogAIApi: { optimize: vi.fn(), getRun: vi.fn(), cancelRun: vi.fn() } }
+  return {
+    ...actual,
+    blogAIApi: {
+      optimize: vi.fn(), getRun: vi.fn(), cancelRun: vi.fn(),
+      listCandidates: vi.fn(), compareCandidate: vi.fn(), decideCandidate: vi.fn(),
+    },
+  }
 })
+const routerPush = vi.fn()
 // Neutralise router usage in the pages.
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {}, params: { id: 'j1' } }),
+  useRoute: () => ({ query: {}, params: { id: 'p1', candidateId: 'c1' } }),
+  useRouter: () => ({ push: routerPush }),
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
@@ -19,6 +27,7 @@ import { api } from '@/api/client'
 import OptimizePostDialog from '@/modules/posts/OptimizePostDialog.vue'
 import BlogJobsPage from '@/modules/posts/BlogJobsPage.vue'
 import BlogJobDetailPage from '@/modules/posts/BlogJobDetailPage.vue'
+import CandidateComparePage from '@/modules/posts/CandidateComparePage.vue'
 import { jobDisplay, jobTypeLabel } from '@/modules/posts/blogJobStatus'
 import { useJobsStore } from '@/stores/jobs'
 
@@ -135,11 +144,11 @@ describe('BlogJobDetailPage', () => {
     const store = useJobsStore()
     vi.spyOn(store, 'connect').mockImplementation(() => {})
     store.applyJobEvent({
-      job_id: 'j1', job_version: 1, job_type: 'blog.optimize', status: 'failed',
+      job_id: 'p1', job_version: 1, job_type: 'blog.optimize', status: 'failed',
       progress: 50, scope: 'blog', display_status: 'failed',
       error: { code: 'TIMEOUT', message: '稍后可重试', retryable: true },
     })
-    vi.spyOn(api, 'get').mockResolvedValue(store.getJob('j1') as never)
+    vi.spyOn(api, 'get').mockResolvedValue(store.getJob('p1') as never)
 
     const w = mount(BlogJobDetailPage)
     await Promise.resolve()
@@ -147,5 +156,74 @@ describe('BlogJobDetailPage', () => {
     expect(w.text()).toContain('失败')
     expect(w.text()).toContain('稍后可重试')
     expect(w.find('.primary').text()).toContain('重试')
+  })
+})
+
+function compareFixture() {
+  return {
+    candidate: { id: 'c1', post_id: 'p1', status: 'pending' },
+    post_version: 3,
+    field_diff: {
+      summary: { base: 'b', current: 'b', candidate: 'AI摘要', status: 'ai_only' },
+      title: { base: 'b', current: '用户标题', candidate: 'AI标题', status: 'conflict' },
+      markdown: { base: 'b', current: 'b', candidate: 'AI正文', status: 'ai_only' },
+    },
+    body_diff: {
+      from_label: 'current', to_label: 'candidate',
+      unified_diff: '--- current\n+++ candidate\n-b\n+AI正文', changed: true,
+    },
+    conflicts: ['title'],
+    validation: {},
+  }
+}
+
+describe('CandidateComparePage', () => {
+  it('orders conflicts first, warns, and pre-selects only safe AI changes', async () => {
+    vi.mocked(blogAIApi.compareCandidate).mockResolvedValue(compareFixture() as never)
+    const w = mount(CandidateComparePage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Risk-first: the conflict field renders before the ai_only fields.
+    const rows = w.findAll('.field-row')
+    expect(rows[0].attributes('data-status')).toBe('conflict')
+    expect(w.find('.conflict-banner').exists()).toBe(true)
+    // Conflicting field is NOT pre-selected; the two ai_only fields are.
+    expect(w.find('.impact strong').text()).toBe('2')
+  })
+
+  it('applies only the selected fields under the current version', async () => {
+    vi.mocked(blogAIApi.compareCandidate).mockResolvedValue(compareFixture() as never)
+    vi.mocked(blogAIApi.decideCandidate).mockResolvedValue(
+      { candidate: { post_id: 'p1' }, decision_id: 'd1', post_version: 4, result_revision_id: 'r1' } as never,
+    )
+    const w = mount(CandidateComparePage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    await w.find('.primary').trigger('click')
+    await Promise.resolve()
+
+    const [candId, body] = vi.mocked(blogAIApi.decideCandidate).mock.calls[0]
+    expect(candId).toBe('c1')
+    expect(body.post_version).toBe(3)
+    expect(body.action).toBe('apply_fields')
+    expect(new Set(body.selected_fields)).toEqual(new Set(['summary', 'markdown']))
+    expect(routerPush).toHaveBeenCalled()
+  })
+
+  it('rejects the candidate without selecting fields', async () => {
+    vi.mocked(blogAIApi.compareCandidate).mockResolvedValue(compareFixture() as never)
+    vi.mocked(blogAIApi.decideCandidate).mockResolvedValue(
+      { candidate: { post_id: 'p1' }, decision_id: 'd1', post_version: 3, result_revision_id: null } as never,
+    )
+    const w = mount(CandidateComparePage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    await w.find('.ghost.danger').trigger('click')
+    await Promise.resolve()
+
+    expect(vi.mocked(blogAIApi.decideCandidate).mock.calls[0][1].action).toBe('reject')
   })
 })

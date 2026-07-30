@@ -19,6 +19,7 @@ from app.modules.posts.schemas import (
     PostPatch,
     PublishBody,
     RestoreRevisionBody,
+    RevisionOut,
     post_detail_out,
     post_out,
     revision_out,
@@ -139,6 +140,26 @@ def generate(
     from app.modules.jobs.schemas import serialize_job
 
     return serialize_job(job).model_dump(mode="json")
+
+
+@private_router.get("/{post_id}/revisions")
+def list_revisions(
+    post_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[RevisionOut]:
+    return [revision_out(r) for r in service.list_revisions(db, user.id, post_id)]
+
+
+@private_router.get("/{post_id}/revisions/compare")
+def compare_revisions(
+    post_id: uuid.UUID,
+    from_revision: uuid.UUID,
+    to_revision: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return service.compare_revisions(db, user.id, post_id, from_revision, to_revision)
 
 
 @private_router.get("/{post_id}/revisions/{revision_id}/diff")

@@ -76,6 +76,16 @@ const routes: RouteRecordRaw[] = [
             name: 'blog-post-view',
             component: () => import('@/modules/posts/PostViewPage.vue'),
           },
+          {
+            path: ':id/versions',
+            name: 'blog-post-versions',
+            component: () => import('@/modules/posts/PostVersionsPage.vue'),
+          },
+          {
+            path: ':id/candidates/:candidateId',
+            name: 'blog-candidate-compare',
+            component: () => import('@/modules/posts/CandidateComparePage.vue'),
+          },
         ],
       },
       {

@@ -75,6 +75,10 @@ function switchToUrl(url: string): void {
       >
         <span class="title">{{ p.title }}</span>
         <span
+          v-if="p.content_status === 'ai_review'"
+          class="review-chip"
+        >待审核</span>
+        <span
           class="status"
           :data-status="p.status"
         >
@@ -161,6 +165,14 @@ li {
 }
 .status[data-status='published'] {
   color: var(--status-done);
+}
+.review-chip {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--status-info-soft, #dbeafe);
+  color: var(--status-info, #2563eb);
+  margin-left: auto;
 }
 .muted {
   color: var(--color-text-muted);
