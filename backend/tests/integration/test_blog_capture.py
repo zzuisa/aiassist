@@ -132,6 +132,7 @@ def test_extraction_advances_post_and_completes_parse_job(db_session, user_id, m
     # The article moved out of the transient holding state and the job is done.
     assert p.content_status == "triage"
     assert p.title == "抓取到的标题"  # raw-URL title replaced by the extracted one
+    assert p.markdown == "正文内容"    # placeholder body filled from the extraction
     assert j.status == "completed"
 
 

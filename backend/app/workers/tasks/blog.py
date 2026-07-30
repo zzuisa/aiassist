@@ -64,17 +64,31 @@ def generate(self, post_id: str, scenario: str, instruction: str | None = None) 
 # ---------------------------------------------------------------------------
 
 
+def _is_stub_body(markdown: str, url: str | None) -> bool:
+    """True only when the body is exactly the bare ``<url>`` capture placeholder.
+
+    A URL capture with no note seeds the body as ``<url>`` — pure placeholder, safe
+    to replace with the extraction. A capture *with* a note seeds ``# note\\n\\n<url>``,
+    which is user-authored and must never be overwritten.
+    """
+    return bool(url) and (markdown or "").strip() == f"<{url}>"
+
+
 def _finish_parse(session, src_row, *, ok: bool, code: str | None = None) -> None:
     """Advance the pending_parse post + close the blog.parse job after extraction.
 
-    Extraction only ever fills the *source*; this moves the article out of the
-    transient ``pending_parse`` holding state (so it becomes a normal, editable
-    triage item rather than a stuck "failed" one) and completes/fails the driving
-    Job. A failed fetch still lands the article in triage with a retryable source.
+    On success, moves the article out of the transient ``pending_parse`` holding
+    state and — when the body is still the capture placeholder — fills it with the
+    extracted article content (recorded as an ``import`` revision). Genuinely
+    authored bodies are never overwritten. A failed fetch still lands the article
+    in triage with a retryable Job.
     """
+    from datetime import UTC, datetime
+
     from app.models.foundation import AsyncJob
     from app.models.posts import Post
     from app.modules.jobs import service as jobs_service
+    from app.modules.posts import service as post_service
 
     post = session.get(Post, src_row.post_id) if src_row.post_id else None
     if post is not None and post.content_status == "pending_parse":
@@ -85,6 +99,17 @@ def _finish_parse(session, src_row, *, ok: bool, code: str | None = None) -> Non
             "",
         ):
             post.title = src_row.original_title[:240]
+        # Fill the article body from the extraction when it is still a placeholder.
+        extracted = (src_row.normalized_markdown or src_row.original_text or "").strip()
+        if ok and extracted and _is_stub_body(post.markdown, src_row.original_url):
+            post.markdown = extracted
+            rev = post_service.new_revision(
+                session, post, extracted, "import", post.current_revision_id,
+                change_summary="从链接导入正文",
+            )
+            rev.applied_at = datetime.now(UTC)
+            post.current_revision_id = rev.id
+            post.version += 1
     job = session.get(AsyncJob, src_row.async_job_id) if src_row.async_job_id else None
     if job is not None and job.status not in ("completed", "cancelled"):
         if ok:
