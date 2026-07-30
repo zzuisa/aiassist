@@ -192,6 +192,52 @@ class CandidateDecisionBody(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Skill management DTOs (spec 005, US5)
+# ---------------------------------------------------------------------------
+
+
+class SkillCreateBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    config: dict[str, Any] | None = None
+    recommended_model: str | None = Field(default=None, max_length=120)
+    max_content_chars: int = Field(default=200_000, ge=1000, le=200_000)
+    long_content_strategy: str = Field(
+        default="reject", pattern="^(reject|chunk|summarize_then_process)$"
+    )
+
+
+class SkillMetaBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class SkillEnableBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    enabled: bool
+
+
+class SkillVersionBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    config: dict[str, Any]
+    recommended_model: str | None = Field(default=None, max_length=120)
+    max_content_chars: int = Field(default=200_000, ge=1000, le=200_000)
+    long_content_strategy: str = Field(
+        default="reject", pattern="^(reject|chunk|summarize_then_process)$"
+    )
+    change_summary: str | None = Field(default=None, max_length=500)
+
+
+class SkillDefaultBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    scope_type: str = Field(pattern="^(global|content_class|content_type)$")
+    scope_key: str = Field(min_length=1, max_length=64)
+    skill_id: uuid.UUID
+
+
+# ---------------------------------------------------------------------------
 # Capture request DTOs (spec 005, US1) — mirror openapi ClipboardCapture etc.
 # ---------------------------------------------------------------------------
 

@@ -67,6 +67,26 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/modules/posts/BlogJobDetailPage.vue'),
           },
           {
+            path: 'skills',
+            name: 'blog-skills-list',
+            component: () => import('@/modules/posts/SkillListPage.vue'),
+          },
+          {
+            path: 'skills/new',
+            name: 'blog-skill-new',
+            component: () => import('@/modules/posts/SkillEditorPage.vue'),
+          },
+          {
+            path: 'skills/:skillId/edit',
+            name: 'blog-skill-edit',
+            component: () => import('@/modules/posts/SkillEditorPage.vue'),
+          },
+          {
+            path: 'skills/:skillId/versions',
+            name: 'blog-skill-versions',
+            component: () => import('@/modules/posts/SkillVersionsPage.vue'),
+          },
+          {
             path: ':id',
             name: 'blog-post-editor',
             component: () => import('@/modules/posts/PostEditorPage.vue'),

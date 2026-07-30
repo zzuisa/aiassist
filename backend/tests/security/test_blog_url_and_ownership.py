@@ -198,3 +198,43 @@ def test_other_user_cannot_list_candidates(client, make_user):
     ho = _login(client, other.email)
     # The post itself is owned by owner → 404 for other on the nested list.
     assert client.get(f"/api/v1/posts/{post_id}/candidates", headers=ho).status_code == 404
+
+
+# --------------------------------------------------- Skill isolation (US5, T100)
+
+
+def _skill_config():
+    return {
+        "schema_version": "blog-skill-config.v1",
+        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
+        "processing_goal": "g", "content_rules": [], "title_rules": [], "summary_rules": [],
+        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
+        "prohibitions": ["p"], "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
+        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "long_content_strategy": "reject",
+    }
+
+
+@requires_db
+def test_other_user_cannot_read_or_edit_skill(client, make_user):
+    owner = make_user()
+    other = make_user()
+    ho = _login(client, owner.email)
+    sid = client.post(
+        "/api/v1/blog/skills", json={"name": "私有", "config": _skill_config()}, headers=ho
+    ).json()["id"]
+
+    auth_service.reset_login_throttle()
+    hx = _login(client, other.email)
+    assert client.get(f"/api/v1/blog/skills/{sid}", headers=hx).status_code == 404
+    assert client.get(f"/api/v1/blog/skills/{sid}/versions", headers=hx).status_code == 404
+    assert client.patch(
+        f"/api/v1/blog/skills/{sid}", json={"name": "篡改"}, headers=hx
+    ).status_code == 404
+    # Cannot point one's own default at another user's skill.
+    assert client.put(
+        "/api/v1/blog/skills/defaults",
+        json={"scope_type": "global", "scope_key": "*", "skill_id": sid},
+        headers=hx,
+    ).status_code == 404

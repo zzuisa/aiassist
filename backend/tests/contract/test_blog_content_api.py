@@ -451,3 +451,110 @@ def test_version_list_and_compare_shape(client, make_user):
     )
     assert cmp.status_code == 200
     assert set(cmp.json()) >= {"from_revision_id", "to_revision_id", "body_diff", "field_diff"}
+
+
+# ---------------------------------------------------------------------------
+# Skill management (spec 005, US5, T097)
+# ---------------------------------------------------------------------------
+
+
+def _skill_config(goal="v1"):
+    return {
+        "schema_version": "blog-skill-config.v1",
+        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
+        "processing_goal": goal, "content_rules": [], "title_rules": [], "summary_rules": [],
+        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
+        "prohibitions": ["p"], "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
+        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "long_content_strategy": "reject",
+    }
+
+
+def test_skill_list_lazily_seeds_a_default(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    r = client.get("/api/v1/blog/skills", headers=h)
+    assert r.status_code == 200
+    skills = r.json()
+    assert len(skills) >= 1
+    seed = skills[0]
+    assert seed["current_version"] is not None
+    assert seed["current_version_complete"] is True
+
+
+def test_skill_crud_version_and_restore(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    # Create with a v1 config.
+    created = client.post(
+        "/api/v1/blog/skills",
+        json={"name": "我的技能", "config": _skill_config("v1")},
+        headers=h,
+    )
+    assert created.status_code == 201
+    skill = created.json()
+    sid = skill["id"]
+    assert skill["current_version"]["version_number"] == 1
+
+    # Edit-as-new-version.
+    v2 = client.post(
+        f"/api/v1/blog/skills/{sid}/versions",
+        json={"config": _skill_config("v2")},
+        headers=h,
+    )
+    assert v2.status_code == 201
+    assert v2.json()["version_number"] == 2
+
+    versions = client.get(f"/api/v1/blog/skills/{sid}/versions", headers=h).json()
+    assert [v["version_number"] for v in versions] == [2, 1]
+    v1_id = versions[1]["id"]
+
+    # Restore v1 → appends v3.
+    restored = client.post(
+        f"/api/v1/blog/skills/{sid}/versions/{v1_id}/restore", headers=h
+    )
+    assert restored.status_code == 201
+    assert restored.json()["version_number"] == 3
+    assert restored.json()["config"]["processing_goal"] == "v1"
+
+
+def test_skill_invalid_config_is_422(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    bad = dict(_skill_config())
+    del bad["prohibitions"]  # required, min_length 1
+    r = client.post(
+        "/api/v1/blog/skills", json={"name": "坏技能", "config": bad}, headers=h
+    )
+    assert r.status_code in (400, 422)
+
+
+def test_skill_default_set_and_list(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    sid = client.post(
+        "/api/v1/blog/skills", json={"name": "默认", "config": _skill_config()}, headers=h
+    ).json()["id"]
+    put = client.put(
+        "/api/v1/blog/skills/defaults",
+        json={"scope_type": "content_class", "scope_key": "technical", "skill_id": sid},
+        headers=h,
+    )
+    assert put.status_code == 200
+    lst = client.get("/api/v1/blog/skills/defaults/list", headers=h).json()
+    assert any(
+        d["scope_type"] == "content_class" and d["scope_key"] == "technical" and d["skill_id"] == sid
+        for d in lst
+    )
+
+
+def test_skill_enable_disable(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    sid = client.post(
+        "/api/v1/blog/skills", json={"name": "开关", "config": _skill_config()}, headers=h
+    ).json()["id"]
+    off = client.post(f"/api/v1/blog/skills/{sid}/enabled", json={"enabled": False}, headers=h)
+    assert off.status_code == 200
+    assert off.json()["enabled"] is False

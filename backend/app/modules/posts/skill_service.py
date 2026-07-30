@@ -21,8 +21,15 @@ from sqlalchemy.orm import Session
 
 from pydantic import ValidationError as PydanticValidationError
 
+from datetime import UTC, datetime
+
 from app.core.errors import NotFoundError, ValidationError
-from app.models.blog import BlogSkill, BlogSkillDefault, BlogSkillVersion
+from app.models.blog import (
+    BlogSkill,
+    BlogSkillDefault,
+    BlogSkillVersion,
+    PostAIRun,
+)
 from app.services.llm.schemas import BlogSkillConfigV1
 
 # ---------------------------------------------------------------------------
@@ -271,3 +278,267 @@ def remove_skill_default(
         return False
     session.delete(default)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Skill CRUD, versions, copy, restore, recent runs (spec 005, US5, T102)
+# ---------------------------------------------------------------------------
+
+
+def list_skills(session: Session, user_id: uuid.UUID) -> list[BlogSkill]:
+    return list(
+        session.scalars(
+            select(BlogSkill)
+            .where(BlogSkill.user_id == user_id, BlogSkill.deleted_at.is_(None))
+            .order_by(BlogSkill.created_at.desc())
+        ).all()
+    )
+
+
+def create_skill(
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    name: str,
+    description: str | None = None,
+    config: dict[str, Any] | None = None,
+    recommended_model: str | None = None,
+    max_content_chars: int = 200_000,
+    long_content_strategy: str = "reject",
+) -> BlogSkill:
+    """Create a skill; when *config* is given, add its first immutable version."""
+    if not name or not name.strip():
+        raise ValidationError("Skill name is required", code="invalid_name")
+    skill = BlogSkill(
+        id=uuid.uuid4(), user_id=user_id, name=name.strip(),
+        description=description, enabled=True,
+    )
+    session.add(skill)
+    session.flush()
+    if config is not None:
+        save_skill_version(
+            session, user_id, skill, config=config, recommended_model=recommended_model,
+            max_content_chars=max_content_chars, long_content_strategy=long_content_strategy,
+            change_summary="初始版本",
+        )
+    return skill
+
+
+def update_skill_meta(
+    session: Session,
+    user_id: uuid.UUID,
+    skill_id: uuid.UUID,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+) -> BlogSkill:
+    skill = get_skill(session, user_id, skill_id)
+    if name is not None:
+        if not name.strip():
+            raise ValidationError("Skill name is required", code="invalid_name")
+        skill.name = name.strip()
+    if description is not None:
+        skill.description = description
+    return skill
+
+
+def set_skill_enabled(
+    session: Session, user_id: uuid.UUID, skill_id: uuid.UUID, enabled: bool
+) -> BlogSkill:
+    skill = get_skill(session, user_id, skill_id)
+    skill.enabled = enabled
+    return skill
+
+
+def soft_delete_skill(session: Session, user_id: uuid.UUID, skill_id: uuid.UUID) -> None:
+    """Soft-delete a skill and drop any defaults that pointed at it."""
+    skill = get_skill(session, user_id, skill_id)
+    skill.deleted_at = datetime.now(UTC)
+    skill.enabled = False
+    for d in session.scalars(
+        select(BlogSkillDefault).where(
+            BlogSkillDefault.user_id == user_id, BlogSkillDefault.skill_id == skill_id
+        )
+    ).all():
+        session.delete(d)
+
+
+def copy_skill(session: Session, user_id: uuid.UUID, skill_id: uuid.UUID) -> BlogSkill:
+    """Fork a skill: new skill carrying a copy of the source's current config."""
+    src = get_skill(session, user_id, skill_id)
+    version = current_skill_version(session, user_id, src)
+    config = dict(version.config_json) if version else None
+    return create_skill(
+        session, user_id,
+        name=f"{src.name}（副本）", description=src.description, config=config,
+        recommended_model=version.recommended_model if version else None,
+        max_content_chars=version.max_content_chars if version else 200_000,
+        long_content_strategy=version.long_content_strategy if version else "reject",
+    )
+
+
+def restore_version(
+    session: Session, user_id: uuid.UUID, skill_id: uuid.UUID, version_id: uuid.UUID
+) -> BlogSkillVersion:
+    """Restore an old version by appending it as a NEW current version (immutable)."""
+    skill = get_skill(session, user_id, skill_id)
+    target = get_skill_version(session, user_id, version_id)
+    if target.skill_id != skill.id:
+        raise ValidationError("Version does not belong to skill", code="version_mismatch")
+    return save_skill_version(
+        session, user_id, skill, config=dict(target.config_json),
+        recommended_model=target.recommended_model,
+        max_content_chars=target.max_content_chars,
+        long_content_strategy=target.long_content_strategy,
+        change_summary=f"从 v{target.version_number} 恢复",
+    )
+
+
+def list_skill_versions(
+    session: Session, user_id: uuid.UUID, skill_id: uuid.UUID
+) -> list[BlogSkillVersion]:
+    get_skill(session, user_id, skill_id, include_deleted=True)
+    return list(
+        session.scalars(
+            select(BlogSkillVersion)
+            .where(
+                BlogSkillVersion.skill_id == skill_id,
+                BlogSkillVersion.user_id == user_id,
+            )
+            .order_by(BlogSkillVersion.version_number.desc())
+        ).all()
+    )
+
+
+def recent_runs(
+    session: Session, user_id: uuid.UUID, skill_id: uuid.UUID, limit: int = 20
+) -> list[PostAIRun]:
+    """Recent AI runs bound to any version of this skill (reproducibility view)."""
+    version_ids = [
+        v.id for v in list_skill_versions(session, user_id, skill_id)
+    ]
+    if not version_ids:
+        return []
+    return list(
+        session.scalars(
+            select(PostAIRun)
+            .where(
+                PostAIRun.user_id == user_id,
+                PostAIRun.skill_version_id.in_(version_ids),
+            )
+            .order_by(PostAIRun.created_at.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
+def impacted_scopes(
+    session: Session, user_id: uuid.UUID, skill_id: uuid.UUID
+) -> list[dict[str, str]]:
+    """Scopes whose default currently resolves to this skill (change/disable impact)."""
+    defaults = session.scalars(
+        select(BlogSkillDefault).where(
+            BlogSkillDefault.user_id == user_id, BlogSkillDefault.skill_id == skill_id
+        )
+    ).all()
+    return [{"scope_type": d.scope_type, "scope_key": d.scope_key} for d in defaults]
+
+
+# ---------------------------------------------------------------------------
+# Serialization
+# ---------------------------------------------------------------------------
+
+
+def serialize_version(v: BlogSkillVersion, *, include_config: bool = False) -> dict[str, Any]:
+    out = {
+        "id": str(v.id),
+        "skill_id": str(v.skill_id),
+        "version_number": v.version_number,
+        "schema_version": v.schema_version,
+        "recommended_model": v.recommended_model,
+        "max_content_chars": v.max_content_chars,
+        "long_content_strategy": v.long_content_strategy,
+        "change_summary": v.change_summary,
+        "created_at": v.created_at.isoformat(),
+    }
+    if include_config:
+        out["config"] = v.config_json
+    return out
+
+
+def serialize_skill(
+    session: Session, user_id: uuid.UUID, skill: BlogSkill, *, include_config: bool = False
+) -> dict[str, Any]:
+    version = current_skill_version(session, user_id, skill)
+    return {
+        "id": str(skill.id),
+        "name": skill.name,
+        "description": skill.description,
+        "enabled": skill.enabled,
+        "current_version": serialize_version(version, include_config=include_config)
+        if version else None,
+        "current_version_complete": bool(version and is_version_complete(version)),
+        "default_scopes": impacted_scopes(session, user_id, skill.id),
+        "created_at": skill.created_at.isoformat(),
+        "updated_at": skill.updated_at.isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Safe default seeding (spec 005, US5, T110)
+# ---------------------------------------------------------------------------
+
+_SEED_SKILL_CONFIG: dict[str, Any] = {
+    "schema_version": "blog-skill-config.v1",
+    "applicable_content_classes": ["essay", "technical", "life", "bookmark", "quick"],
+    "applicable_content_type_ids": [],
+    "processing_goal": "在不改变原意的前提下提升表达清晰度与结构",
+    "content_rules": ["保留原文事实与代码", "不虚构不存在的信息"],
+    "title_rules": ["标题简洁准确"],
+    "summary_rules": ["用一到两句概括要点"],
+    "body_structure": ["合理分段", "必要时加入小标题"],
+    "taxonomy_rules": [],
+    "keyword_rules": [],
+    "prohibitions": ["禁止编造事实", "禁止删除代码块或命令"],
+    "field_policies": {
+        "title": "suggest_only",
+        "summary": "fill_if_empty",
+        "markdown": "require_confirmation",
+    },
+    "output_fields": ["title", "summary", "markdown"],
+    "output_schema": "blog-optimization.v1",
+    "validation_rules": ["不得改动受保护的代码/命令/数字"],
+    "recommended_model": None,
+    "max_content_chars": 200_000,
+    "long_content_strategy": "reject",
+}
+
+
+def seed_default_skills(session: Session, user_id: uuid.UUID) -> BlogSkill | None:
+    """Idempotently give a user one safe global Skill if they have none.
+
+    Never replaces or edits user-defined skills: it only acts when the user has
+    no skills at all, and only sets the global default when none exists.
+    """
+    has_any = session.scalar(
+        select(BlogSkill.id).where(
+            BlogSkill.user_id == user_id, BlogSkill.deleted_at.is_(None)
+        ).limit(1)
+    )
+    if has_any:
+        return None
+    skill = create_skill(
+        session, user_id, name="默认优化",
+        description="安全的通用优化技能（可复制后自定义）",
+        config=dict(_SEED_SKILL_CONFIG),
+    )
+    existing_global = session.scalar(
+        select(BlogSkillDefault).where(
+            BlogSkillDefault.user_id == user_id,
+            BlogSkillDefault.scope_type == "global",
+            BlogSkillDefault.scope_key == "*",
+        )
+    )
+    if existing_global is None:
+        set_skill_default(session, user_id, "global", "*", skill.id)
+    return skill

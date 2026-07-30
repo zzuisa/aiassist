@@ -24,8 +24,8 @@ from app.modules.posts.ai_router import optimize_router as blog_optimize_router
 from app.modules.posts.query_router import query_router as blog_query_router
 from app.modules.posts.router import private_router as posts_router
 from app.modules.posts.router import public_router as public_router
-from app.modules.posts.router import skill_router as blog_skill_router
 from app.modules.posts.router import taxonomy_router as blog_taxonomy_router
+from app.modules.posts.skill_router import skill_router as blog_skill_router
 from app.modules.search.router import router as search_router
 from app.modules.settings.router import router as settings_router
 from app.modules.tasks.calendar_router import router as calendar_router

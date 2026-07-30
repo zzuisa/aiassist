@@ -207,24 +207,24 @@
 
 ### Tests for User Story 5 — write first ⚠️
 
-- [ ] T097 [P] [US5] Add Skill CRUD/version/restore/default API contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T098 [P] [US5] Add manual/type/class/global matching and disabled/incomplete fallback unit tests in `backend/tests/unit/test_blog_skill_matching.py`
-- [ ] T099 [P] [US5] Add immutable history, queued old-version and unique-default integration tests in `backend/tests/integration/test_blog_skills.py`
-- [ ] T100 [P] [US5] Add cross-user Skill/default/version isolation tests in `backend/tests/security/test_blog_url_and_ownership.py`
-- [ ] T101 [P] [US5] Add Skill list/editor/version/default component tests in `frontend/tests/component/blog-skills.spec.ts`
+- [x] T097 [P] [US5] Add Skill CRUD/version/restore/default API contract tests in `backend/tests/contract/test_blog_content_api.py`
+- [x] T098 [P] [US5] Add manual/type/class/global matching and disabled/incomplete fallback unit tests in `backend/tests/unit/test_blog_skill_matching.py`
+- [x] T099 [P] [US5] Add immutable history, queued old-version and unique-default integration tests in `backend/tests/integration/test_blog_skills.py`
+- [x] T100 [P] [US5] Add cross-user Skill/default/version isolation tests in `backend/tests/security/test_blog_url_and_ownership.py`
+- [x] T101 [P] [US5] Add Skill list/editor/version/default component tests in `frontend/tests/component/blog-skills.spec.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T102 [US5] Implement Skill create/edit-as-new-version/copy/enable/disable/restore and recent-execution queries in `backend/app/modules/posts/skill_service.py`
-- [ ] T103 [US5] Implement unique default replacement and impacted-scope validation in `backend/app/modules/posts/skill_service.py`
-- [ ] T104 [US5] Implement Skill list/detail/write/version/restore/default endpoints in `backend/app/modules/posts/skill_router.py`
-- [ ] T105 [P] [US5] Implement typed Skill/default/version API client in `frontend/src/api/blogSkills.ts`
-- [ ] T106 [P] [US5] Implement searchable Skill list, state/default badges and safe enable/disable confirmation in `frontend/src/modules/posts/SkillListPage.vue`
-- [ ] T107 [US5] Implement sectioned Skill editor with field policy table, safety-ceiling errors and impact summary in `frontend/src/modules/posts/SkillEditorPage.vue`
-- [ ] T108 [P] [US5] Implement immutable Skill timeline, pair comparison and restore-as-new-version in `frontend/src/modules/posts/SkillVersionsPage.vue`
-- [ ] T109 [US5] Wire current Skill and matching explanation into create/optimize/property panels in `frontend/src/modules/posts/PostCreateDialog.vue`, `frontend/src/modules/posts/OptimizePostDialog.vue`, and `frontend/src/modules/posts/PostPropertySidebar.vue`
-- [ ] T110 [US5] Seed initial safe global/class Skills without replacing user-defined Skills in `backend/app/modules/posts/content_types.py` and `backend/alembic/versions/0011_blog_content_management.py`
-- [ ] T111 [US5] Verify historical PostAIRun and candidate detail continue resolving deleted/disabled SkillVersion data in `backend/tests/integration/test_blog_skills.py`
+- [x] T102 [US5] Implement Skill create/edit-as-new-version/copy/enable/disable/restore and recent-execution queries in `backend/app/modules/posts/skill_service.py`
+- [x] T103 [US5] Implement unique default replacement and impacted-scope validation in `backend/app/modules/posts/skill_service.py`
+- [x] T104 [US5] Implement Skill list/detail/write/version/restore/default endpoints in `backend/app/modules/posts/skill_router.py`
+- [x] T105 [P] [US5] Implement typed Skill/default/version API client in `frontend/src/api/blogSkills.ts`
+- [x] T106 [P] [US5] Implement searchable Skill list, state/default badges and safe enable/disable confirmation in `frontend/src/modules/posts/SkillListPage.vue`
+- [x] T107 [US5] Implement sectioned Skill editor with field policy table, safety-ceiling errors and impact summary in `frontend/src/modules/posts/SkillEditorPage.vue`
+- [x] T108 [P] [US5] Implement immutable Skill timeline, pair comparison and restore-as-new-version in `frontend/src/modules/posts/SkillVersionsPage.vue`
+- [x] T109 [US5] Wire current Skill and matching explanation into create/optimize/property panels in `frontend/src/modules/posts/PostCreateDialog.vue`, `frontend/src/modules/posts/OptimizePostDialog.vue`, and `frontend/src/modules/posts/PostPropertySidebar.vue`
+- [x] T110 [US5] Seed initial safe global/class Skills without replacing user-defined Skills in `backend/app/modules/posts/content_types.py` and `backend/alembic/versions/0011_blog_content_management.py`
+- [x] T111 [US5] Verify historical PostAIRun and candidate detail continue resolving deleted/disabled SkillVersion data in `backend/tests/integration/test_blog_skills.py`
 
 **Checkpoint**: US5 makes AI behavior configurable and reproducible without becoming a standalone model platform.
 

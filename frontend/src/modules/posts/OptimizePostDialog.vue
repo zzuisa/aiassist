@@ -6,13 +6,14 @@
 // (US4). The advanced panel exposes optimization type, scope, optional
 // selected fields, Skill and model overrides, and a free-text instruction —
 // all optional: leaving Skill/model empty lets the server resolve defaults.
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   blogAIApi,
   classifyOptimizeError,
   type OptimizationScope,
   type OptimizationType,
 } from '@/api/blogAI'
+import { blogSkillsApi, type Skill } from '@/api/blogSkills'
 import CaptureModal from '@/modules/posts/CaptureModal.vue'
 
 const props = defineProps<{ postId: string; postVersion: number }>()
@@ -45,6 +46,17 @@ const skillId = ref('')
 const modelKey = ref('')
 const instruction = ref('')
 const advanced = ref(false)
+
+// Available enabled Skills so the user can pick one instead of typing an id;
+// empty selection means "let the server resolve the default for this article".
+const skills = ref<Skill[]>([])
+onMounted(async () => {
+  try {
+    skills.value = (await blogSkillsApi.list()).filter((s) => s.enabled && s.current_version_complete)
+  } catch {
+    skills.value = []
+  }
+})
 
 const busy = ref(false)
 const error = ref('')
@@ -161,13 +173,23 @@ async function submit(): Promise<void> {
       class="advanced"
     >
       <label class="field">
-        <span>Skill（可选，留空使用默认）</span>
-        <input
+        <span>Skill（可选，留空按内容类别自动匹配默认）</span>
+        <select
           v-model="skillId"
           aria-label="Skill"
-          placeholder="Skill ID"
           :disabled="busy"
         >
+          <option value="">
+            （自动匹配默认）
+          </option>
+          <option
+            v-for="s in skills"
+            :key="s.id"
+            :value="s.id"
+          >
+            {{ s.name }}
+          </option>
+        </select>
       </label>
       <label class="field">
         <span>模型（可选，留空使用默认）</span>

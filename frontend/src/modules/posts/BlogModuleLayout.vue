@@ -6,6 +6,7 @@ import { RouterView } from 'vue-router'
 const navItems = [
   { to: '/blog', label: '文章', exact: true },
   { to: '/blog/jobs', label: 'AI 任务', exact: false },
+  { to: '/blog/skills', label: 'AI 技能', exact: false },
 ]
 </script>
 
