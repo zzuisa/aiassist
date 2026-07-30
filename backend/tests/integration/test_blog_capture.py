@@ -97,6 +97,72 @@ def test_extraction_never_overwrites_authored_post(db_session, user_id, monkeypa
 
 
 @requires_db
+def test_extraction_advances_post_and_completes_parse_job(db_session, user_id, monkeypatch):
+    """Regression: a URL import must leave pending_parse, not get stuck ('处理失败')."""
+    from app.models.foundation import AsyncJob
+    from app.models.posts import Post
+    from app.modules.posts import capture_service, url_extractor
+    from app.workers.tasks import blog as blog_task
+
+    post, src, job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/article"
+    )
+    db_session.commit()
+    assert post.content_status == "pending_parse"
+    assert job.status in ("pending", "queued")
+
+    monkeypatch.setattr(
+        url_extractor, "fetch_url",
+        lambda url, **kw: url_extractor.FetchResult(
+            final_url=url, status_code=200, content_type="text/html",
+            text="<html><body><article>正文内容</article></body></html>",
+        ),
+    )
+    monkeypatch.setattr(
+        url_extractor, "extract_article",
+        lambda html, url: {"title": "抓取到的标题", "text": "正文内容",
+                           "markdown": "正文内容", "author": None, "site": None},
+    )
+
+    assert blog_task.extract_source(src.id) == "completed"
+    db_session.expire_all()
+
+    p = db_session.get(Post, post.id)
+    j = db_session.get(AsyncJob, job.id)
+    # The article moved out of the transient holding state and the job is done.
+    assert p.content_status == "triage"
+    assert p.title == "抓取到的标题"  # raw-URL title replaced by the extracted one
+    assert j.status == "completed"
+
+
+@requires_db
+def test_failed_extraction_advances_to_triage_with_failed_job(db_session, user_id, monkeypatch):
+    from app.models.foundation import AsyncJob
+    from app.models.posts import Post
+    from app.modules.posts import capture_service, url_extractor
+    from app.workers.tasks import blog as blog_task
+
+    post, src, job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/x"
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        url_extractor, "fetch_url",
+        lambda url, **kw: (_ for _ in ()).throw(
+            url_extractor.UrlSecurityError("timed out", code="timeout")
+        ),
+    )
+    assert blog_task.extract_source(src.id) == "failed"
+    db_session.expire_all()
+
+    p = db_session.get(Post, post.id)
+    j = db_session.get(AsyncJob, job.id)
+    assert p.content_status == "triage"        # visible + retryable, never stuck
+    assert j.status == "failed" and j.error_retryable is True
+
+
+@requires_db
 def test_url_failure_is_recorded_and_retryable_once(db_session, user_id, monkeypatch):
     from app.models.blog import PostSource
     from app.modules.posts import capture_service

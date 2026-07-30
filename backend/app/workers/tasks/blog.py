@@ -64,6 +64,40 @@ def generate(self, post_id: str, scenario: str, instruction: str | None = None) 
 # ---------------------------------------------------------------------------
 
 
+def _finish_parse(session, src_row, *, ok: bool, code: str | None = None) -> None:
+    """Advance the pending_parse post + close the blog.parse job after extraction.
+
+    Extraction only ever fills the *source*; this moves the article out of the
+    transient ``pending_parse`` holding state (so it becomes a normal, editable
+    triage item rather than a stuck "failed" one) and completes/fails the driving
+    Job. A failed fetch still lands the article in triage with a retryable source.
+    """
+    from app.models.foundation import AsyncJob
+    from app.models.posts import Post
+    from app.modules.jobs import service as jobs_service
+
+    post = session.get(Post, src_row.post_id) if src_row.post_id else None
+    if post is not None and post.content_status == "pending_parse":
+        post.content_status = "triage"
+        # Prefer the extracted title when the post title is still the raw URL.
+        if src_row.original_title and (post.title or "").strip() in (
+            (src_row.original_url or "").strip(),
+            "",
+        ):
+            post.title = src_row.original_title[:240]
+    job = session.get(AsyncJob, src_row.async_job_id) if src_row.async_job_id else None
+    if job is not None and job.status not in ("completed", "cancelled"):
+        if ok:
+            jobs_service.transition(
+                session, job, status="completed", current_step="完成", progress=100,
+            )
+        else:
+            jobs_service.transition(
+                session, job, status="failed", error_code=code or "extract_failed",
+                error_message="链接抓取失败，可重试", error_retryable=True,
+            )
+
+
 def extract_source(source_id: uuid.UUID) -> str:
     from datetime import UTC, datetime
 
@@ -84,6 +118,7 @@ def extract_source(source_id: uuid.UUID) -> str:
         if src.source_type != "url" or not src.original_url:
             src.status = "failed"
             src.error_code = "not_url_source"
+            _finish_parse(s, src, ok=False, code="not_url_source")
             return "failed"
 
         src.status = "processing"
@@ -97,6 +132,7 @@ def extract_source(source_id: uuid.UUID) -> str:
             src.error_code = exc.code
             src.error_message = str(exc)[:500]
             log.warning("blog_extract_rejected", source_id=str(source_id), code=exc.code)
+            _finish_parse(s, src, ok=False, code=exc.code)
             return "failed"
 
         try:
@@ -120,6 +156,9 @@ def extract_source(source_id: uuid.UUID) -> str:
             src.status = "completed"
             src.error_code = None
             src.error_message = None
+        # The parse operation finished (content availability is a source concern);
+        # advance the article to triage and complete the Job either way.
+        _finish_parse(s, src, ok=True)
         return src.status
 
 
