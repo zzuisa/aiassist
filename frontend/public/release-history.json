@@ -1,6 +1,34 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.230516-376f62d",
+      "version": "2026.07.31.230516",
+      "commit": "376f62dedecd1ac6d149135e8ad1403f97b961ff",
+      "commit_short": "376f62d",
+      "message": "feat: complete compact PNG visual article pipeline",
+      "changes": [
+        "feat: complete compact PNG visual article pipeline",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json",
+        "specs/005-blog-content-management/plan.md",
+        "specs/005-blog-content-management/quickstart.md"
+      ],
+      "deployed_at": "2026-07-31T23:05:16Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.170242-dbf8a33",
       "version": "2026.07.31.170242",
       "commit": "dbf8a33b2f3d60d1482489d444550cb23292aa94",
