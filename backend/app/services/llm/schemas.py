@@ -7,7 +7,7 @@ contracts.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -214,6 +214,85 @@ class BlogBodyOptimizationV1(BaseModel):
     model_config = _STRICT
     schema_version: Literal["blog-body-optimization.v1"]
     markdown: str = Field(min_length=1, max_length=200_000)
+
+
+class BlogAssessmentV1(BaseModel):
+    """Shared value diagnosis emitted by the blog enhancement orchestrator."""
+
+    model_config = _STRICT
+    information_density: int = Field(ge=0, le=3)
+    logical_complexity: int = Field(ge=0, le=3)
+    data_richness: int = Field(ge=0, le=3)
+    scene_relevance: int = Field(ge=0, le=3)
+    visual_potential: int = Field(ge=0, le=3)
+    rewrite_value: int = Field(ge=0, le=3)
+    evidence_quality: int = Field(ge=0, le=3)
+
+
+class BlogSkippedAgentV1(BaseModel):
+    model_config = _STRICT
+    agent: str = Field(min_length=1, max_length=80)
+    reason_code: str = Field(min_length=1, max_length=80)
+    reason: str = Field(max_length=500)
+
+
+class BlogDecisionV1(BaseModel):
+    model_config = _STRICT
+    should_optimize: bool
+    reason: str = Field(max_length=1000)
+    selected_agents: list[str] = Field(max_length=8)
+    skipped_agents: list[BlogSkippedAgentV1] = Field(max_length=8)
+
+
+class BlogOptimizedArticleV1(BaseModel):
+    model_config = _STRICT
+    title: str = Field(max_length=240)
+    summary: str = Field(max_length=2000)
+    content_markdown: str = Field(max_length=200_000)
+
+
+class BlogEnhancementV1(BaseModel):
+    model_config = _STRICT
+    id: str = Field(min_length=1, max_length=120)
+    agent: str = Field(min_length=1, max_length=80)
+    capability: str = Field(max_length=80)
+    status: Literal["executed", "skipped", "unavailable", "failed"]
+    insert_after: str = Field(max_length=240)
+    reason: str = Field(max_length=1000)
+    content: dict[str, Any]
+    caption: str = Field(max_length=500)
+    alt_text: str = Field(max_length=500)
+
+
+class BlogQualityReportV1(BaseModel):
+    model_config = _STRICT
+    author_intent_preserved: bool
+    unsupported_claims: list[str] = Field(max_length=100)
+    removed_low_value_enhancements: list[str] = Field(max_length=100)
+    warnings: list[str] = Field(max_length=100)
+
+
+class BlogUsageV1(BaseModel):
+    model_config = _STRICT
+    agents_called: int = Field(ge=0, le=8)
+    skills_called: list[str] = Field(max_length=8)
+    visual_items_created: int = Field(ge=0, le=10)
+    estimated_input_tokens: int = Field(ge=0)
+    estimated_output_tokens: int = Field(ge=0)
+    estimated_cost: float = Field(ge=0)
+
+
+class BlogEnhancementResultV1(BaseModel):
+    """The total-controller envelope supplied by Blog Enhancement Orchestrator."""
+
+    model_config = _STRICT
+    status: Literal["optimized", "unchanged", "partially_optimized", "rejected"]
+    article_assessment: BlogAssessmentV1
+    decision: BlogDecisionV1
+    optimized_article: BlogOptimizedArticleV1
+    enhancements: list[BlogEnhancementV1] = Field(max_length=10)
+    quality_report: BlogQualityReportV1
+    usage: BlogUsageV1
 
 
 class BlogSkillConfigV1(BaseModel):

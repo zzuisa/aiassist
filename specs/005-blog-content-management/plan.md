@@ -127,6 +127,7 @@
 - 预处理生成模型输入和保护 token 清单；输入大于 Skill 限制时按固定规则分段或失败，不静默截断。
 - LLM gateway 使用 `BlogOptimizationV1`；schema 修复最多一次。分类/标签建议只解析为候选，不能创建或合并组织项。
 - 校验输出格式、必填字段、类型、允许的字段路径、组织项所有权/合法性、保护 token、来源字段和新增事实风险。
+- AI Assist 的完整优化先经过 provider-neutral 的 Blog Enhancement Orchestrator：总控只生成一次共享诊断，按价值、选项、能力注册和 Agent 预算选择 Editor/Logic/Data/Scene/Illustration；低价值视觉增强返回 `skipped`，不伪造 Skill 调用。Qwen/DeepSeek 等模型接收统一的 `BlogEnhancementResultV1`，Worker 在候选边界适配回兼容的 `blog-optimization.v1`，并将安全的编排报告写入候选校验摘要。
 - 全部或部分有效结果写 `PostRevision(source=ai_candidate)` 与 `PostAICandidate`。若当前修订等于基线，根据冻结策略自动应用允许字段或置 `waiting_user`；不等则 `merge_required`。
 - 字段应用事务锁定 Post 和 Candidate，重新检查版本，从当前快照叠加选中字段，创建 `source=ai_applied` 修订，记录 `PostCandidateDecision` 和 Activity，并发变化返回冲突而不修改候选。
 
@@ -168,6 +169,7 @@
 - [contracts/openapi.yaml](contracts/openapi.yaml)：博客私有 REST、扩展 Job 视图和受保护来源快照访问。
 - [contracts/events.asyncapi.yaml](contracts/events.asyncapi.yaml)：URL 提取、AI 优化、搜索刷新、词云/关键词重算命令。
 - [contracts/schemas/blog-optimization.v1.json](contracts/schemas/blog-optimization.v1.json)：严格 AI 输出。
+- [contracts/schemas/blog-enhancement.v1.json](contracts/schemas/blog-enhancement.v1.json)：Blog Enhancement Orchestrator 的总控诊断、决策、增强和质量结果。
 - [contracts/schemas/blog-skill-config.v1.json](contracts/schemas/blog-skill-config.v1.json)：不可变 Skill 版本配置。
 
 ## Data Model

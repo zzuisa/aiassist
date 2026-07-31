@@ -19,6 +19,8 @@
 6. 测试模型使用现有 FakeProvider 或隔离的测试 Provider，能够返回指定 `blog-optimization.v1` JSON。
 7. URL 抓取使用可控 HTTP 测试站点与伪 DNS，不访问真实私有网络。
 
+AI Assist 完整优化还会先执行 Blog Enhancement Orchestrator 的共享诊断。能力注册通过后端环境变量 `BLOG_CAPABILITIES_JSON` 注入，例如只启用本地流程图能力时可传入不含 endpoint/secret 的清单；未启用的视觉能力应在结果中标记 `skipped` 或 `unavailable`，而不是生成装饰性内容。
+
 ## 2. Contract and Migration Gate
 
 Run before user-story work:

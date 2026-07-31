@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     llm_connect_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     llm_read_timeout_seconds: float = Field(default=300.0, gt=0, le=900)
     llm_max_output_tokens: int = Field(default=6144, ge=512, le=32768)
+    # JSON list of locally registered blog enhancement capabilities.  Only
+    # non-secret manifest fields are exposed to the model orchestrator.
+    blog_capabilities_json: str = ""
     speech_provider: str = "none"
     speech_default_model: str = ""
     llm_provider_key_file: str | None = None

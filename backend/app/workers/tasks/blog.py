@@ -568,6 +568,57 @@ def _build_field_diff(post, result, classified: dict) -> dict:  # type: ignore[n
     return diff
 
 
+def _normalize_orchestration_result(result, post):  # type: ignore[no-untyped-def]
+    """Adapt the total-controller envelope to the existing candidate contract.
+
+    Candidate review still consumes ``blog-optimization.v1``.  Keeping this
+    adapter at the worker boundary lets existing Skills and test providers emit
+    the legacy envelope while Qwen/DeepSeek receive the richer orchestrator
+    schema.
+    """
+
+    from app.services.llm.schemas import BlogEnhancementResultV1, BlogOptimizationV1, BlogWarning
+
+    if isinstance(result, BlogOptimizationV1):
+        return result, None
+    if not isinstance(result, BlogEnhancementResultV1):
+        raise TypeError("unsupported blog optimization result")
+
+    article = result.optimized_article
+    warnings = [
+        BlogWarning(
+            code="other",
+            field=None,
+            message=warning,
+            severity="warning",
+        )
+        for warning in result.quality_report.warnings[:20]
+    ]
+    return (
+        BlogOptimizationV1(
+            schema_version="blog-optimization.v1",
+            title=article.title or None,
+            subtitle=None,
+            summary=article.summary or None,
+            markdown=article.content_markdown or None,
+            content_class_suggestion=None,
+            content_type_suggestion=None,
+            category_suggestions=[],
+            tag_suggestions=[],
+            keyword_suggestions=[],
+            occurred_at=None,
+            location=None,
+            project=None,
+            source_summary=None,
+            structured_fields={},
+            related_post_suggestions=[],
+            claims=[],
+            warnings=warnings,
+        ),
+        result.model_dump(mode="json"),
+    )
+
+
 def optimize_run(
     run_id: uuid.UUID,
     scope: str,
@@ -579,9 +630,18 @@ def optimize_run(
     from app.models.posts import Post
     from app.modules.jobs import service as jobs_service
     from app.modules.posts import ai_service, field_policy, protected_content
+    from app.modules.posts.orchestrator import (
+        build_plan,
+        build_system_prompt,
+        build_user_payload,
+    )
     from app.services.llm.base import LLMError, StructuredRequest
     from app.services.llm.gateway import get_llm_gateway
-    from app.services.llm.schemas import BlogBodyOptimizationV1, BlogOptimizationV1
+    from app.services.llm.schemas import (
+        BlogBodyOptimizationV1,
+        BlogEnhancementResultV1,
+        BlogOptimizationV1,
+    )
 
     with session_scope() as s:
         run = s.get(PostAIRun, run_id)
@@ -598,7 +658,9 @@ def optimize_run(
             ai_service.mark_run_failed(s, run, code="cancelled")
             return "cancelled"
 
-        jobs_service.transition(s, job, status="processing", current_step="正在准备文章", progress=10)
+        jobs_service.transition(
+            s, job, status="processing", current_step="正在准备文章", progress=10
+        )
         # Each checkpoint is committed independently so the durable SSE stream
         # can expose real progress while the model call is still running.
         s.commit()
@@ -630,6 +692,7 @@ def optimize_run(
             ai_service.mark_run_failed(s, run, code="cancelled")
             return "cancelled"
 
+        orchestration_plan = build_plan(post.title, body)
         provider_label = "Radio" if run.provider_key == "radio" else "AI Assist"
         jobs_service.transition(
             s,
@@ -638,10 +701,26 @@ def optimize_run(
             progress=55,
         )
         s.commit()
-        system = _build_system(
-            config, run.optimization_type, instruction, scope=scope
+        system = (
+            build_system_prompt(config, orchestration_plan, instruction)
+            if scope != "body"
+            else _build_system(config, run.optimization_type, instruction, scope=scope)
         )
-        user = body if instruction is None else f"{body}\n\n[要求]{instruction}"
+        user = (
+            build_user_payload(
+                title=post.title,
+                content=body,
+                language=post.language,
+                category=post.content_class,
+                target_audience=None,
+                author_intent=instruction,
+                options={"allow_rewrite": scope != "metadata"},
+                skill_config=config,
+                plan=orchestration_plan,
+            )
+            if scope != "body"
+            else (body if instruction is None else f"{body}\n\n[要求]{instruction}")
+        )
         if run.provider_key == "radio":
             from app.services.radio import RadioServiceError, get_radio_client
 
@@ -726,7 +805,7 @@ def optimize_run(
                             scenario="optimize_blog",
                             system=system,
                             user=user,
-                            schema=BlogOptimizationV1,
+                            schema=BlogEnhancementResultV1,
                             max_tokens=get_settings().llm_max_output_tokens,
                         )
                     )
@@ -776,6 +855,8 @@ def optimize_run(
         jobs_service.transition(s, job, current_step="正在校验格式与受保护内容", progress=85)
         s.commit()
 
+        orchestration_result = None
+        result, orchestration_result = _normalize_orchestration_result(result, post)
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)
         blocking = protected_content.has_blocking_change(changes)
@@ -790,7 +871,14 @@ def optimize_run(
             "field_classification": classified,
             "model_warnings": [w.model_dump(mode="json") for w in result.warnings],
             "rejected_fields": rejected,
+            "orchestration_plan": orchestration_plan.as_dict(),
         }
+        if orchestration_result is not None:
+            validation["orchestration_result"] = {
+                key: value
+                for key, value in orchestration_result.items()
+                if key != "optimized_article"
+            }
         field_diff = _build_field_diff(post, result, classified)
 
         jobs_service.transition(s, job, current_step="正在保存优化候选", progress=95)

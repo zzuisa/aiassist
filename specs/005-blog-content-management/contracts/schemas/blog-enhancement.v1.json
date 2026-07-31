@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/contracts/blog-enhancement.v1.json",
+  "title": "BlogEnhancementResultV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "article_assessment", "decision", "optimized_article", "enhancements", "quality_report", "usage"],
+  "properties": {
+    "status": { "enum": ["optimized", "unchanged", "partially_optimized", "rejected"] },
+    "article_assessment": { "$ref": "#/$defs/assessment" },
+    "decision": { "$ref": "#/$defs/decision" },
+    "optimized_article": { "$ref": "#/$defs/optimizedArticle" },
+    "enhancements": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/enhancement" } },
+    "quality_report": { "$ref": "#/$defs/qualityReport" },
+    "usage": { "$ref": "#/$defs/usage" }
+  },
+  "$defs": {
+    "assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["information_density", "logical_complexity", "data_richness", "scene_relevance", "visual_potential", "rewrite_value", "evidence_quality"],
+      "properties": {
+        "information_density": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "logical_complexity": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "data_richness": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "scene_relevance": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "visual_potential": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "rewrite_value": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "evidence_quality": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    },
+    "skippedAgent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["agent", "reason_code", "reason"],
+      "properties": { "agent": { "type": "string" }, "reason_code": { "type": "string" }, "reason": { "type": "string" } }
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["should_optimize", "reason", "selected_agents", "skipped_agents"],
+      "properties": {
+        "should_optimize": { "type": "boolean" }, "reason": { "type": "string" },
+        "selected_agents": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+        "skipped_agents": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/skippedAgent" } }
+      }
+    },
+    "optimizedArticle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "summary", "content_markdown"],
+      "properties": { "title": { "type": "string" }, "summary": { "type": "string" }, "content_markdown": { "type": "string" } }
+    },
+    "enhancement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "agent", "capability", "status", "insert_after", "reason", "content", "caption", "alt_text"],
+      "properties": {
+        "id": { "type": "string" }, "agent": { "type": "string" }, "capability": { "type": "string" },
+        "status": { "enum": ["executed", "skipped", "unavailable", "failed"] }, "insert_after": { "type": "string" },
+        "reason": { "type": "string" }, "content": { "type": "object" }, "caption": { "type": "string" }, "alt_text": { "type": "string" }
+      }
+    },
+    "qualityReport": {
+      "type": "object", "additionalProperties": false,
+      "required": ["author_intent_preserved", "unsupported_claims", "removed_low_value_enhancements", "warnings"],
+      "properties": {
+        "author_intent_preserved": { "type": "boolean" }, "unsupported_claims": { "type": "array", "items": { "type": "string" } },
+        "removed_low_value_enhancements": { "type": "array", "items": { "type": "string" } }, "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "usage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["agents_called", "skills_called", "visual_items_created", "estimated_input_tokens", "estimated_output_tokens", "estimated_cost"],
+      "properties": {
+        "agents_called": { "type": "integer", "minimum": 0 }, "skills_called": { "type": "array", "items": { "type": "string" } },
+        "visual_items_created": { "type": "integer", "minimum": 0 }, "estimated_input_tokens": { "type": "integer", "minimum": 0 },
+        "estimated_output_tokens": { "type": "integer", "minimum": 0 }, "estimated_cost": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

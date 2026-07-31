@@ -383,6 +383,22 @@
 
 ---
 
+## Priority Increment — AI 优化总控编排与能力门控 (P1)
+
+**Goal**: Use one shared diagnosis to make cost-aware optimization decisions, preserve the existing candidate-review boundary, and expose safe structured orchestration results for Qwen/DeepSeek-compatible providers.
+
+### Tests first
+
+- [x] T199 [P] Add value-gate, capability registry, shared-analysis reuse and strict total-controller envelope tests in `backend/tests/unit/test_blog_orchestrator.py` and `backend/tests/contract/test_blog_ai_schema.py`
+
+### Implementation
+
+- [x] T200 Implement provider-neutral Blog Enhancement system prompt, deterministic diagnosis, Agent/visual budget gates and safe capability manifest injection in `backend/app/modules/posts/orchestrator.py` and `backend/app/core/config.py`
+- [x] T201 Implement strict `BlogEnhancementResultV1` output models and adapt the total-controller result to the existing `blog-optimization.v1` candidate contract in `backend/app/services/llm/schemas.py` and `backend/app/workers/tasks/blog.py`
+- [x] T202 Validate orchestrator, contract and AI pipeline behavior with an isolated PostgreSQL test run and record the capability configuration guidance in this quickstart
+
+**Checkpoint**: A full AI Assist optimization performs value gating before model work, can safely skip low-value enhancements, and still produces the existing reviewable candidate without mutating the authored article.
+
 ## Phase 11: User Story 9 — 用词云辅助发现内容 (Priority: P3)
 
 **Goal**: Generate durable, filter-specific tag or keyword word clouds that degrade to the last valid snapshot and link back to article filters.

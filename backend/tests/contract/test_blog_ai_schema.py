@@ -16,7 +16,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.services.llm.schemas import BlogOptimizationV1, BlogSkillConfigV1
+from app.services.llm.schemas import (
+    BlogEnhancementResultV1,
+    BlogOptimizationV1,
+    BlogSkillConfigV1,
+)
 
 pytestmark = [pytest.mark.contract]
 
@@ -25,7 +29,11 @@ CONTRACTS = (
     / "specs/005-blog-content-management/contracts/schemas"
 )
 
-BLOG_SCHEMAS = ["blog-optimization.v1.json", "blog-skill-config.v1.json"]
+BLOG_SCHEMAS = [
+    "blog-optimization.v1.json",
+    "blog-skill-config.v1.json",
+    "blog-enhancement.v1.json",
+]
 
 
 def _load(name: str) -> dict:
@@ -89,6 +97,7 @@ def test_blog_contract_schema_is_strict_and_wellformed(contract):
     [
         (BlogOptimizationV1, "blog-optimization.v1.json"),
         (BlogSkillConfigV1, "blog-skill-config.v1.json"),
+        (BlogEnhancementResultV1, "blog-enhancement.v1.json"),
     ],
 )
 def test_pydantic_matches_contract_required_and_strictness(model, contract):
@@ -149,3 +158,45 @@ def test_non_list_collection_is_rejected():
     payload["tag_suggestions"] = {"not": "a list"}
     with pytest.raises(ValidationError):
         BlogOptimizationV1.model_validate(payload)
+
+
+def test_orchestrator_envelope_is_strict_and_versioned():
+    result = BlogEnhancementResultV1.model_validate({
+        "status": "optimized",
+        "article_assessment": {
+            "information_density": 2,
+            "logical_complexity": 1,
+            "data_richness": 0,
+            "scene_relevance": 0,
+            "visual_potential": 0,
+            "rewrite_value": 2,
+            "evidence_quality": 2,
+        },
+        "decision": {
+            "should_optimize": True,
+            "reason": "保留作者意图并进行局部润色",
+            "selected_agents": ["editor-agent"],
+            "skipped_agents": [],
+        },
+        "optimized_article": {
+            "title": "标题",
+            "summary": "摘要",
+            "content_markdown": "正文",
+        },
+        "enhancements": [],
+        "quality_report": {
+            "author_intent_preserved": True,
+            "unsupported_claims": [],
+            "removed_low_value_enhancements": [],
+            "warnings": [],
+        },
+        "usage": {
+            "agents_called": 1,
+            "skills_called": [],
+            "visual_items_created": 0,
+            "estimated_input_tokens": 10,
+            "estimated_output_tokens": 10,
+            "estimated_cost": 0,
+        },
+    })
+    assert result.optimized_article.content_markdown == "正文"
