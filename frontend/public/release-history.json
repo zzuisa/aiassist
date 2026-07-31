@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.233550-3f21d23",
+      "version": "2026.07.31.233550",
+      "commit": "3f21d234e38a79da050c3691c95929a584b0644f",
+      "commit_short": "3f21d23",
+      "message": "fix: include CJK fonts in PNG renderer image",
+      "changes": [
+        "fix: include CJK fonts in PNG renderer image",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/Dockerfile"
+      ],
+      "deployed_at": "2026-07-31T23:35:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.233252-0365dbf",
       "version": "2026.07.31.233252",
       "commit": "0365dbf28a17e9ff0ae05cbb6673d72485babe9d",
