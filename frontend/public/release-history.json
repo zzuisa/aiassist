@@ -1,6 +1,38 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.160124-5632ab6",
+      "version": "2026.07.31.160124",
+      "commit": "5632ab6d2c23b8e7a4de9db7bab7637f76c4e89e",
+      "commit_short": "5632ab6",
+      "message": "feat: add blog visual generation capabilities",
+      "changes": [
+        "feat: add blog visual generation capabilities",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        ".env.example",
+        "backend/app/core/config.py",
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-07-31T16:01:24Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.151939-3603e2d",
       "version": "2026.07.31.151939",
       "commit": "3603e2d15e5e86c0f299bb230135ef66a7e1d975",
