@@ -689,6 +689,7 @@ ul {
   position: relative;
   min-height: 76px;
   overflow: hidden;
+  isolation: isolate;
 }
 .row-content {
   display: flex;
@@ -702,6 +703,7 @@ ul {
   position: relative;
   z-index: 1;
   transition: transform 0.18s ease;
+  will-change: transform;
 }
 .search-result {
   flex-basis: 100%;
@@ -758,18 +760,21 @@ ul {
 .swipe-actions {
   position: absolute;
   inset-block: 0;
-  display: flex;
+  display: none;
+  z-index: 0;
   align-items: stretch;
   gap: 2px;
+  pointer-events: none;
 }
 .swipe-actions--right {
-  left: 0;
+  inset-inline-start: 0;
 }
 .swipe-actions--left {
-  right: 0;
+  inset-inline-end: 0;
 }
 .swipe-action {
   min-width: var(--mobile-row-action-width);
+  padding: 0 var(--space-2);
   border: 0;
   color: #fff;
   font: inherit;
@@ -892,6 +897,13 @@ ul {
     margin-bottom: var(--space-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+  }
+  .swipe-actions {
+    display: flex;
+  }
+  .post-row--swiped-right .swipe-actions--right,
+  .post-row--swiped-left .swipe-actions--left {
+    pointer-events: auto;
   }
   .row-content {
     border: 0;
