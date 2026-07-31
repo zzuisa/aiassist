@@ -34,6 +34,7 @@ _VISUAL_LAYOUTS = {"compact_horizontal", "compact_vertical", "timeline", "radial
 _VISUAL_TYPES = {"illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"}
 _VISUAL_THEMES = {"warm", "fresh", "calm", "energetic", "neutral"}
 _FONT_CANDIDATES = (
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 2),
     ("/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc", 2),
     ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 2),
     ("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", 0),
