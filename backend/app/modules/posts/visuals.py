@@ -34,22 +34,22 @@ _VISUAL_LAYOUTS = {"compact_horizontal", "compact_vertical", "timeline", "radial
 _VISUAL_TYPES = {"illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"}
 _VISUAL_THEMES = {"warm", "fresh", "calm", "energetic", "neutral"}
 _FONT_CANDIDATES = (
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc", 2),
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 2),
+    ("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", 0),
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0),
 )
 
 
 def _font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = (
-        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", *_FONT_CANDIDATES)
+        (("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 2), *_FONT_CANDIDATES)
         if bold
         else _FONT_CANDIDATES
     )
-    for path in candidates:
+    for path, index in candidates:
         try:
-            return ImageFont.truetype(path, size=size)
+            return ImageFont.truetype(path, size=size, index=index)
         except OSError:
             continue
     return ImageFont.load_default()
