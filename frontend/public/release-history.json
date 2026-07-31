@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.125508-07ed9d0",
+      "version": "2026.07.31.125508",
+      "commit": "07ed9d043b96f00dbc44a75edebca72e126eacd1",
+      "commit_short": "07ed9d0",
+      "message": "fix: serve release history metadata",
+      "changes": [
+        "fix: serve release history metadata",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        "deploy/scripts/deploy.sh"
+      ],
+      "deployed_at": "2026-07-31T12:55:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.125328-e7e508d",
       "version": "2026.07.31.125328",
       "commit": "e7e508d17833255157bc3fcbd7df31a6f27a3e0d",
