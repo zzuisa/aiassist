@@ -158,6 +158,7 @@ history_path.write_text(
     json.dumps({"releases": [entry, *releases[:49]]}, ensure_ascii=False, indent=2) + "\n",
     encoding="utf-8",
 )
+history_path.chmod(0o644)
 PY
 
   git add "$RELEASE_HISTORY_FILE"
