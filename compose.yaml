@@ -26,6 +26,7 @@ x-backend-image: &backend-image
     RABBITMQ_PASSWORD_FILE: /run/secrets/rabbitmq_password
     SMTP_PASSWORD_FILE: /run/secrets/smtp_password
     LLM_PROVIDER_KEY_FILE: /run/secrets/llm_provider_key
+    RADIO_SERVICE_PASSWORD_FILE: /run/secrets/radio_service_password
     LOG_DIR: /logs/aiassist
   secrets:
     - postgres_password
@@ -33,6 +34,7 @@ x-backend-image: &backend-image
     - rabbitmq_password
     - smtp_password
     - llm_provider_key
+    - radio_service_password
   volumes:
     - /www/wwwlogs/aiassist:/logs/aiassist
   logging: *logging
@@ -149,7 +151,7 @@ services:
     command:
       ["celery", "-A", "app.workers.celery_app.celery", "worker",
        "-Q", "critical,notification,schedule,search", "-c", "4",
-       "--prefetch-multiplier", "1", "-n", "fast@%h"]
+       "--prefetch-multiplier", "1", "-l", "info", "-n", "fast@%h"]
     volumes:
       - assets:/data/assets
       - /www/wwwlogs/aiassist:/logs/aiassist
@@ -173,7 +175,8 @@ services:
     command:
       ["celery", "-A", "app.workers.celery_app.celery", "worker",
        "-Q", "voice,image,llm,maintenance", "-c", "1",
-       "--prefetch-multiplier", "1", "--max-tasks-per-child", "20", "-n", "heavy@%h"]
+       "--prefetch-multiplier", "1", "--max-tasks-per-child", "20",
+       "-l", "info", "-n", "heavy@%h"]
     volumes:
       - assets:/data/assets
       - /www/wwwlogs/aiassist:/logs/aiassist
@@ -309,6 +312,8 @@ secrets:
     file: ./deploy/secrets/smtp_password
   llm_provider_key:
     file: ./deploy/secrets/llm_provider_key
+  radio_service_password:
+    file: ./deploy/secrets/radio_service_password
   s3_access_key:
     file: ./deploy/secrets/s3_access_key
   s3_secret_key:

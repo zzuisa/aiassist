@@ -7,7 +7,7 @@
 // one-time conversion-risk confirmation because the rich editor re-serializes
 // Markdown. All saving is delegated to usePostAutosave; the body is one source
 // of truth shared by every mode.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { postsApi, type Post, type PostPatch } from '@/api/posts'
 import { usePostAutosave } from '@/modules/posts/usePostAutosave'
@@ -16,20 +16,42 @@ import RichMarkdownEditor from '@/modules/posts/RichMarkdownEditor.vue'
 import MarkdownPreview from '@/modules/posts/MarkdownPreview.vue'
 import PostPropertySidebar from '@/modules/posts/PostPropertySidebar.vue'
 import OptimizePostDialog from '@/modules/posts/OptimizePostDialog.vue'
+import PostOptimizationProgress from '@/modules/posts/PostOptimizationProgress.vue'
 import { blogAIApi } from '@/api/blogAI'
-
-type Mode = 'source' | 'rich' | 'split' | 'preview'
+import { useJobsStore } from '@/stores/jobs'
+import type { AsyncJob } from '@/api/types'
+import {
+  editorModeFromApi,
+  editorModeToApi,
+  type EditorMode as Mode,
+} from '@/modules/posts/editorMode'
 
 const route = useRoute()
 const router = useRouter()
+const jobs = useJobsStore()
 const post = ref<Post | null>(null)
 const markdown = ref('')
 const title = ref('')
-const mode = ref<Mode>('source')
+const mode = ref<Mode>('rich')
 const focus = ref(false)
 const fullscreen = ref(false)
 const publishing = ref(false)
 const optimizing = ref(false)
+type SourceEditorHandle = { scrollToPosition: (line: number, offset: number) => void }
+type HeadingEditorHandle = { scrollToHeading: (index: number, line?: number, offset?: number) => void }
+const sourceEditor = ref<SourceEditorHandle | null>(null)
+const richEditor = ref<HeadingEditorHandle | null>(null)
+const previewEditor = ref<HeadingEditorHandle | null>(null)
+const splitSourceEditor = ref<SourceEditorHandle | null>(null)
+const splitPreviewEditor = ref<HeadingEditorHandle | null>(null)
+const activeOutlineIndex = ref<number | null>(null)
+const postRunningCount = computed(() =>
+  [...jobs.jobs.values()].filter((job) =>
+    job.job_type === 'blog.optimize' &&
+    job.entity?.id === post.value?.id &&
+    ['pending', 'queued', 'processing'].includes(job.status),
+  ).length,
+)
 
 const autosave = usePostAutosave(post)
 
@@ -44,9 +66,9 @@ async function openOptimize(): Promise<void> {
   optimizing.value = true
 }
 
-function onOptimizeSubmitted(jobId: string): void {
+function onOptimizeSubmitted(job: AsyncJob): void {
+  jobs.rememberJob(job)
   optimizing.value = false
-  router.push({ name: 'blog-jobs', query: { focus: jobId } })
 }
 
 // A candidate awaits review when the server marks the article `ai_review`.
@@ -70,8 +92,7 @@ async function load(): Promise<void> {
   post.value = p
   markdown.value = p.markdown
   title.value = p.title
-  mode.value = (p.editor_mode as Mode) || 'source'
-  if (mode.value === 'preview') mode.value = 'source'
+  mode.value = editorModeFromApi(p.editor_mode)
 }
 onMounted(load)
 
@@ -104,18 +125,81 @@ function switchMode(next: Mode): void {
     if (!ok) return
   }
   mode.value = next
-  if (post.value && next !== 'preview' && next !== post.value.editor_mode) {
-    autosave.update({ editor_mode: next })
+  if (post.value && next !== 'preview') {
+    const persistedMode = editorModeToApi(next)
+    if (persistedMode !== post.value.editor_mode) {
+      autosave.update({ editor_mode: persistedMode })
+    }
   }
 }
 
-const outline = computed(() =>
-  markdown.value
-    .split('\n')
-    .map((l) => /^(#{1,6})\s+(.*)$/.exec(l))
-    .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => ({ level: m[1].length, text: m[2].trim() })),
-)
+interface OutlineHeading {
+  level: number
+  text: string
+  line: number
+  offset: number
+  index: number
+}
+
+const outline = computed<OutlineHeading[]>(() => {
+  const headings: OutlineHeading[] = []
+  const lines = markdown.value.split('\n')
+  let offset = 0
+  let fence: '`' | '~' | null = null
+  lines.forEach((line, lineIndex) => {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1]
+    if (marker) {
+      const kind = marker[0] as '`' | '~'
+      if (fence === kind) fence = null
+      else if (fence === null) fence = kind
+    } else if (fence === null) {
+      const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
+      if (match) {
+        headings.push({
+          level: match[1].length,
+          text: match[2].trim(),
+          line: lineIndex + 1,
+          offset,
+          index: headings.length,
+        })
+      }
+    }
+    offset += line.length + 1
+  })
+  return headings
+})
+
+async function goToHeading(heading: OutlineHeading): Promise<void> {
+  activeOutlineIndex.value = heading.index
+  await nextTick()
+  if (mode.value === 'source') {
+    sourceEditor.value?.scrollToPosition(heading.line, heading.offset)
+  } else if (mode.value === 'rich') {
+    // Milkdown renders its internal document asynchronously. Resolve the live
+    // heading DOM first so navigation also works immediately after page load.
+    if (!scrollRenderedHeading('.rich-root h1, .rich-root h2, .rich-root h3, .rich-root h4, .rich-root h5, .rich-root h6', heading.index)) {
+      richEditor.value?.scrollToHeading(heading.index, heading.line, heading.offset)
+    }
+  } else if (mode.value === 'preview') {
+    if (!scrollRenderedHeading('.markdown-preview [data-outline-index]', heading.index)) {
+      previewEditor.value?.scrollToHeading(heading.index)
+    }
+  } else {
+    splitSourceEditor.value?.scrollToPosition(heading.line, heading.offset)
+    if (!scrollRenderedHeading('.split .markdown-preview [data-outline-index]', heading.index)) {
+      splitPreviewEditor.value?.scrollToHeading(heading.index)
+    }
+  }
+}
+
+function scrollRenderedHeading(selector: string, index: number): boolean {
+  const target = document.querySelectorAll<HTMLElement>(selector).item(index)
+  if (!target) return false
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  target.classList.add('outline-target')
+  window.setTimeout(() => target.classList.remove('outline-target'), 1400)
+  return true
+}
 
 const saveLabel = computed(() => {
   switch (autosave.state.value) {
@@ -219,7 +303,7 @@ onBeforeRouteLeave(async () => {
           :disabled="optimizing"
           @click="openOptimize"
         >
-          AI 优化
+          {{ postRunningCount ? `优化中（${postRunningCount}）` : 'AI 优化' }}
         </button>
         <button
           type="button"
@@ -246,6 +330,8 @@ onBeforeRouteLeave(async () => {
       @close="optimizing = false"
       @submitted="onOptimizeSubmitted"
     />
+
+    <PostOptimizationProgress :post-id="post.id" />
 
     <div
       v-if="autosave.state.value === 'conflict'"
@@ -305,7 +391,14 @@ onBeforeRouteLeave(async () => {
             :key="i"
             :style="{ paddingLeft: `${(h.level - 1) * 0.75}rem` }"
           >
-            {{ h.text }}
+            <button
+              type="button"
+              :class="{ active: activeOutlineIndex === h.index }"
+              :title="`跳转到：${h.text}`"
+              @click="goToHeading(h)"
+            >
+              {{ h.text }}
+            </button>
           </li>
         </ul>
       </nav>
@@ -313,16 +406,19 @@ onBeforeRouteLeave(async () => {
       <div class="pane">
         <MarkdownSourceEditor
           v-if="mode === 'source'"
+          ref="sourceEditor"
           :model-value="markdown"
           @update:model-value="onBody"
         />
         <RichMarkdownEditor
           v-else-if="mode === 'rich'"
+          ref="richEditor"
           :model-value="markdown"
           @update:model-value="onBody"
         />
         <MarkdownPreview
           v-else-if="mode === 'preview'"
+          ref="previewEditor"
           :markdown="markdown"
         />
         <div
@@ -330,10 +426,14 @@ onBeforeRouteLeave(async () => {
           class="split"
         >
           <MarkdownSourceEditor
+            ref="splitSourceEditor"
             :model-value="markdown"
             @update:model-value="onBody"
           />
-          <MarkdownPreview :markdown="markdown" />
+          <MarkdownPreview
+            ref="splitPreviewEditor"
+            :markdown="markdown"
+          />
         </div>
       </div>
 
@@ -461,10 +561,28 @@ onBeforeRouteLeave(async () => {
 }
 .outline li {
   padding: 0.15rem 0;
-  cursor: default;
+}
+.outline li button {
+  display: block;
+  width: 100%;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.outline li button:hover,
+.outline li button:focus-visible,
+.outline li button.active {
+  background: var(--color-accent-soft, #eef2ff);
+  color: var(--color-accent, #4f46e5);
+  outline: none;
 }
 .pane {
   flex: 1;
@@ -474,6 +592,11 @@ onBeforeRouteLeave(async () => {
 .pane > * {
   flex: 1;
   min-width: 0;
+}
+.pane :deep(.outline-target) {
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft, #eef2ff);
+  transition: background 0.25s ease;
 }
 .split {
   display: flex;

@@ -17,6 +17,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 RUN /opt/venv/bin/pip install --no-cache-dir --no-deps .
 
 FROM base AS runtime

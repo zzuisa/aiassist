@@ -25,8 +25,19 @@ export interface UserSettings {
   dependencies: {
     mail: DependencyState
     llm: DependencyState
+    radio: DependencyState
     speech: DependencyState
     storage: DependencyState
+  }
+  ai_optimization: {
+    default_provider: 'radio' | 'aiassist'
+    version: number
+    providers: Array<{
+      key: 'radio' | 'aiassist'
+      label: string
+      configured: boolean
+      state: DependencyState['state']
+    }>
   }
 }
 

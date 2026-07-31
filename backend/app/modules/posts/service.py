@@ -180,6 +180,7 @@ def create_post(
         title=title,
         markdown=markdown,
         status="draft",
+        editor_mode="rich",
     )
     session.add(post)
     session.flush()
@@ -831,7 +832,27 @@ def _apply_batch_op(
             raise ValidationError("content_status required", code="missing_param")
         post.content_status = value
     elif op == "set_category":
-        post.category_id = params.get("category_id")
+        category_id = params.get("category_id")
+        if category_id:
+            from app.models.blog import PostCategoryProfile
+            from app.models.foundation import Category
+
+            category_uuid = uuid.UUID(category_id) if isinstance(category_id, str) else category_id
+            category = session.scalar(
+                select(Category).where(
+                    Category.id == category_uuid,
+                    Category.user_id == user_id,
+                    Category.kind == "post",
+                )
+            )
+            profile = session.get(PostCategoryProfile, category_uuid)
+            if category is None or profile is None or profile.user_id != user_id:
+                raise ValidationError("category_id not found", code="invalid_category")
+            if not profile.enabled:
+                raise ValidationError("category is disabled", code="category_disabled")
+            post.category_id = category_uuid
+        else:
+            post.category_id = None
     elif op == "add_tags":
         from app.models.posts import PostTag
 

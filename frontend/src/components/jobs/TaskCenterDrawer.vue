@@ -5,6 +5,7 @@ import { useJobsStore } from '@/stores/jobs'
 import { jobLabel, formatTime, formatDuration } from '@/api/jobs'
 import { planApi } from '@/api/plan'
 import type { AsyncJob } from '@/api/types'
+import { jobContext, providerLabel } from '@/modules/posts/blogJobStatus'
 
 // Global task center: active / waiting / failed sections with business copy,
 // a labelled progress bar, start/finish times, and clear failure reasons.
@@ -18,14 +19,13 @@ const waiting = computed(() =>
   [...jobs.jobs.values()].filter((j) => j.status === 'waiting_user'),
 )
 const active = computed(() =>
-  jobs.activeJobs.filter((j) => j.status !== 'waiting_user'),
+  jobs.activeJobs
+    .filter((j) => j.status !== 'waiting_user')
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
 )
 
 async function retry(job: AsyncJob): Promise<void> {
   await api.post(`/jobs/${job.id}/retry`)
-}
-async function cancel(job: AsyncJob): Promise<void> {
-  await api.post(`/jobs/${job.id}/cancel`)
 }
 
 // --- Quick-add plan Q&A (answered right here in the task center) ---
@@ -94,7 +94,7 @@ async function skipPlan(job: AsyncJob): Promise<void> {
         v-if="active.length"
         aria-label="进行中"
       >
-        <h3>进行中</h3>
+        <h3>进行中（{{ active.length }}）</h3>
         <transition-group
           name="job"
           tag="div"
@@ -108,6 +108,8 @@ async function skipPlan(job: AsyncJob): Promise<void> {
               <span class="name">{{ jobLabel(job) }}</span>
               <span class="pct">{{ job.progress }}%</span>
             </div>
+            <strong v-if="jobContext(job).post_title" class="entity-title">{{ jobContext(job).post_title }}</strong>
+            <span v-if="providerLabel(job)" class="provider">使用 {{ providerLabel(job) }}</span>
             <span class="step">{{ job.current_step ?? '处理中' }}</span>
             <div
               class="bar"
@@ -130,7 +132,7 @@ async function skipPlan(job: AsyncJob): Promise<void> {
         v-if="waiting.length"
         aria-label="等待确认"
       >
-        <h3>等待确认</h3>
+        <h3>等待确认（{{ waiting.length }}）</h3>
         <div
           v-for="job in waiting"
           :key="job.id"
@@ -139,6 +141,8 @@ async function skipPlan(job: AsyncJob): Promise<void> {
           <div class="job-head">
             <span class="name">{{ jobLabel(job) }}</span>
           </div>
+          <strong v-if="jobContext(job).post_title" class="entity-title">{{ jobContext(job).post_title }}</strong>
+          <span v-if="providerLabel(job)" class="provider">使用 {{ providerLabel(job) }}</span>
           <span class="step">{{ job.current_step ?? '请确认' }}</span>
 
           <!-- Quick-add planner: answer here, or skip to save what it planned. -->
@@ -203,12 +207,6 @@ async function skipPlan(job: AsyncJob): Promise<void> {
                 @click="retry(job)"
               >
                 重试
-              </button>
-              <button
-                type="button"
-                @click="cancel(job)"
-              >
-                取消
               </button>
               <details v-if="job.trace_id">
                 <summary>诊断</summary>
@@ -299,6 +297,8 @@ h3 {
   color: var(--color-text-muted);
   font-size: 0.85rem;
 }
+.entity-title { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider { color: var(--status-ai); font-size: .75rem; }
 .q {
   display: flex;
   flex-direction: column;

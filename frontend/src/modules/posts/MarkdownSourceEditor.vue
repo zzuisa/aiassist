@@ -10,6 +10,20 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
 
 const area = ref<HTMLTextAreaElement | null>(null)
 
+function scrollToPosition(line: number, offset: number): void {
+  const el = area.value
+  if (!el) return
+  el.focus({ preventScroll: true })
+  const caret = Math.max(0, Math.min(offset, el.value.length))
+  el.setSelectionRange(caret, caret)
+  const styles = window.getComputedStyle(el)
+  const lineHeight = Number.parseFloat(styles.lineHeight) || 25.5
+  const paddingTop = Number.parseFloat(styles.paddingTop) || 0
+  el.scrollTo({ top: Math.max(0, (line - 1) * lineHeight + paddingTop - 16), behavior: 'smooth' })
+}
+
+defineExpose({ scrollToPosition })
+
 // Keep the caret stable when the bound value is replaced from outside while the
 // element is focused (the parent may reconcile after a save).
 watch(

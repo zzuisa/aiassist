@@ -122,6 +122,104 @@ def test_quick_capture_goes_to_triage(client, make_user):
     assert body["post"]["markdown"] == "记一笔"
 
 
+def test_category_collection_can_be_created_listed_and_assigned(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    created = client.post(
+        "/api/v1/blog/taxonomy/category",
+        json={"name": "AI Assist 修复复盘", "description": "持续记录系统修复"},
+        headers=h,
+    )
+    assert created.status_code == 201
+    category = created.json()
+    assert category["kind"] == "category"
+    assert category["usage_count"] == 0
+
+    post = client.post(
+        "/api/v1/posts",
+        json={"title": "修复报告", "markdown": "# 报告"},
+        headers=h,
+    ).json()
+    assigned = client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={"version": post["version"], "category_id": category["id"]},
+        headers=h,
+    )
+    assert assigned.status_code == 200
+    assert assigned.json()["category_id"] == category["id"]
+
+    listed = client.get("/api/v1/blog/taxonomy/category").json()
+    assert listed[0]["name"] == "AI Assist 修复复盘"
+    assert listed[0]["usage_count"] == 1
+
+
+def test_article_list_exposes_and_filters_primary_category(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    category = client.post(
+        "/api/v1/blog/taxonomy/category",
+        json={"name": "移动端设计"},
+        headers=h,
+    ).json()
+    post = client.post(
+        "/api/v1/posts",
+        json={"title": "手机文章", "markdown": "正文"},
+        headers=h,
+    ).json()
+    assigned = client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={"version": post["version"], "category_id": category["id"]},
+        headers=h,
+    )
+    assert assigned.status_code == 200
+
+    result = client.get(
+        f"/api/v1/blog/articles?category_id={category['id']}", headers=h
+    )
+    assert result.status_code == 200
+    assert result.json()["items"][0]["category_id"] == category["id"]
+
+
+def test_blog_search_and_timeline_return_deep_fields_and_time_basis(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    post = client.post(
+        "/api/v1/posts",
+        json={"title": "数据库复盘", "markdown": "正文包含 CrashLoopBackOff"},
+        headers=h,
+    ).json()
+    patched = client.patch(
+        f"/api/v1/posts/{post['id']}",
+        json={
+            "version": post["version"],
+            "summary": "搜索摘要 marker-42",
+            "occurred_at": "2025-04-12T10:00:00Z",
+            "structured_data": {"incident_id": "INC-42"},
+        },
+        headers=h,
+    )
+    assert patched.status_code == 200
+
+    searched = client.get(
+        "/api/v1/blog/search",
+        params={"q": "marker-42"},
+        headers=h,
+    )
+    assert searched.status_code == 200
+    assert searched.json()["items"][0]["id"] == post["id"]
+    assert "summary" in searched.json()["items"][0]["matched_fields"]
+
+    timeline = client.get(
+        "/api/v1/blog/timeline",
+        params={"year": 2025},
+        headers=h,
+    )
+    assert timeline.status_code == 200
+    item = timeline.json()["items"][0]
+    assert item["id"] == post["id"]
+    assert item["time_basis"] == "occurred_at"
+
+
 def test_source_detail_readable_by_owner(client, make_user):
     user = make_user()
     h = _login(client, user.email)
@@ -143,6 +241,12 @@ def _blank_post(client, h):
     return client.post(
         "/api/v1/posts/captures/blank", json={"title": "草稿"}, headers=h
     ).json()["post"]
+
+
+def test_new_post_defaults_to_rich_editor(client, make_user):
+    user = make_user()
+    post = _blank_post(client, _login(client, user.email))
+    assert post["editor_mode"] == "rich"
 
 
 def test_patch_updates_common_fields_and_bumps_version(client, make_user):

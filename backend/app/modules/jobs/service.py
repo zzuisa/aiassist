@@ -50,6 +50,10 @@ def create_job(
         )
         if existing is not None:
             return existing
+    if trace_id is None:
+        from app.core.observability import get_trace_id
+
+        trace_id = get_trace_id()
     job = AsyncJob(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -157,7 +161,14 @@ def transition(
     if current_step is not None:
         job.current_step = current_step
     if result is not None:
-        job.result_json = result
+        # A job may carry small, presentation-only context from submission
+        # (article title, selected provider, optimization kind). Preserve it
+        # when a worker later replaces the business result with a candidate.
+        # This lets every SSE frame remain independently renderable.
+        context = (job.result_json or {}).get("context")
+        job.result_json = dict(result)
+        if context is not None and "context" not in job.result_json:
+            job.result_json["context"] = context
     if error_code is not None:
         job.error_code = error_code
         job.error_message = error_message
@@ -178,8 +189,27 @@ def get_owned_job(session: Session, user_id: uuid.UUID, job_id: uuid.UUID) -> As
 
 
 def request_cancel(session: Session, job: AsyncJob) -> AsyncJob:
+    # Repeating a successful cancellation is harmless and should not turn a
+    # double-click/retry into a user-visible failure.
+    if job.status == "cancelled":
+        return job
     if job.status in TERMINAL:
-        raise ConflictError("Job already finished", code="job_finished")
+        state_message = {
+            "completed": "Job has already completed",
+            "failed": "Job has already failed",
+        }.get(job.status, "Job already finished")
+        raise ConflictError(
+            state_message,
+            code="job_finished",
+            extensions={"job_status": job.status},
+            log_context={
+                "event": "job_cancel_rejected",
+                "operation": "job.cancel",
+                "outcome": "rejected",
+                "job_id": str(job.id),
+                "job_status": job.status,
+            },
+        )
     job.cancel_requested_at = datetime.now(UTC)
     return transition(session, job, status="cancelled", current_step="已取消")
 

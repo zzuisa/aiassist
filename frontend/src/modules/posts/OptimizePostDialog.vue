@@ -6,21 +6,24 @@
 // (US4). The advanced panel exposes optimization type, scope, optional
 // selected fields, Skill and model overrides, and a free-text instruction —
 // all optional: leaving Skill/model empty lets the server resolve defaults.
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   blogAIApi,
   classifyOptimizeError,
+  type AIProviderKey,
   type OptimizationScope,
   type OptimizationType,
 } from '@/api/blogAI'
 import { blogSkillsApi, type Skill } from '@/api/blogSkills'
+import { settingsApi } from '@/api/settings'
 import CaptureModal from '@/modules/posts/CaptureModal.vue'
+import type { AsyncJob } from '@/api/types'
 
 const props = defineProps<{ postId: string; postVersion: number }>()
 const emit = defineEmits<{
   (e: 'close'): void
   // Emitted with the submitted Job id so the caller can follow status.
-  (e: 'submitted', jobId: string): void
+  (e: 'submitted', job: AsyncJob): void
 }>()
 
 const typeOptions: Array<{ value: OptimizationType; label: string }> = [
@@ -39,8 +42,9 @@ const scopeOptions: Array<{ value: OptimizationScope; label: string }> = [
   { value: 'selected_fields', label: '指定字段' },
 ]
 
-const optimizationType = ref<OptimizationType>('full')
-const scope = ref<OptimizationScope>('all')
+const providerKey = ref<AIProviderKey>('radio')
+const optimizationType = ref<OptimizationType>('language')
+const scope = ref<OptimizationScope>('body')
 const selectedFieldsText = ref('')
 const skillId = ref('')
 const modelKey = ref('')
@@ -51,12 +55,37 @@ const advanced = ref(false)
 // empty selection means "let the server resolve the default for this article".
 const skills = ref<Skill[]>([])
 onMounted(async () => {
-  try {
-    skills.value = (await blogSkillsApi.list()).filter((s) => s.enabled && s.current_version_complete)
-  } catch {
-    skills.value = []
+  const [skillsResult, settingsResult] = await Promise.allSettled([
+    blogSkillsApi.list(),
+    settingsApi.get(),
+  ])
+  skills.value =
+    skillsResult.status === 'fulfilled'
+      ? skillsResult.value.filter((s) => s.enabled && s.current_version_complete)
+      : []
+  if (settingsResult.status === 'fulfilled') {
+    providerKey.value = settingsResult.value.ai_optimization.default_provider
   }
 })
+
+watch(providerKey, (provider) => {
+  if (provider === 'radio') {
+    optimizationType.value = 'language'
+    scope.value = 'body'
+    modelKey.value = ''
+  }
+})
+
+const visibleTypeOptions = computed(() =>
+  providerKey.value === 'radio'
+    ? typeOptions.filter((option) => option.value === 'language')
+    : typeOptions,
+)
+const visibleScopeOptions = computed(() =>
+  providerKey.value === 'radio'
+    ? scopeOptions.filter((option) => option.value === 'body')
+    : scopeOptions,
+)
 
 const busy = ref(false)
 const error = ref('')
@@ -85,10 +114,12 @@ async function submit(): Promise<void> {
       scope: scope.value,
       selected_fields: scope.value === 'selected_fields' ? selectedFields.value : [],
       skill_id: skillId.value.trim() || null,
-      model_key: modelKey.value.trim() || null,
+      provider_key: providerKey.value,
+      model_key:
+        providerKey.value === 'aiassist' ? modelKey.value.trim() || null : null,
       instruction: instruction.value.trim() || null,
     })
-    emit('submitted', job.id)
+    emit('submitted', job)
   } catch (e) {
     const kind = classifyOptimizeError(e)
     error.value =
@@ -96,6 +127,8 @@ async function submit(): Promise<void> {
         ? '文章已被修改，请重新载入后再优化。'
         : kind === 'skill_unresolved'
           ? '未找到可用的 Skill 配置，请先在设置中配置或指定 Skill。'
+          : kind === 'radio_unavailable'
+            ? 'Radio 文章优化服务当前不可用，请稍后重试或改用 AI Assist。'
           : kind === 'invalid_request'
             ? '请求参数不正确，请检查所选字段。'
             : kind === 'not_found'
@@ -113,6 +146,29 @@ async function submit(): Promise<void> {
     @close="emit('close')"
   >
     <label class="field">
+      <span>使用哪个 AI</span>
+      <select
+        v-model="providerKey"
+        aria-label="AI 优化服务"
+        :disabled="busy"
+      >
+        <option value="radio">
+          Radio（Gemini 轻量正文优化，默认）
+        </option>
+        <option value="aiassist">
+          AI Assist（完整优化）
+        </option>
+      </select>
+    </label>
+
+    <p
+      v-if="providerKey === 'radio'"
+      class="hint"
+    >
+      Radio 仅优化正文表达并保留 Markdown、链接、代码和事实；结果仍需审核后应用。
+    </p>
+
+    <label class="field">
       <span>优化类型</span>
       <select
         v-model="optimizationType"
@@ -120,7 +176,7 @@ async function submit(): Promise<void> {
         :disabled="busy"
       >
         <option
-          v-for="o in typeOptions"
+          v-for="o in visibleTypeOptions"
           :key="o.value"
           :value="o.value"
         >
@@ -137,7 +193,7 @@ async function submit(): Promise<void> {
         :disabled="busy"
       >
         <option
-          v-for="o in scopeOptions"
+          v-for="o in visibleScopeOptions"
           :key="o.value"
           :value="o.value"
         >
@@ -160,6 +216,7 @@ async function submit(): Promise<void> {
     </label>
 
     <button
+      v-if="providerKey === 'aiassist'"
       type="button"
       class="advanced-toggle"
       :aria-expanded="advanced"
@@ -169,7 +226,7 @@ async function submit(): Promise<void> {
     </button>
 
     <div
-      v-if="advanced"
+      v-if="advanced && providerKey === 'aiassist'"
       class="advanced"
     >
       <label class="field">

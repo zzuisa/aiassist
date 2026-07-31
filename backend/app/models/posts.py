@@ -62,7 +62,9 @@ class Post(Base, TimestampMixin):
     content_class: Mapped[str] = mapped_column(String(16), nullable=False, default="essay")
     content_type_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     language: Mapped[str] = mapped_column(String(16), nullable=False, default="zh-CN")
-    editor_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="markdown")
+    editor_mode: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="rich", server_default="rich"
+    )
     occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     location_text: Mapped[str | None] = mapped_column(String(240))
     project_text: Mapped[str | None] = mapped_column(String(240))

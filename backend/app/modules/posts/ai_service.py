@@ -23,12 +23,19 @@ from app.core.errors import ConflictError, NotFoundError, ValidationError, Versi
 from app.models.blog import PostAICandidate, PostAIRun, PostCandidateDecision
 from app.models.foundation import ActivityLog
 from app.models.posts import Post, PostRevision
-from app.modules.posts import diffing, protected_content, service, skill_service
+from app.modules.posts import (
+    diffing,
+    protected_content,
+    service,
+    settings_service,
+    skill_service,
+)
 from app.services.outbox.publisher import append_event
 
 OPTIMIZATION_TYPES = ("full", "language", "structure", "metadata", "check", "reoptimize")
 SCOPES = ("all", "body", "metadata", "selected_fields")
 AI_SCHEMA_VERSION = "blog-optimization.v1"
+AI_PROVIDERS = ("radio", "aiassist")
 
 
 def _compute_input_hash(
@@ -39,6 +46,7 @@ def _compute_input_hash(
     scope: str,
     selected_fields: list[str],
     skill_version_id: uuid.UUID,
+    provider_key: str,
     model_key: str,
     instruction: str | None,
 ) -> str:
@@ -50,6 +58,7 @@ def _compute_input_hash(
             "scope": scope,
             "fields": sorted(selected_fields),
             "skill_version": str(skill_version_id),
+            "provider": provider_key,
             "model": model_key,
             "instruction": instruction or "",
         },
@@ -69,6 +78,7 @@ def submit_optimization(
     scope: str = "all",
     selected_fields: list[str] | None = None,
     skill_id: uuid.UUID | None = None,
+    provider_key: str | None = None,
     model_key: str | None = None,
     instruction: str | None = None,
 ) -> tuple[Any, PostAIRun, bool]:
@@ -101,13 +111,27 @@ def submit_optimization(
         content_type_id=post.content_type_id,
         content_class=post.content_class,
     )
-    resolved_model = model_key or skill_version.recommended_model or "default"
+    resolved_provider = provider_key or settings_service.get_default_ai_provider(
+        session, user_id
+    )
+    if resolved_provider not in AI_PROVIDERS:
+        raise ValidationError(
+            "invalid AI optimization provider", code="invalid_ai_provider"
+        )
+    resolved_model = (
+        "radio-gemini"
+        if resolved_provider == "radio"
+        else (model_key or skill_version.recommended_model or "default")
+    )
     base_revision_id = post.current_revision_id
 
     input_hash = _compute_input_hash(
         post_id=post.id, base_revision_id=base_revision_id,
         optimization_type=optimization_type, scope=scope, selected_fields=selected_fields,
-        skill_version_id=skill_version.id, model_key=resolved_model, instruction=instruction,
+        skill_version_id=skill_version.id,
+        provider_key=resolved_provider,
+        model_key=resolved_model,
+        instruction=instruction,
     )
 
     # Exact-duplicate detection: an active run with the same input is reused.
@@ -140,6 +164,7 @@ def submit_optimization(
         content_class=post.content_class,
         content_type_id=post.content_type_id,
         skill_version_id=skill_version.id,
+        provider_key=resolved_provider,
         model_key=resolved_model,
         ai_schema_version=AI_SCHEMA_VERSION,
         field_policy_json=field_policies,
@@ -148,6 +173,27 @@ def submit_optimization(
     )
     session.add(run)
     session.flush()
+
+    # Put immutable display context on the Job itself. Jobs are the source of
+    # truth for the global task center and SSE stream, so the client should not
+    # need an N+1 request to discover which article/provider each card belongs
+    # to. Later result transitions preserve this nested context.
+    jobs_service.transition(
+        session,
+        job,
+        status="queued",
+        progress=0,
+        current_step="等待执行",
+        result={
+            "context": {
+                "post_id": str(post.id),
+                "post_title": post.title,
+                "provider_key": resolved_provider,
+                "optimization_type": optimization_type,
+                "scope": scope,
+            }
+        },
+    )
 
     # Reflect the queued state on the post projection (presentation only).
     post.latest_ai_status = "ai_queued"
@@ -162,14 +208,6 @@ def submit_optimization(
                  "selected_fields": selected_fields, "instruction": instruction},
         user_id=user_id,
     )
-    try:
-        from app.workers.tasks.blog import optimize as blog_optimize
-
-        blog_optimize.delay(str(run.id), scope, selected_fields, instruction)
-    except Exception:
-        from app.core.observability import get_logger
-
-        get_logger("posts").warning("blog_optimize_enqueue_failed", run_id=str(run.id))
     return job, run, False
 
 

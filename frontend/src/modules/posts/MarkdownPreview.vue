@@ -39,7 +39,7 @@ function inline(s: string): string {
     )
 }
 
-function renderMarkdownBlock(src: string): string {
+function renderMarkdownBlock(src: string, headingIndex: { value: number }): string {
   const lines = src.split('\n')
   const html: string[] = []
   let inList = false
@@ -55,7 +55,10 @@ function renderMarkdownBlock(src: string): string {
     if (h) {
       closeList()
       const level = h[1].length
-      html.push(`<h${level}>${inline(h[2])}</h${level}>`)
+      html.push(
+        `<h${level} data-outline-index="${headingIndex.value}">${inline(h[2])}</h${level}>`,
+      )
+      headingIndex.value += 1
       continue
     }
     if (/^\s*[-*]\s+/.test(line)) {
@@ -87,12 +90,16 @@ function renderMarkdownBlock(src: string): string {
 const blocks = computed<Block[]>(() => {
   const escaped = escapeHtml(props.markdown)
   const out: Block[] = []
+  const headingIndex = { value: 0 }
   const fence = /```(\w+)?\n([\s\S]*?)```/g
   let lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = fence.exec(escaped)) !== null) {
     if (m.index > lastIndex) {
-      out.push({ kind: 'html', content: renderMarkdownBlock(escaped.slice(lastIndex, m.index)) })
+      out.push({
+        kind: 'html',
+        content: renderMarkdownBlock(escaped.slice(lastIndex, m.index), headingIndex),
+      })
     }
     const lang = (m[1] || '').toLowerCase()
     const code = m[2].replace(/\n$/, '')
@@ -107,16 +114,32 @@ const blocks = computed<Block[]>(() => {
   let fm: RegExpExecArray | null
   while ((fm = formula.exec(tail)) !== null) {
     if (fm.index > fLast)
-      tailOut.push({ kind: 'html', content: renderMarkdownBlock(tail.slice(fLast, fm.index)) })
+      tailOut.push({
+        kind: 'html',
+        content: renderMarkdownBlock(tail.slice(fLast, fm.index), headingIndex),
+      })
     tailOut.push({ kind: 'formula', content: fm[1].trim() })
     fLast = formula.lastIndex
   }
   if (fLast < tail.length)
-    tailOut.push({ kind: 'html', content: renderMarkdownBlock(tail.slice(fLast)) })
+    tailOut.push({ kind: 'html', content: renderMarkdownBlock(tail.slice(fLast), headingIndex) })
   return [...out, ...tailOut]
 })
 
 const copied = ref<number | null>(null)
+const preview = ref<HTMLDivElement | null>(null)
+
+function scrollToHeading(index: number): void {
+  const container = preview.value
+  const heading = container?.querySelector<HTMLElement>(`[data-outline-index="${index}"]`)
+  if (!container || !heading) return
+  const top = heading.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
+  container.scrollTo({ top: Math.max(0, top - 16), behavior: 'smooth' })
+  heading.classList.add('outline-target')
+  window.setTimeout(() => heading.classList.remove('outline-target'), 1400)
+}
+
+defineExpose({ scrollToHeading })
 async function copy(text: string, i: number): Promise<void> {
   try {
     await navigator.clipboard.writeText(text)
@@ -129,7 +152,7 @@ async function copy(text: string, i: number): Promise<void> {
 </script>
 
 <template>
-  <div class="md-preview">
+  <div ref="preview" class="md-preview">
     <template
       v-for="(b, i) in blocks"
       :key="i"
@@ -182,6 +205,11 @@ async function copy(text: string, i: number): Promise<void> {
 .md-body :deep(h2),
 .md-body :deep(h3) {
   margin: 1em 0 0.5em;
+}
+.md-body :deep(.outline-target) {
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft, #eef2ff);
+  transition: background 0.25s ease;
 }
 .md-body :deep(a) {
   color: var(--color-accent, #4f46e5);

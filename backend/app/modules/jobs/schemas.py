@@ -59,6 +59,7 @@ _BLOG_JOB_PREFIX = "blog."
 _BLOG_STAGE_BY_TYPE = {
     "blog.capture": "capturing",
     "blog.parse": "parsing",
+    "blog.bilibili_import": "transcribing",
     "blog.generate": "optimizing",
     "blog.optimize": "optimizing",
     "blog.wordcloud": "aggregating",
@@ -68,6 +69,9 @@ _BLOG_STAGE_BY_TYPE = {
 _DISPLAY_STATUS = {
     ("capturing", "processing"): "capturing",
     ("parsing", "processing"): "parsing",
+    ("transcribing", "queued"): "ai_queued",
+    ("transcribing", "pending"): "ai_queued",
+    ("transcribing", "processing"): "transcribing",
     ("optimizing", "queued"): "ai_queued",
     ("optimizing", "pending"): "ai_queued",
     ("optimizing", "processing"): "ai_processing",

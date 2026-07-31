@@ -203,6 +203,19 @@ class BlogOptimizationV1(BaseModel):
     warnings: list[BlogWarning] = Field(max_length=100)
 
 
+class BlogBodyOptimizationV1(BaseModel):
+    """Lean response for body-only rewriting.
+
+    Requiring the full metadata schema for a language-only body pass caused
+    long-form model responses to omit unrelated nullable/list fields and fail
+    validation. This contract asks only for the artifact the operation needs.
+    """
+
+    model_config = _STRICT
+    schema_version: Literal["blog-body-optimization.v1"]
+    markdown: str = Field(min_length=1, max_length=200_000)
+
+
 class BlogSkillConfigV1(BaseModel):
     """blog-skill-config.v1: the persisted configuration of a skill version."""
 

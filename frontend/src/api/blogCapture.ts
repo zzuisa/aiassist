@@ -50,6 +50,9 @@ export interface CaptureSource {
   normalized_markdown: string | null
   user_note: string | null
   metadata: Record<string, unknown>
+  external_system?: string | null
+  external_record_id?: string | null
+  external_task_id?: string | null
   has_snapshot: boolean
   attempt_count: number
   captured_at: string | null
@@ -116,6 +119,9 @@ export type CaptureErrorKind =
   | 'too_large'
   | 'not_retryable'
   | 'conflict'
+  | 'radio_service_unavailable'
+  | 'bilibili_link_unavailable'
+  | 'radio_transcription_failed'
   | 'unknown'
 
 const UNSAFE_URL_CODES = new Set([
@@ -133,6 +139,11 @@ export function classifyCaptureError(err: unknown): CaptureErrorKind {
   if (code === 'invalid_detected_format' || err.status === 422) return 'invalid_format'
   if (err.status === 413 || code === 'response_too_large') return 'too_large'
   if (code === 'source_not_retryable' || code === 'not_url_source') return 'not_retryable'
+  if (code === 'RADIO_SERVICE_UNAVAILABLE') return 'radio_service_unavailable'
+  if (code === 'BILIBILI_LINK_UNAVAILABLE') return 'bilibili_link_unavailable'
+  if (code === 'RADIO_TRANSCRIPTION_FAILED' || code === 'RADIO_EMPTY_TRANSCRIPT') {
+    return 'radio_transcription_failed'
+  }
   if (err.status === 409) return 'conflict'
   return 'unknown'
 }

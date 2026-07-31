@@ -22,8 +22,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.models.foundation import ActivityLog
 from app.models.blog import PostSource
+from app.models.foundation import ActivityLog
 from app.models.posts import Post
 from app.modules.posts import normalization, service
 from app.modules.posts.content_types import validate_content_class
@@ -195,45 +195,65 @@ def capture_url(
     # happen in the worker at fetch time (per-hop), so a transient DNS failure
     # never blocks the durable save.
     from app.modules.posts.url_extractor import UrlSecurityError, canonicalize_url
+    from app.modules.posts.url_types import UrlType, detect_url_type
 
     try:
         canonical = canonicalize_url(url)
     except UrlSecurityError as exc:
         raise ValidationError(str(exc), code=exc.code) from exc
 
-    initial_md = f"# {note.strip()}\n\n<{canonical}>" if note else f"<{canonical}>"
+    url_type = detect_url_type(canonical)
+    if url_type is UrlType.unsupported:
+        raise ValidationError("Invalid URL format", code="invalid_url")
+    is_bilibili = url_type is UrlType.bilibili
+    # A Bilibili import always reserves the body for the transcript.  The note
+    # remains on PostSource and therefore never blocks the import replacement.
+    initial_md = (
+        f"<{canonical}>"
+        if is_bilibili
+        else (f"# {note.strip()}\n\n<{canonical}>" if note else f"<{canonical}>")
+    )
     post = _create_post(
-        session, user_id, title=note.strip()[:240] if note else canonical[:240],
-        markdown=initial_md, content_status="pending_parse", content_class=content_class,
-        language="zh-CN", content_type_id=content_type_id,
+        session,
+        user_id,
+        title=(
+            canonical[:240]
+            if is_bilibili
+            else (note.strip()[:240] if note else canonical[:240])
+        ),
+        markdown=initial_md,
+        content_status="pending_parse",
+        content_class=content_class,
+        language="zh-CN",
+        content_type_id=content_type_id,
     )
     src = _add_source(
         session, user_id, post, source_type="url", status="pending",
         original_url=canonical, user_note=note,
-        metadata_json={"usage": usage},
+        metadata_json={"usage": usage, "url_type": url_type.value},
+        external_system="radio" if is_bilibili else None,
     )
 
     job = jobs_service.create_job(
-        session, user_id=user_id, job_type="blog.parse",
+        session,
+        user_id=user_id,
+        job_type="blog.bilibili_import" if is_bilibili else "blog.parse",
         entity_type="post", entity_id=post.id,
     )
     src.async_job_id = job.id
 
     append_event(
-        session, event_type="blog.parse", aggregate_type="post_source",
-        aggregate_id=src.id, routing_key="blog.parse",
+        session,
+        event_type="blog.bilibili_import" if is_bilibili else "blog.parse",
+        aggregate_type="post_source",
+        aggregate_id=src.id,
+        routing_key="blog.bilibili_import" if is_bilibili else "blog.parse",
         payload={"source_id": str(src.id), "post_id": str(post.id), "job_id": str(job.id)},
         user_id=user_id,
     )
-    # Best-effort enqueue; the Outbox publisher is the durable driver.
-    try:
-        from app.workers.tasks.blog import extract as blog_extract
-
-        blog_extract.delay(str(src.id))
-    except Exception:
-        from app.core.observability import get_logger
-
-        get_logger("posts").warning("blog_extract_enqueue_failed", source_id=str(src.id))
+    # The Outbox publisher dispatches the Celery task only after this business
+    # transaction commits. Direct enqueue here races the commit: a fast worker
+    # can query the source before it exists and silently skip the task.
     return post, src, job, []
 
 
@@ -260,35 +280,52 @@ def retry_source(session: Session, user_id: uuid.UUID, source_id: uuid.UUID) -> 
         raise ConflictError(
             "Only failed or partial sources can be retried", code="source_not_retryable"
         )
+    previous_error_code = src.error_code
     src.status = "pending"
     src.error_code = None
     src.error_message = None
     src.fetch_attempt_count += 1
 
+    is_bilibili = (src.metadata_json or {}).get("url_type") == "bilibili"
+    if (
+        is_bilibili
+        and src.external_task_id
+        and src.status == "pending"
+        and previous_error_code
+        in {
+            "RADIO_TASK_NOT_FOUND",
+            "RADIO_TRANSCRIPTION_FAILED",
+            "RADIO_EMPTY_TRANSCRIPT",
+            "RADIO_TRANSCRIPTION_TIMEOUT",
+        }
+    ):
+        # A failed Radio task cannot be restarted by polling the same ID.
+        # Connectivity failures keep the task ID because Radio may still be
+        # processing it; task/translation failures submit a fresh attempt.
+        src.external_task_id = None
     job = jobs_service.create_job(
-        session, user_id=user_id, job_type="blog.parse",
+        session,
+        user_id=user_id,
+        job_type="blog.bilibili_import" if is_bilibili else "blog.parse",
         entity_type="post", entity_id=src.post_id,
     )
     src.async_job_id = job.id
     append_event(
-        session, event_type="blog.parse", aggregate_type="post_source",
-        aggregate_id=src.id, routing_key="blog.parse",
+        session,
+        event_type="blog.bilibili_import" if is_bilibili else "blog.parse",
+        aggregate_type="post_source",
+        aggregate_id=src.id,
+        routing_key="blog.bilibili_import" if is_bilibili else "blog.parse",
         payload={"source_id": str(src.id), "post_id": str(src.post_id), "job_id": str(job.id),
                  "retry": True},
         user_id=user_id,
     )
-    try:
-        from app.workers.tasks.blog import extract as blog_extract
-
-        blog_extract.delay(str(src.id))
-    except Exception:
-        from app.core.observability import get_logger
-
-        get_logger("posts").warning("blog_extract_retry_enqueue_failed", source_id=str(src.id))
     return job
 
 
-def list_sources_for_post(session: Session, user_id: uuid.UUID, post_id: uuid.UUID) -> list[PostSource]:
+def list_sources_for_post(
+    session: Session, user_id: uuid.UUID, post_id: uuid.UUID
+) -> list[PostSource]:
     return list(
         session.scalars(
             select(PostSource)

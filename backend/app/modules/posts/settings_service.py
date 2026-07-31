@@ -43,6 +43,7 @@ _SECTION_DEFAULTS: dict[str, Any] = {
         "confirm_before_apply": True,
         "default_fields": ["title", "markdown"],
         "show_diff": True,
+        "default_provider": "radio",
     },
     "word_cloud": {
         "enabled": True,
@@ -82,11 +83,17 @@ def get_settings(session: Session, user_id: uuid.UUID) -> BlogSettings:
 
 def settings_to_dict(row: BlogSettings) -> dict[str, Any]:
     return {
-        "create_defaults": dict(row.create_defaults_json or {}),
-        "clipboard": dict(row.clipboard_json or {}),
-        "url_capture": dict(row.url_capture_json or {}),
-        "ai_apply": dict(row.ai_apply_json or {}),
-        "word_cloud": dict(row.word_cloud_json or {}),
+        "create_defaults": _merge_section(
+            "create_defaults", dict(row.create_defaults_json or {}), {}
+        ),
+        "clipboard": _merge_section("clipboard", dict(row.clipboard_json or {}), {}),
+        "url_capture": _merge_section(
+            "url_capture", dict(row.url_capture_json or {}), {}
+        ),
+        "ai_apply": _merge_section("ai_apply", dict(row.ai_apply_json or {}), {}),
+        "word_cloud": _merge_section(
+            "word_cloud", dict(row.word_cloud_json or {}), {}
+        ),
         "version": row.version,
         "schema_version": row.schema_version,
     }
@@ -107,6 +114,27 @@ def _merge_section(section: str, existing: dict[str, Any], patch: dict[str, Any]
         if k in allowed:
             merged[k] = v
     return {k: merged[k] for k in defaults}  # strip any legacy keys not in defaults
+
+
+def get_default_ai_provider(session: Session, user_id: uuid.UUID) -> str:
+    row = get_settings(session, user_id)
+    provider = (row.ai_apply_json or {}).get("default_provider", "radio")
+    return provider if provider in {"radio", "aiassist"} else "radio"
+
+
+def set_default_ai_provider(
+    session: Session, user_id: uuid.UUID, provider_key: str
+) -> BlogSettings:
+    if provider_key not in {"radio", "aiassist"}:
+        raise ValueError("unsupported AI optimization provider")
+    row = get_settings(session, user_id)
+    row.ai_apply_json = _merge_section(
+        "ai_apply",
+        dict(row.ai_apply_json or {}),
+        {"default_provider": provider_key},
+    )
+    row.version += 1
+    return row
 
 
 def update_settings(

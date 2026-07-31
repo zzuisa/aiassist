@@ -8,8 +8,10 @@ supplied, authorized source entities.
 from __future__ import annotations
 
 import uuid
+from time import monotonic
 
-from app.core.observability import get_logger
+from app.core.config import get_settings
+from app.core.observability import get_logger, set_trace_id
 from app.db.session import session_scope
 from app.services.llm.base import ChatRequest, LLMError
 from app.workers.celery_app import celery
@@ -74,7 +76,15 @@ def _is_stub_body(markdown: str, url: str | None) -> bool:
     return bool(url) and (markdown or "").strip() == f"<{url}>"
 
 
-def _finish_parse(session, src_row, *, ok: bool, code: str | None = None) -> None:
+def _finish_parse(
+    session,
+    src_row,
+    *,
+    ok: bool,
+    code: str | None = None,
+    error_message: str = "链接抓取失败，可重试",
+    error_retryable: bool = True,
+) -> None:
     """Advance the pending_parse post + close the blog.parse job after extraction.
 
     On success, moves the article out of the transient ``pending_parse`` holding
@@ -119,7 +129,7 @@ def _finish_parse(session, src_row, *, ok: bool, code: str | None = None) -> Non
         else:
             jobs_service.transition(
                 session, job, status="failed", error_code=code or "extract_failed",
-                error_message="链接抓取失败，可重试", error_retryable=True,
+                error_message=error_message, error_retryable=error_retryable,
             )
 
 
@@ -127,28 +137,52 @@ def extract_source(source_id: uuid.UUID) -> str:
     from datetime import UTC, datetime
 
     from app.models.blog import PostSource
+    from app.models.foundation import AsyncJob
+    from app.modules.jobs import service as jobs_service
     from app.modules.posts.url_extractor import (
         UrlSecurityError,
         extract_article,
         fetch_url,
     )
 
+    set_trace_id(None)
     with session_scope() as s:
         src = s.get(PostSource, source_id)
         if src is None:
+            log.warning("blog_extract_source_missing", source_id=str(source_id))
             return "skipped"
-        # Already completed (idempotent replay) — do nothing.
+        job = s.get(AsyncJob, src.async_job_id) if src.async_job_id else None
+        set_trace_id(job.trace_id if job is not None else None)
+        fields = {
+            "source_id": str(source_id),
+            "post_id": str(src.post_id),
+            "job_id": str(job.id) if job is not None else None,
+        }
+        if job is not None and job.status == "cancelled":
+            log.info("blog_extract_skipped_cancelled", **fields)
+            return "skipped"
+        # A replay may need to repair the Job/article projection after an older
+        # worker completed the source but crashed before closing the Job.
         if src.status == "completed":
+            _finish_parse(s, src, ok=True)
+            log.info("blog_extract_reconciled", **fields)
             return "skipped"
         if src.source_type != "url" or not src.original_url:
             src.status = "failed"
             src.error_code = "not_url_source"
             _finish_parse(s, src, ok=False, code="not_url_source")
+            log.warning("blog_extract_rejected", code="not_url_source", **fields)
             return "failed"
 
+        if job is not None and job.status not in ("processing", "completed"):
+            jobs_service.transition(
+                s, job, status="processing", current_step="抓取网页", progress=10,
+            )
         src.status = "processing"
         src.fetched_at = datetime.now(UTC)
         s.flush()
+        started = monotonic()
+        log.info("blog_extract_started", **fields)
 
         try:
             fetched = fetch_url(src.original_url)
@@ -156,7 +190,7 @@ def extract_source(source_id: uuid.UUID) -> str:
             src.status = "failed"
             src.error_code = exc.code
             src.error_message = str(exc)[:500]
-            log.warning("blog_extract_rejected", source_id=str(source_id), code=exc.code)
+            log.warning("blog_extract_rejected", code=exc.code, **fields)
             _finish_parse(s, src, ok=False, code=exc.code)
             return "failed"
 
@@ -164,7 +198,7 @@ def extract_source(source_id: uuid.UUID) -> str:
             article = extract_article(fetched.text, fetched.final_url)
         except Exception as exc:  # extraction library failure is non-fatal
             article = {"title": None, "text": None, "markdown": None, "author": None, "site": None}
-            log.warning("blog_extract_parse_failed", source_id=str(source_id), error=str(exc)[:200])
+            log.warning("blog_extract_parse_failed", error_type=type(exc).__name__, **fields)
 
         src.original_title = article.get("title")
         src.original_text = article.get("text")
@@ -184,6 +218,18 @@ def extract_source(source_id: uuid.UUID) -> str:
         # The parse operation finished (content availability is a source concern);
         # advance the article to triage and complete the Job either way.
         _finish_parse(s, src, ok=True)
+        log.info(
+            "blog_extract_finished",
+            source_status=src.status,
+            error_code=src.error_code,
+            http_status=fetched.status_code,
+            redirect_count=max(0, len(fetched.redirect_chain) - 1),
+            truncated=fetched.truncated,
+            text_chars=len(src.original_text or ""),
+            markdown_chars=len(src.normalized_markdown or ""),
+            duration_ms=round((monotonic() - started) * 1000),
+            **fields,
+        )
         return src.status
 
 
@@ -195,6 +241,248 @@ def extract_source(source_id: uuid.UUID) -> str:
 )
 def extract(self, source_id: str) -> str:  # type: ignore[no-untyped-def]
     return extract_source(uuid.UUID(source_id))
+
+
+# ---------------------------------------------------------------------------
+# Bilibili import through the existing Radio service.
+#
+# One invocation performs one bounded remote operation.  Pending Radio tasks
+# are polled through Celery retry messages, so the single heavy worker slot is
+# not held while Whisper may run for hours.  Durable state stays on PostSource.
+# ---------------------------------------------------------------------------
+
+
+def _radio_task_failure(error: str | None) -> tuple[str, str, bool]:
+    normalized = (error or "").lower()
+    if any(
+        marker in normalized
+        for marker in ("无法获取视频信息", "视频下载失败", "链接", "login", "访问限制")
+    ):
+        return (
+            "BILIBILI_LINK_UNAVAILABLE",
+            "无法解析该 B 站链接，视频可能已失效、需要登录或存在访问限制。",
+            False,
+        )
+    return "RADIO_TRANSCRIPTION_FAILED", "音视频转写失败，请稍后重试。", True
+
+
+def _fail_radio_import(
+    session,
+    source,
+    *,
+    code: str,
+    message: str,
+    retryable: bool,
+    diagnostic: str,
+) -> str:
+    source.status = "failed"
+    source.error_code = code
+    source.error_message = message
+    _finish_parse(
+        session,
+        source,
+        ok=False,
+        code=code,
+        error_message=message,
+        error_retryable=retryable,
+    )
+    log.warning(
+        "blog_bilibili_import_failed",
+        source_id=str(source.id),
+        post_id=str(source.post_id),
+        job_id=str(source.async_job_id) if source.async_job_id else None,
+        error_code=code,
+        diagnostic=diagnostic,
+        external_task_id=source.external_task_id,
+    )
+    return "failed"
+
+
+def import_bilibili_source(source_id: uuid.UUID) -> str:
+    """Advance one Radio submit/poll/finalize step for a Bilibili source."""
+    from datetime import UTC, datetime
+
+    from app.models.blog import PostSource
+    from app.models.foundation import AsyncJob
+    from app.modules.jobs import service as jobs_service
+    from app.services.radio import RadioServiceError, get_radio_client
+
+    set_trace_id(None)
+    with session_scope() as session:
+        source = session.get(PostSource, source_id)
+        if source is None:
+            log.warning("blog_bilibili_source_missing", source_id=str(source_id))
+            return "skipped"
+        job = session.get(AsyncJob, source.async_job_id) if source.async_job_id else None
+        set_trace_id(job.trace_id if job is not None else None)
+        if job is not None and job.status == "cancelled":
+            source.status = "cancelled"
+            return "cancelled"
+        if source.status == "completed":
+            _finish_parse(session, source, ok=True)
+            return "completed"
+        if (source.metadata_json or {}).get("url_type") != "bilibili" or not source.original_url:
+            return _fail_radio_import(
+                session,
+                source,
+                code="INVALID_BILIBILI_URL",
+                message="B站链接格式不正确。",
+                retryable=False,
+                diagnostic="source_type_mismatch",
+            )
+
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        age_seconds = (datetime.now(UTC) - source.created_at).total_seconds()
+        if age_seconds > settings.radio_service_max_wait_seconds:
+            return _fail_radio_import(
+                session,
+                source,
+                code="RADIO_TRANSCRIPTION_TIMEOUT",
+                message="B站音视频转写超时，请稍后重试。",
+                retryable=True,
+                diagnostic="max_wait_exceeded",
+            )
+
+        if job is not None and job.status not in {"processing", "completed"}:
+            jobs_service.transition(
+                session, job, status="processing", current_step="提交 B站转写", progress=5
+            )
+        source.status = "processing"
+        source.fetched_at = source.fetched_at or datetime.now(UTC)
+
+        try:
+            client = get_radio_client()
+            if not source.external_task_id:
+                source.external_task_id = client.submit_bilibili_transcription(
+                    source.original_url
+                )
+                if job is not None:
+                    jobs_service.transition(
+                        session, job, current_step="等待音视频处理", progress=10
+                    )
+                log.info(
+                    "blog_bilibili_radio_task_submitted",
+                    source_id=str(source.id),
+                    post_id=str(source.post_id),
+                    job_id=str(job.id) if job else None,
+                    external_task_id=source.external_task_id,
+                )
+                return "polling"
+            radio_task = client.get_task(source.external_task_id)
+        except RadioServiceError as exc:
+            return _fail_radio_import(
+                session,
+                source,
+                code=exc.code,
+                message=exc.public_message,
+                retryable=exc.retryable,
+                diagnostic=exc.diagnostic,
+            )
+
+        if radio_task.status in {"queued", "running"}:
+            if job is not None:
+                # Reserve the final 10% for validating and saving the blog.
+                progress = max(10, min(90, int(radio_task.progress * 0.85)))
+                jobs_service.transition(
+                    session,
+                    job,
+                    current_step="音视频转写中",
+                    progress=progress,
+                )
+            return "polling"
+        if radio_task.status == "failed":
+            code, message, retryable = _radio_task_failure(radio_task.error)
+            return _fail_radio_import(
+                session,
+                source,
+                code=code,
+                message=message,
+                retryable=retryable,
+                diagnostic="radio_task_failed",
+            )
+        if radio_task.status != "success" or not radio_task.result:
+            return _fail_radio_import(
+                session,
+                source,
+                code="RADIO_SERVICE_UNAVAILABLE",
+                message="B站音视频处理服务当前不可用，请稍后重试。",
+                retryable=True,
+                diagnostic="task_unknown_status",
+            )
+
+        result = radio_task.result
+        video_info = result.get("video_info")
+        text = result.get("text")
+        record_id = result.get("transcript_id")
+        if not isinstance(video_info, dict) or not isinstance(record_id, str):
+            return _fail_radio_import(
+                session,
+                source,
+                code="RADIO_SERVICE_UNAVAILABLE",
+                message="B站音视频处理服务当前不可用，请稍后重试。",
+                retryable=True,
+                diagnostic="task_result_invalid",
+            )
+        transcript = text.strip() if isinstance(text, str) else ""
+        if not transcript:
+            return _fail_radio_import(
+                session,
+                source,
+                code="RADIO_EMPTY_TRANSCRIPT",
+                message="音视频转写失败，未获得可用正文。",
+                retryable=True,
+                diagnostic="empty_transcript",
+            )
+
+        title = str(video_info.get("title") or "B站转写记录")[:240]
+        source.original_title = title
+        source.original_text = transcript
+        source.normalized_markdown = transcript
+        source.source_site = "Bilibili"
+        source.external_record_id = record_id.strip()
+        source.extracted_at = datetime.now(UTC)
+        source.status = "completed"
+        source.error_code = None
+        source.error_message = None
+        source.metadata_json = {
+            **(source.metadata_json or {}),
+            "bvid": video_info.get("bvid"),
+            "radio_task_id": radio_task.id,
+        }
+        _finish_parse(session, source, ok=True)
+        log.info(
+            "blog_bilibili_import_completed",
+            source_id=str(source.id),
+            post_id=str(source.post_id),
+            job_id=str(job.id) if job else None,
+            external_task_id=radio_task.id,
+            external_record_id=source.external_record_id,
+            text_chars=len(transcript),
+        )
+        return "completed"
+
+
+@celery.task(
+    name="app.workers.tasks.blog.import_bilibili",
+    bind=True,
+    max_retries=8640,
+    acks_late=True,
+)
+def import_bilibili(self, source_id: str) -> str:  # type: ignore[no-untyped-def]
+    state = import_bilibili_source(uuid.UUID(source_id))
+    if state == "polling":
+        from app.core.config import get_settings
+
+        # The project-wide Celery annotation caps ordinary retries at five and
+        # overrides decorator attributes. Pass this task's bounded six-hour
+        # polling budget explicitly so long Radio jobs keep being observed.
+        raise self.retry(
+            countdown=get_settings().radio_service_poll_interval_seconds,
+            max_retries=8640,
+        )
+    return state
 
 
 # ---------------------------------------------------------------------------
@@ -212,13 +500,26 @@ _OPT_SYSTEM = (
 )
 
 
-def _build_system(config: dict, optimization_type: str, instruction: str | None) -> str:
+def _build_system(
+    config: dict,
+    optimization_type: str,
+    instruction: str | None,
+    *,
+    scope: str = "all",
+) -> str:
     goal = config.get("processing_goal", "")
     rules = []
-    for key in ("content_rules", "title_rules", "summary_rules", "prohibitions"):
+    rule_keys = (
+        ("content_rules", "prohibitions")
+        if scope == "body"
+        else ("content_rules", "title_rules", "summary_rules", "prohibitions")
+    )
+    for key in rule_keys:
         for r in config.get(key, []) or []:
             rules.append(f"- {r}")
     parts = [_OPT_SYSTEM, f"优化类型：{optimization_type}", f"目标：{goal}"]
+    if scope == "body":
+        parts.append("仅优化正文，并返回完整 Markdown；不要生成标题、摘要、分类或其他元数据。")
     if rules:
         parts.append("规则：\n" + "\n".join(rules))
     if instruction:
@@ -280,7 +581,7 @@ def optimize_run(
     from app.modules.posts import ai_service, field_policy, protected_content
     from app.services.llm.base import LLMError, StructuredRequest
     from app.services.llm.gateway import get_llm_gateway
-    from app.services.llm.schemas import BlogOptimizationV1
+    from app.services.llm.schemas import BlogBodyOptimizationV1, BlogOptimizationV1
 
     with session_scope() as s:
         run = s.get(PostAIRun, run_id)
@@ -297,7 +598,10 @@ def optimize_run(
             ai_service.mark_run_failed(s, run, code="cancelled")
             return "cancelled"
 
-        jobs_service.transition(s, job, status="processing", current_step="预处理", progress=10)
+        jobs_service.transition(s, job, status="processing", current_step="正在准备文章", progress=10)
+        # Each checkpoint is committed independently so the durable SSE stream
+        # can expose real progress while the model call is still running.
+        s.commit()
 
         skill_version = s.get(BlogSkillVersion, run.skill_version_id)
         config = (skill_version.config_json if skill_version else {}) or {}
@@ -317,7 +621,8 @@ def optimize_run(
             # chunk / summarize_then_process: MVP truncates to the ceiling.
             body = body[:max_chars]
 
-        jobs_service.transition(s, job, current_step="内容识别", progress=35)
+        jobs_service.transition(s, job, current_step="正在分析内容", progress=35)
+        s.commit()
 
         # Cancellation checkpoint (before the expensive call).
         s.refresh(job)
@@ -325,26 +630,151 @@ def optimize_run(
             ai_service.mark_run_failed(s, run, code="cancelled")
             return "cancelled"
 
-        jobs_service.transition(s, job, current_step="生成候选", progress=55)
-        system = _build_system(config, run.optimization_type, instruction)
+        provider_label = "Radio" if run.provider_key == "radio" else "AI Assist"
+        jobs_service.transition(
+            s,
+            job,
+            current_step=f"{provider_label} 正在生成优化内容",
+            progress=55,
+        )
+        s.commit()
+        system = _build_system(
+            config, run.optimization_type, instruction, scope=scope
+        )
         user = body if instruction is None else f"{body}\n\n[要求]{instruction}"
-        try:
-            result = get_llm_gateway().structured(
-                StructuredRequest(
-                    scenario="optimize_blog", system=system, user=user,
-                    schema=BlogOptimizationV1,
-                )
-            )
-        except LLMError as exc:
-            ai_service.mark_run_failed(s, run, code=exc.code)
-            jobs_service.transition(
-                s, job, status="failed", error_code=exc.code,
-                error_message="AI 生成失败", error_retryable=True,
-            )
-            log.warning("blog_optimize_failed", run_id=str(run_id), code=exc.code)
-            return "failed"
+        if run.provider_key == "radio":
+            from app.services.radio import RadioServiceError, get_radio_client
 
-        jobs_service.transition(s, job, current_step="结果校验", progress=80)
+            try:
+                optimized_markdown = get_radio_client().optimize_text(
+                    body, instruction=instruction
+                )
+            except RadioServiceError as exc:
+                ai_service.mark_run_failed(s, run, code=exc.code)
+                jobs_service.transition(
+                    s,
+                    job,
+                    status="failed",
+                    error_code=exc.code,
+                    error_message=exc.public_message,
+                    error_retryable=exc.retryable,
+                )
+                log.warning(
+                    "blog_optimize_failed",
+                    run_id=str(run_id),
+                    provider_key=run.provider_key,
+                    code=exc.code,
+                    diagnostic=exc.diagnostic,
+                )
+                return "failed"
+            result = BlogOptimizationV1(
+                schema_version="blog-optimization.v1",
+                title=None,
+                subtitle=None,
+                summary=None,
+                markdown=optimized_markdown,
+                content_class_suggestion=None,
+                content_type_suggestion=None,
+                category_suggestions=[],
+                tag_suggestions=[],
+                keyword_suggestions=[],
+                occurred_at=None,
+                location=None,
+                project=None,
+                source_summary=None,
+                structured_fields={},
+                related_post_suggestions=[],
+                claims=[],
+                warnings=[],
+            )
+        else:
+            generation_started = monotonic()
+            try:
+                if scope == "body":
+                    body_result = get_llm_gateway().structured(
+                        StructuredRequest(
+                            scenario="optimize_blog_body",
+                            system=system,
+                            user=user,
+                            schema=BlogBodyOptimizationV1,
+                            max_tokens=get_settings().llm_max_output_tokens,
+                        )
+                    )
+                    result = BlogOptimizationV1(
+                        schema_version="blog-optimization.v1",
+                        title=None,
+                        subtitle=None,
+                        summary=None,
+                        markdown=body_result.markdown,
+                        content_class_suggestion=None,
+                        content_type_suggestion=None,
+                        category_suggestions=[],
+                        tag_suggestions=[],
+                        keyword_suggestions=[],
+                        occurred_at=None,
+                        location=None,
+                        project=None,
+                        source_summary=None,
+                        structured_fields={},
+                        related_post_suggestions=[],
+                        claims=[],
+                        warnings=[],
+                    )
+                else:
+                    result = get_llm_gateway().structured(
+                        StructuredRequest(
+                            scenario="optimize_blog",
+                            system=system,
+                            user=user,
+                            schema=BlogOptimizationV1,
+                            max_tokens=get_settings().llm_max_output_tokens,
+                        )
+                    )
+            except LLMError as exc:
+                elapsed_seconds = round(monotonic() - generation_started, 2)
+                settings = get_settings()
+                public_message = {
+                    "timeout": (
+                        "AI Assist 生成超时"
+                        f"（已等待 {settings.llm_read_timeout_seconds:g} 秒），"
+                        "请重试、缩小优化范围或改用 Radio"
+                    ),
+                    "rate_limited": "AI Assist 当前请求较多，请稍后重试",
+                    "provider_unavailable": "AI Assist 服务暂时不可用，请稍后重试",
+                    "authentication_failed": "AI Assist 服务配置异常，请联系管理员",
+                    "invalid_structured_output": "AI 返回内容格式异常，请重试或改用 Radio",
+                }.get(exc.code, "AI Assist 生成失败，请稍后重试")
+                ai_service.mark_run_failed(s, run, code=exc.code)
+                jobs_service.transition(
+                    s,
+                    job,
+                    status="failed",
+                    error_code=exc.code,
+                    error_message=public_message,
+                    error_retryable=exc.retryable,
+                )
+                log.warning(
+                    "blog_optimize_failed",
+                    run_id=str(run_id),
+                    post_id=str(post.id),
+                    job_id=str(job.id),
+                    provider_key=run.provider_key,
+                    model_key=run.model_key,
+                    configured_model=settings.llm_default_model,
+                    code=exc.code,
+                    diagnostic=exc.diagnostic,
+                    elapsed_seconds=elapsed_seconds,
+                    markdown_chars=len(body),
+                    max_output_tokens=settings.llm_max_output_tokens,
+                    timeout_seconds=settings.llm_read_timeout_seconds,
+                )
+                return "failed"
+
+        jobs_service.transition(s, job, current_step="已收到结果，正在检查", progress=75)
+        s.commit()
+
+        jobs_service.transition(s, job, current_step="正在校验格式与受保护内容", progress=85)
+        s.commit()
 
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)
@@ -363,6 +793,9 @@ def optimize_run(
         }
         field_diff = _build_field_diff(post, result, classified)
 
+        jobs_service.transition(s, job, current_step="正在保存优化候选", progress=95)
+        s.commit()
+
         ai_service.save_candidate(
             s, run, candidate_markdown=candidate_md, field_diff=field_diff,
             validation=validation, outcome=outcome,
@@ -373,6 +806,14 @@ def optimize_run(
                     "rejected_fields": rejected},
         )
         _notify_optimization_done(s, run, post, outcome)
+        log.info(
+            "blog_optimize_completed",
+            run_id=str(run.id),
+            post_id=str(post.id),
+            job_id=str(job.id),
+            provider_key=run.provider_key,
+            outcome=outcome,
+        )
         return outcome
 
 

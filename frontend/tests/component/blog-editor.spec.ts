@@ -23,6 +23,7 @@ import { postsApi, type Post } from '@/api/posts'
 import { usePostAutosave } from '@/modules/posts/usePostAutosave'
 import MarkdownSourceEditor from '@/modules/posts/MarkdownSourceEditor.vue'
 import PostPropertySidebar from '@/modules/posts/PostPropertySidebar.vue'
+import { editorModeFromApi, editorModeToApi } from '@/modules/posts/editorMode'
 
 function fakePost(over: Partial<Post> = {}): Post {
   return {
@@ -38,11 +39,32 @@ function fakePost(over: Partial<Post> = {}): Post {
 
 beforeEach(() => vi.clearAllMocks())
 
+describe('editor mode mapping', () => {
+  it('maps API modes without sending the unsupported source value', () => {
+    expect(editorModeFromApi('rich')).toBe('rich')
+    expect(editorModeFromApi('markdown')).toBe('source')
+    expect(editorModeToApi('source')).toBe('markdown')
+    expect(editorModeToApi('split')).toBe('split')
+  })
+})
+
 describe('MarkdownSourceEditor', () => {
   it('emits the edited value', async () => {
     const w = mount(MarkdownSourceEditor, { props: { modelValue: 'a' } })
     await w.find('textarea').setValue('a b')
     expect(w.emitted('update:modelValue')!.at(-1)).toEqual(['a b'])
+  })
+
+  it('exposes chapter navigation that moves the caret and scrolls', () => {
+    const markdown = '# 第一章\n正文\n## 第二章\n内容'
+    const w = mount(MarkdownSourceEditor, { props: { modelValue: markdown } })
+    const textarea = w.find('textarea').element
+    textarea.scrollTo = vi.fn()
+    const offset = markdown.indexOf('## 第二章')
+    ;(w.vm as unknown as { scrollToPosition: (line: number, offset: number) => void })
+      .scrollToPosition(3, offset)
+    expect(textarea.selectionStart).toBe(offset)
+    expect(textarea.scrollTo).toHaveBeenCalled()
   })
 })
 

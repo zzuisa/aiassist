@@ -11,7 +11,7 @@
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel because it changes different files and has no dependency on another incomplete task in the same phase.
-- **[Story]**: Maps directly to the nine user stories in [spec.md](spec.md).
+- **[Story]**: Maps directly to the user stories and priority increments in [spec.md](spec.md).
 - Every task names the exact file path to modify or create.
 
 ## Phase 1: Setup (Shared Infrastructure)
@@ -269,32 +269,32 @@
 
 ### Tests for User Story 7 — write first ⚠️
 
-- [ ] T127 [P] [US7] Add module search/timeline query and response contract tests in `backend/tests/contract/test_blog_content_api.py`
+- [x] T127 [P] [US7] Add module search/timeline query and response contract tests in `backend/tests/contract/test_blog_content_api.py`
 - [ ] T128 [P] [US7] Add direct-data, derived-index, combined-filter, CJK/code and time fallback integration tests in `backend/tests/integration/test_blog_search_timeline.py`
 - [ ] T129 [P] [US7] Extend global search ownership and Post deep-field tests in `backend/tests/integration/test_search.py`
 - [ ] T130 [P] [US7] Add 100,000-Post search p95 and timeline cursor stability tests in `backend/tests/performance/test_blog_search_100k.py`
-- [ ] T131 [P] [US7] Add search filter/highlight and timeline expansion component tests in `frontend/tests/component/blog-discovery.spec.ts`
+- [x] T131 [P] [US7] Add search filter/highlight and timeline expansion component tests in `frontend/tests/component/blog-discovery.spec.ts`
 
 ### Implementation for User Story 7
 
-- [ ] T132 [US7] Implement owned module search across current Post, source URL, taxonomy, code and flattened structured fields in `backend/app/modules/posts/query_service.py`
+- [x] T132 [US7] Implement owned module search across current Post, source URL, taxonomy, code and flattened structured fields in `backend/app/modules/posts/query_service.py`
 - [ ] T133 [US7] Extend direct global Post search with summary/body/taxonomy/structured matches and safe highlights in `backend/app/modules/search/service.py`
 - [ ] T134 [US7] Extend idempotent Post SearchDocument refresh with body, summary, tags, category, keywords and metadata in `backend/app/workers/tasks/search.py`
-- [ ] T135 [US7] Implement occurrence/creation timeline cursor queries and explicit fallback basis in `backend/app/modules/posts/query_service.py`
-- [ ] T136 [US7] Implement module search and timeline endpoints in `backend/app/modules/posts/query_router.py`
+- [x] T135 [US7] Implement occurrence/creation timeline cursor queries and explicit fallback basis in `backend/app/modules/posts/query_service.py`
+- [x] T136 [US7] Implement module search and timeline endpoints in `backend/app/modules/posts/query_router.py`
 - [ ] T137 [US7] Add or tune Post/title/body/JSONB/taxonomy indexes only from measured plans in `backend/alembic/versions/0011_blog_content_management.py`
-- [ ] T138 [P] [US7] Implement typed search/timeline clients and filter serialization in `frontend/src/api/blogQueries.ts`
-- [ ] T139 [US7] Add module deep-search bar, filter chips, match fields and safe highlights to `frontend/src/modules/posts/PostListPage.vue`
-- [ ] T140 [US7] Implement year/month grouping, time-basis switch, filters and stable cursor loading in `frontend/src/modules/posts/TimelinePage.vue`
+- [x] T138 [P] [US7] Implement typed search/timeline clients and filter serialization in `frontend/src/api/blogQueries.ts`
+- [x] T139 [US7] Add module deep-search bar, filter chips, match fields and safe highlights to `frontend/src/modules/posts/PostListPage.vue`
+- [x] T140 [US7] Implement year/month grouping, time-basis switch, filters and stable cursor loading in `frontend/src/modules/posts/TimelinePage.vue`
 - [ ] T141 [US7] Route global `post` results into view/edit pages with preserved query context in `frontend/src/modules/search/SearchResults.vue` and `frontend/src/router/index.ts`
 
 **Checkpoint**: US7 makes every committed article findable without waiting for a derived index and provides basic long-term time review.
 
 ---
 
-## Phase 10: User Story 8 — 维护分类、标签和关键词 (Priority: P2)
+## Phase 10: User Story 8 — 维护分类、标签和关键词 (Priority: P1)
 
-**Goal**: Govern separate category, tag and keyword concepts with aliases, hierarchy, stop words, merges and historical visibility.
+**Goal**: Govern separate category, tag and keyword concepts with aliases, hierarchy, stop words, merges and historical visibility. Deliver the category tree and primary-category workflow before tag/keyword governance.
 
 **Independent Test**: Create a category tree, tag alias and keyword synonym; reject a cycle; merge duplicate tags; disable a category and verify old/new behavior.
 
@@ -319,6 +319,67 @@
 - [ ] T155 [US8] Update article property controls to resolve aliases and exclude disabled choices without hiding history in `frontend/src/modules/posts/PostPropertySidebar.vue`
 
 **Checkpoint**: US8 keeps classification, browsing attributes and search terms distinct and maintainable.
+
+---
+
+## Priority Increment — 移动端博客与结构化主分类 (P1)
+
+**Goal**: Make the high-frequency blog list usable on small screens and make structured category the first-class organizing action.
+
+### Tests first
+
+- [x] T180 [P] Add taxonomy API client and primary-category list fixture tests in `frontend/tests/component/blog-taxonomy.spec.ts`
+- [x] T181 [P] Add 360px layout, swipe threshold, cancel, keyboard fallback and category action tests in `frontend/tests/component/blog-mobile.spec.ts`
+- [x] T182 [P] Extend article list API projection tests to include owned `category_id` and category filter behavior in `backend/tests/contract/test_blog_content_api.py`
+
+### Implementation
+
+- [x] T183 [P] Implement typed category list/create client in `frontend/src/api/blogTaxonomy.ts`
+- [x] T184 Implement category-first navigation, bounded tree display and create-category flow in `frontend/src/modules/posts/TaxonomyPage.vue` and `frontend/src/router/index.ts`
+- [x] T185 Implement mobile single-column article rows with explicit left/right swipe actions, threshold cancel, accessible more menu and executable undo feedback in `frontend/src/modules/posts/PostListPage.vue`
+- [x] T186 Implement category-first filter, category picker and category display in `frontend/src/modules/posts/PostListPage.vue` and `frontend/src/modules/posts/PostPropertySidebar.vue`
+- [x] T187 Update blog navigation and shared mobile layout tokens for category-first use in `frontend/src/modules/posts/BlogModuleLayout.vue` and `frontend/src/styles/tokens.css`
+- [x] T188 Validate mobile/category priority flow with typecheck, component tests, 360px E2E coverage and production build; record evidence in `specs/005-blog-content-management/quickstart.md`
+
+**Checkpoint**: On a 360px viewport, a user can filter by primary category, swipe an article to categorize/archive, use the accessible fallback menu, and open the category tree without losing the current list state.
+
+---
+
+## Priority Increment — 移动端总站底部导航 (P1)
+
+**Goal**: Keep the primary navigation permanently reachable on small screens without allowing page content to cover the last interactive content.
+
+### Tests first
+
+- [x] T189 Add AppShell mobile bottom-navigation semantic coverage in `frontend/tests/component/app-shell.spec.ts`
+
+### Implementation
+
+- [x] T190 Implement fixed bottom navigation layering, opaque surface, safe-area padding and content clearance in `frontend/src/app/AppShell.vue`
+- [x] T191 Validate bottom-navigation typecheck, component test and production build evidence in `specs/005-blog-content-management/quickstart.md`
+
+**Checkpoint**: At 360px, 375px and 390px widths, all primary bottom-navigation entries remain visible and clickable, and the final page content remains scrollable above the navigation.
+
+---
+
+## Priority Increment — 部署更新透明度与版本追踪 (P1)
+
+**Goal**: Show users what changed after every deployment, preserve a readable version history, and require Git commit/push before building a new application image.
+
+### Tests first
+
+- [x] T192 [P] Add release popup, unseen-version acknowledgement and history status component tests in `frontend/tests/component/app-shell.spec.ts` and `frontend/tests/component/release-history.spec.ts`
+
+### Implementation
+
+- [x] T193 [P] Implement typed release metadata loading and the checked-in initial history manifest in `frontend/src/api/releases.ts` and `frontend/public/release-history.json`
+- [x] T194 Implement unseen release detection, update announcement navigation and acknowledgement persistence in `frontend/src/app/AppShell.vue` and `frontend/src/modules/releases/ReleaseUpdateDialog.vue`
+- [x] T195 Implement current/history version status panel and settings navigation entry in `frontend/src/modules/releases/ReleaseHistoryPage.vue`, `frontend/src/router/index.ts` and `frontend/src/modules/settings/SettingsPage.vue`
+- [x] T196 Implement safe release metadata generation, Git commit/push gate and non-zero failure behavior before image build in `deploy/scripts/deploy.sh`
+- [x] T197 Add release metadata security, deployment failure and update-history acceptance guidance in `specs/005-blog-content-management/quickstart.md` and `specs/001-personal-life-os/deployment.md`
+- [ ] T198 Validate release popup/history, metadata generation, commit/push gate, production build and deployment health; record evidence in `specs/005-blog-content-management/quickstart.md`
+
+**Checkpoint**: A successful deployment has a pushed commit and a visible update record; an unseen version opens an update announcement, and users can navigate to historical version status.
 
 ---
 
@@ -359,7 +420,7 @@
 - [ ] T170 [P] Add Skill dry-run Job and result validation without Post mutation in `backend/app/modules/posts/skill_router.py`, `backend/app/workers/tasks/blog.py`, and `frontend/src/modules/posts/SkillTestPage.vue`
 - [ ] T171 Add safe trace/job/post/source/skill logging, metrics and content-redaction assertions in `backend/app/core/observability.py` and `backend/tests/security/test_blog_logging.py`
 - [ ] T172 Add keyboard, focus, screen-reader, status-not-color-only and 360px acceptance coverage in `frontend/tests/e2e/accessibility.spec.ts` and `frontend/tests/e2e/blog-content-management.spec.ts`
-- [ ] T173 Execute all 17 required acceptance cases and fill evidence references in `specs/005-blog-content-management/quickstart.md`
+- [ ] T173 Execute all 26 required acceptance cases and fill evidence references in `specs/005-blog-content-management/quickstart.md`
 - [ ] T174 Validate OpenAPI/AsyncAPI/AI/Skill schema drift against implementations in `backend/tests/contract/test_blog_content_contracts.py` and `backend/tests/contract/test_blog_ai_schema.py`
 - [ ] T175 Validate migration upgrade on existing Posts data, application rollback retention and public/RSS compatibility in `backend/tests/integration/test_blog_content_migration.py` and `backend/tests/contract/test_posts_api.py`
 - [ ] T176 Run 100,000-Post search, timeline and word-cloud budgets and document measured index decisions in `backend/tests/performance/test_blog_search_100k.py` and `specs/005-blog-content-management/quickstart.md`
@@ -395,7 +456,7 @@ Phase 1 Setup
 - **US5 (P1)**: Foundation only for CRUD/versioning; its default controls improve US1/US3 but remain independently testable.
 - **US6 (P1)**: Requires US1 sources and US2 Post projection; batch AI additionally uses US3/US5 when present.
 - **US7 (P2)**: Requires US2 current projection and search Outbox; it can ship without US8 advanced governance.
-- **US8 (P2)**: Foundation only for taxonomy governance; integration tasks update US2/US6/US7 behavior.
+- **US8 (P1)**: Foundation only for taxonomy governance; integration tasks update US2/US6/US7 behavior.
 - **US9 (P3)**: Requires US7 query filters and US8 canonical tags/keywords.
 
 ### Within each story

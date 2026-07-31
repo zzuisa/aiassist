@@ -49,6 +49,26 @@ describe('TaskCenterDrawer', () => {
     expect(wrapper.text()).toContain('开始')
   })
 
+  it('shows multiple optimization tasks with article and provider context', () => {
+    const jobs = useJobsStore()
+    for (const [id, title, provider] of [
+      ['a', '文章甲', 'radio'],
+      ['b', '文章乙', 'aiassist'],
+    ]) {
+      jobs.applyJobEvent({
+        job_id: id, job_version: 1, job_type: 'blog.optimize', status: 'processing',
+        progress: 55, current_step: '正在生成优化内容', created_at: `2026-07-24T10:00:0${id === 'a' ? 1 : 2}Z`,
+        result: { context: { post_title: title, provider_key: provider } },
+      })
+    }
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    expect(wrapper.text()).toContain('进行中（2）')
+    expect(wrapper.text()).toContain('文章甲')
+    expect(wrapper.text()).toContain('Radio')
+    expect(wrapper.text()).toContain('文章乙')
+    expect(wrapper.text()).toContain('AI Assist')
+  })
+
   it('shows failure reason, finish time and retry count', () => {
     const jobs = useJobsStore()
     jobs.applyJobEvent({
@@ -79,6 +99,16 @@ describe('TaskCenterDrawer', () => {
     })
     const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
     expect(wrapper.findAll('button').some((b) => b.text() === '重试')).toBe(false)
+  })
+
+  it('does not offer cancellation for a terminal failed job', () => {
+    const jobs = useJobsStore()
+    jobs.applyJobEvent({
+      job_id: 'f', job_version: 1, status: 'failed',
+      error: { code: 'X', message: '失败', retryable: true },
+    })
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    expect(wrapper.findAll('button').some((b) => b.text() === '取消')).toBe(false)
   })
 
   it('renders a reconnect banner without toasts', async () => {

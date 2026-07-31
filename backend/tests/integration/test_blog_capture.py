@@ -57,6 +57,113 @@ def test_url_capture_saves_pending_before_network(db_session, user_id):
 
 
 @requires_db
+def test_bilibili_capture_selects_radio_job_without_affecting_webpages(db_session, user_id):
+    from app.modules.posts import capture_service
+
+    post, source, job, _ = capture_service.capture_url(
+        db_session,
+        user_id,
+        url="https://www.bilibili.com/video/BV1abc123",
+        note="稍后整理",
+    )
+    db_session.commit()
+
+    assert job.job_type == "blog.bilibili_import"
+    assert source.metadata_json["url_type"] == "bilibili"
+    assert source.external_system == "radio"
+    assert post.markdown == "<https://www.bilibili.com/video/BV1abc123>"
+
+    _post, webpage_source, webpage_job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://example.com/article"
+    )
+    assert webpage_job.job_type == "blog.parse"
+    assert webpage_source.external_system is None
+
+
+@requires_db
+def test_bilibili_radio_success_updates_title_body_and_external_id(
+    db_session, user_id, monkeypatch
+):
+    from app.models.blog import PostSource
+    from app.models.foundation import AsyncJob
+    from app.models.posts import Post
+    from app.modules.posts import capture_service
+    from app.services.radio.client import RadioTask
+    from app.workers.tasks import blog as blog_task
+    import app.services.radio as radio_service
+
+    post, source, job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://b23.tv/abc123"
+    )
+    db_session.commit()
+
+    class FakeRadio:
+        def submit_bilibili_transcription(self, url):
+            assert url == "https://b23.tv/abc123"
+            return "radio-task-1"
+
+        def get_task(self, task_id):
+            assert task_id == "radio-task-1"
+            return RadioTask(
+                id=task_id,
+                status="success",
+                progress=100,
+                message="完成",
+                error=None,
+                result={
+                    "video_info": {"title": "B站视频标题", "bvid": "BV1abc"},
+                    "text": "完整转写正文",
+                    "transcript_id": "stt-1",
+                },
+            )
+
+    monkeypatch.setattr(radio_service, "get_radio_client", lambda: FakeRadio())
+    assert blog_task.import_bilibili_source(source.id) == "polling"
+    assert blog_task.import_bilibili_source(source.id) == "completed"
+
+    db_session.expire_all()
+    updated_post = db_session.get(Post, post.id)
+    updated_source = db_session.get(PostSource, source.id)
+    updated_job = db_session.get(AsyncJob, job.id)
+    assert updated_post.title == "B站视频标题"
+    assert updated_post.markdown == "完整转写正文"
+    assert updated_source.external_record_id == "stt-1"
+    assert updated_job.status == "completed"
+
+
+@requires_db
+def test_bilibili_radio_unavailable_is_actionable(db_session, user_id, monkeypatch):
+    from app.models.blog import PostSource
+    from app.models.foundation import AsyncJob
+    from app.modules.posts import capture_service
+    from app.services.radio.client import RadioServiceError
+    from app.workers.tasks import blog as blog_task
+    import app.services.radio as radio_service
+
+    _post, source, job, _ = capture_service.capture_url(
+        db_session, user_id, url="https://b23.tv/abc123"
+    )
+    db_session.commit()
+
+    class DownRadio:
+        def submit_bilibili_transcription(self, url):
+            raise RadioServiceError(
+                "RADIO_SERVICE_UNAVAILABLE",
+                "B站音视频处理服务当前不可用，请稍后重试。",
+                diagnostic="connect_timeout",
+            )
+
+    monkeypatch.setattr(radio_service, "get_radio_client", lambda: DownRadio())
+    assert blog_task.import_bilibili_source(source.id) == "failed"
+    db_session.expire_all()
+    failed_source = db_session.get(PostSource, source.id)
+    failed_job = db_session.get(AsyncJob, job.id)
+    assert failed_source.error_code == "RADIO_SERVICE_UNAVAILABLE"
+    assert failed_job.error_code == "RADIO_SERVICE_UNAVAILABLE"
+    assert failed_job.error_message == "B站音视频处理服务当前不可用，请稍后重试。"
+
+
+@requires_db
 def test_extraction_never_overwrites_authored_post(db_session, user_id, monkeypatch):
     from app.models.blog import PostSource
     from app.models.posts import Post

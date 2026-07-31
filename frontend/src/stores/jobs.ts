@@ -39,6 +39,13 @@ export const useJobsStore = defineStore('jobs', () => {
     return jobs.value.get(id)
   }
 
+  // Seed a freshly-created REST job immediately. Its durable SSE event will
+  // still win later via job_version, so this removes UI latency without adding
+  // polling or weakening event ordering.
+  function rememberJob(job: AsyncJob): void {
+    jobs.value.set(job.id, { ...jobs.value.get(job.id), ...job })
+  }
+
   function applyJobEvent(data: Record<string, unknown>): void {
     const id = data.job_id as string
     const version = (data.job_version as number) ?? 0
@@ -96,8 +103,10 @@ export const useJobsStore = defineStore('jobs', () => {
   async function refreshFromRest(): Promise<void> {
     const list = await api.get<AsyncJob[]>('/jobs')
     for (const j of list) {
-      jobVersions.value.set(j.id, -1)
-      applyJobEvent({ ...j, job_id: j.id, job_version: 1 })
+      const live = jobs.value.get(j.id)
+      // REST has no event version. Use it as a baseline/filler only and never
+      // let a late list response roll an SSE-updated job back to stale state.
+      jobs.value.set(j.id, live ? { ...j, ...live } : j)
     }
   }
 
@@ -154,6 +163,7 @@ export const useJobsStore = defineStore('jobs', () => {
     unreadCount,
     blogJobs,
     getJob,
+    rememberJob,
     applyJobEvent,
     applySnapshot,
     applyNotification,

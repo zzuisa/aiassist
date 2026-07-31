@@ -121,10 +121,24 @@ class Settings(BaseSettings):
     llm_provider: str = "none"
     llm_base_url: str = ""
     llm_default_model: str = ""
+    # Model generation is asynchronous, but every external socket operation
+    # remains bounded so a half-open provider cannot occupy a worker forever.
+    llm_connect_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    llm_read_timeout_seconds: float = Field(default=300.0, gt=0, le=900)
+    llm_max_output_tokens: int = Field(default=6144, ge=512, le=32768)
     speech_provider: str = "none"
     speech_default_model: str = ""
     llm_provider_key_file: str | None = None
     llm_provider_key: str | None = None
+
+    # -- Radio / Bilibili transcription (optional external service) --
+    radio_service_base_url: str = ""
+    radio_service_connect_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    radio_service_read_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    radio_service_poll_interval_seconds: int = Field(default=10, ge=2, le=300)
+    radio_service_max_wait_seconds: int = Field(default=21600, ge=60, le=86400)
+    radio_service_password_file: str | None = None
+    radio_service_password: str | None = None
 
     backup_retention_days: int = 30
 
@@ -154,6 +168,11 @@ class Settings(BaseSettings):
     @property
     def resolved_llm_provider_key(self) -> str | None:
         return _read_secret_file(self.llm_provider_key_file) or self.llm_provider_key
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolved_radio_service_password(self) -> str | None:
+        return _read_secret_file(self.radio_service_password_file) or self.radio_service_password
 
     # ------------------------------------------------------------ connections
 

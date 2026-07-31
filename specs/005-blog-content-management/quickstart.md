@@ -129,6 +129,24 @@ Then verify existing Post publishing and RSS contract tests still pass. Downgrad
 
 **Pass**: word cloud is an optional derived view and never affects search or article access.
 
+### Priority increment — Deployment update transparency
+
+1. Write a new release entry and open the authenticated application in a browser with no matching `aiassist:last-seen-release` value.
+2. Confirm the “本次更新内容” dialog shows the version, change summary and deployment time, then follow “查看更新历史”.
+3. Confirm the history panel marks the newest entry as “当前运行” and shows commit, Git push, deployment status and changed files.
+4. Close the dialog, refresh and confirm the same version does not show again; create a new release entry and confirm it does.
+5. Run `deploy.sh up` with a dirty worktree and verify commit/push happens before image build; simulate push failure and verify the script exits non-zero without building.
+
+**Pass**: every successful deployment is traceable to a pushed commit and users can understand the current and historical versions without exposing secrets.
+
+### Priority increment — 移动端博客与结构化主分类
+
+1. At a 360px viewport, open the blog list and confirm the category filter, article rows and more-actions fallback fit without horizontal page scrolling.
+2. Swipe an article right to expose “归类” and left to expose “归档/丢弃”; a short or vertical gesture must return the row to its original position.
+3. Use the more-actions fallback to reach the same actions without a gesture, then open the “分类” page and confirm the bounded category tree is available.
+
+**Pass**: category is the first structured organizing action, mobile gestures are reversible/cancelable at the row level, and every gesture has an accessible button path.
+
 ## 4. Required Acceptance Matrix
 
 | # | Scenario | Primary automated coverage | Required assertion |
@@ -150,6 +168,15 @@ Then verify existing Post publishing and RSS contract tests still pass. Downgrad
 | 15 | AI failure retry | reliability | Article survives; retry is new tracked attempt |
 | 16 | Timeline yearly incident | integration + E2E | Correct filtered items and time basis |
 | 17 | Word-cloud term click | component + E2E | Canonical Post filter applied |
+| 18 | Mobile category-first list | component + 360px E2E | Category filter, row actions and accessible fallback fit at 360px |
+| 19 | Primary category projection | contract + component | List rows expose category_id and category filter scopes results |
+| 20 | Mobile bottom navigation | component + production build | Fixed navigation remains visible above content with safe-area clearance |
+| 21 | Mobile bottom navigation width matrix | 360/375/390px E2E | All primary entries remain clickable without horizontal overflow |
+| 22 | Blog deep search | contract + integration | Committed title/body/source/taxonomy/structured fields are searchable immediately |
+| 23 | Blog timeline fallback | contract + component | Occurrence time is preferred and creation time is explicitly labeled as fallback |
+| 24 | Deployment update popup | component + E2E | Unseen release shows version, changes, time and history navigation |
+| 25 | Release history status | component + production build | Current/history entries show deployment, commit and push status with expandable files |
+| 26 | Git deployment gate | shell integration + deployment | Commit and push complete before build; push failure stops deployment with non-zero status |
 
 ## 5. Security and Reliability Matrix
 
@@ -185,10 +212,27 @@ For every Post, Source, Revision, Candidate, Run, Skill, SkillVersion, taxonomy 
 3. Measure article autosave and clipboard creation; p95 user-visible saved state < 2 seconds under normal local deployment.
 4. Confirm timeline cursor paging is stable while new Posts are inserted.
 5. At 360px width, complete clipboard capture, edit/save, AI submit and candidate field application without horizontal page scrolling.
-6. Keyboard-only users can reach editor mode controls, side panel, candidate field choices and dialogs; focus returns to the invoking control.
-7. Status is expressed by text/icon in addition to color; screen reader announces save, Job and conflict states without repeated noisy updates.
+6. At 360px width, complete category filtering, row action fallback and category navigation without horizontal page scrolling.
+7. At 360px, 375px and 390px widths, the fixed bottom navigation stays above page content and the final content remains reachable.
+8. Keyboard-only users can reach editor mode controls, side panel, candidate field choices, dialogs and primary navigation; focus returns to the invoking control.
+9. Status is expressed by text/icon in addition to color; screen reader announces save, Job and conflict states without repeated noisy updates.
 
-## 7. Final Regression Gate
+## 7. Mobile and category validation evidence
+
+Validated for this priority increment on 2026-07-31:
+
+- `npm run typecheck`: passed.
+- Targeted ESLint and `git diff --check`: passed.
+- Node 24 container: `app-shell.spec.ts`, `blog-mobile.spec.ts` and `blog-taxonomy.spec.ts`, 6 tests passed.
+- Node 24 container: `blog-discovery.spec.ts`, 5 search/timeline tests passed; the full focused set is 11 tests passed.
+- Production deployment: frontend `vue-tsc` + Vite build passed, migrations applied to head, and backend/frontend/workers/Beat/Outbox/Nginx health checks passed; gateway verification completed at `http://127.0.0.1:18080`.
+- 360px Playwright coverage is present in `frontend/tests/e2e/blog-content-management.spec.ts`; it remains account-gated by `E2E_EMAIL`/`E2E_PASSWORD` and was not executed in this environment.
+- Bottom-navigation production coverage is present in `frontend/src/app/AppShell.vue`; the deployed build includes fixed positioning, `z-index`, opaque background, safe-area padding and content clearance.
+- Backend category/list contract coverage is present in `backend/tests/contract/test_blog_content_api.py`; the runtime image intentionally excludes pytest, so that suite was not executed inside the deployed container.
+- Release popup/history component coverage is present in `frontend/tests/component/app-shell.spec.ts` and `frontend/tests/component/release-history.spec.ts`; release metadata is served without service-worker precache so every deployment is fetched fresh.
+- `deploy/scripts/deploy.sh` commits and pushes the worktree before building images, then commits and pushes the release history metadata; release metadata contains no secrets or article content.
+
+## 8. Final Regression Gate
 
 ```bash
 cd backend

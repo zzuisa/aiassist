@@ -99,6 +99,76 @@ def test_log_redaction_masks_secrets():
     assert "ok" in out
 
 
+def test_stdlib_log_is_json_and_written_to_service_file(tmp_path, monkeypatch):
+    import json
+    import logging
+
+    from app.core.observability import configure_logging
+
+    monkeypatch.setenv("LOG_DIR", str(tmp_path))
+    configure_logging("INFO", service="worker-fast")
+    logging.getLogger("celery.task").warning("worker diagnostic")
+
+    lines = (tmp_path / "worker-fast.log").read_text(encoding="utf-8").splitlines()
+    record = json.loads(lines[-1])
+    assert record["event"] == "worker diagnostic"
+    assert record["message"] == "worker diagnostic"
+    assert record["service"] == "worker-fast"
+    assert record["level"] == "warning"
+
+    try:
+        raise RuntimeError("simulated worker failure")
+    except RuntimeError:
+        logging.getLogger("celery.task").exception("worker crashed")
+    error_record = json.loads(
+        (tmp_path / "worker-fast.log").read_text(encoding="utf-8").splitlines()[-1]
+    )
+    assert error_record["message"] == "worker crashed"
+    assert "RuntimeError: simulated worker failure" in error_record["exception"]
+
+
+def test_backend_file_excludes_uvicorn_access_logs(tmp_path, monkeypatch):
+    import logging
+
+    from app.core.observability import configure_logging
+
+    monkeypatch.setenv("LOG_DIR", str(tmp_path))
+    configure_logging("INFO", service="backend")
+    logging.getLogger("uvicorn.access").info("GET /health 200")
+    logging.getLogger("app.business").error("business operation failed")
+
+    content = (tmp_path / "backend.log").read_text(encoding="utf-8")
+    assert "GET /health 200" not in content
+    assert "business operation failed" in content
+
+
+def test_handled_api_error_keeps_event_and_human_message(caplog):
+    import json
+
+    from app.core.errors import ConflictError, register_exception_handlers
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/conflict")
+    def conflict():
+        raise ConflictError(
+            "Job has already completed",
+            code="job_finished",
+            log_context={"event": "job_cancel_rejected", "job_status": "completed"},
+        )
+
+    with TestClient(app) as client, caplog.at_level("WARNING"):
+        assert client.get("/conflict").status_code == 409
+
+    record = next(item for item in caplog.records if item.name == "api.error")
+    rendered = record.getMessage()
+    assert "job_cancel_rejected" in rendered
+    assert "Job has already completed" in rendered
+
+
 def test_storage_key_never_returned_to_client(client, make_user):
     """Capture assets expose an access URL, never the internal storage_key."""
     user = make_user()

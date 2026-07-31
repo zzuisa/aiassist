@@ -7,7 +7,7 @@
 // (the field-by-field apply flow lands in US4). No article content is shown here.
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import type { AsyncJob } from '@/api/types'
 import { useJobsStore } from '@/stores/jobs'
 import { jobDisplay, jobTypeLabel } from '@/modules/posts/blogJobStatus'
@@ -18,6 +18,8 @@ const jobId = computed(() => route.params.id as string)
 
 const fetched = ref<AsyncJob | null>(null)
 const busy = ref(false)
+const actionNotice = ref('')
+const actionFailure = ref('')
 
 // Prefer the live store copy (SSE-updated); fall back to the one-shot fetch.
 const job = computed<AsyncJob | null>(() => store.getJob(jobId.value) ?? fetched.value)
@@ -33,6 +35,13 @@ const canRetry = computed(
 )
 const postId = computed(() => (job.value?.entity?.type === 'post' ? job.value.entity.id : null))
 
+function finishedJobNotice(status: string | undefined): string {
+  if (status === 'completed') return '任务已完成，无需取消。'
+  if (status === 'failed') return '任务已经失败，不能取消；你可以选择重试。'
+  if (status === 'cancelled') return '任务已经取消。'
+  return '任务已结束，无需取消。'
+}
+
 async function refresh(): Promise<void> {
   try {
     fetched.value = await api.get<AsyncJob>(`/jobs/${jobId.value}`)
@@ -44,8 +53,18 @@ async function refresh(): Promise<void> {
 async function cancel(): Promise<void> {
   if (!job.value || busy.value) return
   busy.value = true
+  actionNotice.value = ''
+  actionFailure.value = ''
   try {
     fetched.value = await api.post<AsyncJob>(`/jobs/${jobId.value}/cancel`)
+    actionNotice.value = '已取消任务。'
+  } catch (err) {
+    if (err instanceof ApiError && err.code === 'job_finished') {
+      actionNotice.value = finishedJobNotice(err.problem.job_status ?? job.value.status)
+      await refresh()
+    } else {
+      actionFailure.value = '取消任务失败，请稍后重试。'
+    }
   } finally {
     busy.value = false
   }
@@ -117,6 +136,20 @@ onMounted(() => {
         role="alert"
       >
         {{ job.error.message || job.error.code }}
+      </p>
+      <p
+        v-if="actionNotice"
+        class="job-notice"
+        role="status"
+      >
+        {{ actionNotice }}
+      </p>
+      <p
+        v-if="actionFailure"
+        class="job-error"
+        role="alert"
+      >
+        {{ actionFailure }}
       </p>
 
       <div
@@ -194,6 +227,12 @@ onMounted(() => {
 .job-error {
   color: var(--status-danger, #dc2626);
   background: var(--status-danger-soft, #fee2e2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+.job-notice {
+  color: var(--status-info, #1d4ed8);
+  background: var(--status-info-soft, #dbeafe);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
 }

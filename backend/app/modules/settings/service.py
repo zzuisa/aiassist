@@ -31,6 +31,17 @@ def dependency_states() -> dict:
             "state": s.llm_status(),
             "provider_key": s.llm_provider if s.llm_provider != "none" else None,
         },
+        "radio": {
+            "configured": bool(
+                s.radio_service_base_url and s.resolved_radio_service_password
+            ),
+            "state": (
+                "ready"
+                if s.radio_service_base_url and s.resolved_radio_service_password
+                else "unconfigured"
+            ),
+            "provider_key": "radio",
+        },
         "speech": {
             "configured": s.speech_provider != "none",
             "state": s.speech_status(),

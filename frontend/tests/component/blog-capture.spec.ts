@@ -122,4 +122,36 @@ describe('UrlCreateDialog', () => {
       'https://x.io/a',
     )
   })
+
+  it('recognizes a Bilibili URL and submits it through the existing capture API', async () => {
+    vi.mocked(blogCaptureApi.url).mockResolvedValue(CAPTURE_RESULT as never)
+    const wrapper = mount(UrlCreateDialog)
+    await wrapper.find('input[type="url"]').setValue(
+      'https://www.bilibili.com/video/BV1abc123',
+    )
+    const submit = wrapper.findAll('button').find((b) => b.text() === '保存并转写')!
+    expect(submit.exists()).toBe(true)
+    await submit.trigger('click')
+    await Promise.resolve()
+    expect(blogCaptureApi.url).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://www.bilibili.com/video/BV1abc123' }),
+    )
+    expect(wrapper.text()).toContain('正在后台处理并转写音视频')
+  })
+
+  it('shows the Radio unavailable message instead of a generic import failure', async () => {
+    const { ApiError } = await import('@/api/client')
+    vi.mocked(blogCaptureApi.url).mockRejectedValue(
+      new ApiError({
+        type: '', title: '', status: 503, code: 'RADIO_SERVICE_UNAVAILABLE',
+      }),
+    )
+    const wrapper = mount(UrlCreateDialog, { props: { initialUrl: 'https://b23.tv/abc' } })
+    await wrapper.findAll('button').find((b) => b.text() === '保存并转写')!.trigger('click')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(wrapper.find('.url-error').text()).toBe(
+      'B站音视频处理服务当前不可用，请稍后重试。',
+    )
+  })
 })

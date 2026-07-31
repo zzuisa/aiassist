@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MarkdownPreview from '@/modules/posts/MarkdownPreview.vue'
 
@@ -15,6 +15,17 @@ describe('MarkdownPreview supported blocks', () => {
     const w = render('# H1\n## H2')
     expect(w.find('h1').text()).toBe('H1')
     expect(w.find('h2').text()).toBe('H2')
+    expect(w.find('h1').attributes('data-outline-index')).toBe('0')
+    expect(w.find('h2').attributes('data-outline-index')).toBe('1')
+  })
+
+  it('exposes outline navigation to the matching preview heading', () => {
+    const w = render('# H1\n\n正文\n\n## H2')
+    const container = w.find('.md-preview').element as HTMLDivElement
+    container.scrollTo = vi.fn()
+    ;(w.vm as unknown as { scrollToHeading: (index: number) => void }).scrollToHeading(1)
+    expect(container.scrollTo).toHaveBeenCalled()
+    expect(w.find('h2').classes()).toContain('outline-target')
   })
 
   it('renders bold, italic and inline code', () => {

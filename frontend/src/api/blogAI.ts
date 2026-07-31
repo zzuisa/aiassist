@@ -19,6 +19,7 @@ export type OptimizationType =
 
 // Mirrors OptimizeBody.scope.
 export type OptimizationScope = 'all' | 'body' | 'metadata' | 'selected_fields'
+export type AIProviderKey = 'radio' | 'aiassist'
 
 export interface OptimizeBody {
   post_version: number
@@ -26,6 +27,7 @@ export interface OptimizeBody {
   scope?: OptimizationScope
   selected_fields?: string[]
   skill_id?: string | null
+  provider_key?: AIProviderKey | null
   model_key?: string | null
   instruction?: string | null
   request_nonce?: string | null
@@ -39,6 +41,7 @@ export interface AIRun {
   optimization_type: OptimizationType
   content_class: string
   skill_version_id: string
+  provider_key: AIProviderKey
   model_key: string
   ai_schema_version: string
   input_hash: string
@@ -54,6 +57,7 @@ export interface AIRun {
 export type OptimizeErrorKind =
   | 'version_conflict'
   | 'skill_unresolved'
+  | 'radio_unavailable'
   | 'not_found'
   | 'invalid_request'
   | 'unknown'
@@ -63,6 +67,11 @@ export function classifyOptimizeError(err: unknown): OptimizeErrorKind {
   if (err.status === 409 || err.code === 'version_conflict') return 'version_conflict'
   if (err.code === 'skill_unresolved' || err.code === 'skill_incomplete')
     return 'skill_unresolved'
+  if (
+    err.code === 'RADIO_SERVICE_UNAVAILABLE' ||
+    err.code === 'RADIO_OPTIMIZATION_INVALID'
+  )
+    return 'radio_unavailable'
   if (err.status === 404) return 'not_found'
   if (err.status === 422) return 'invalid_request'
   return 'unknown'
@@ -106,10 +115,19 @@ export interface CandidateCompare {
     from_label: string
     to_label: string
     unified_diff: string
+    hunks?: BodyDiffHunk[]
     changed: boolean
   }
   conflicts: string[]
   validation: Record<string, unknown>
+}
+
+export interface BodyDiffHunk {
+  op: 'replace' | 'delete' | 'insert'
+  old_start: number
+  old_lines: string[]
+  new_start: number
+  new_lines: string[]
 }
 
 export type DecisionAction =

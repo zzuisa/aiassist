@@ -6,7 +6,7 @@
 
 ## Summary
 
-在既有 `posts` 模块上扩展来源采集、内部内容状态、动态结构化字段、可版本化 Skill、固定输入的异步 AI 运行、完整候选快照、字段级三方审核、待整理、模块搜索、时间轴和组织治理。Markdown 继续作为正文规范格式，Milkdown 提供受限富文本视图；URL 先保存来源与草稿，再由受 SSRF 约束的 HTTPX + Trafilatura 后台提取。所有长任务复用总站 `AsyncJob`、SSE、Outbox、通知和 LLM gateway，文章当前版本只有人工保存或显式/策略允许的候选应用事务能够推进。
+在既有 `posts` 模块上扩展来源采集、内部内容状态、动态结构化字段、可版本化 Skill、固定输入的异步 AI 运行、完整候选快照、字段级三方审核、待整理、模块搜索、时间轴和组织治理，并优先补齐移动端博客列表与结构化主分类。Markdown 继续作为正文规范格式，Milkdown 提供受限富文本视图；URL 先保存来源与草稿，再由受 SSRF 约束的 HTTPX + Trafilatura 后台提取。所有长任务复用总站 `AsyncJob`、SSE、Outbox、通知和 LLM gateway，文章当前版本只有人工保存或显式/策略允许的候选应用事务能够推进；每次部署同时生成安全的版本元数据，向用户展示更新内容和历史状态，并在构建前完成 Git commit/push。
 
 现有 `Post.status=draft/private/published` 继续承担公开兼容语义；新增 `content_status` 承担本次内部整理生命周期。本功能不新增公开页面、权限系统、模型平台、搜索服务或 Worker 类型。
 
@@ -24,11 +24,11 @@
 
 **Project Type**: 前后端分离 Web/PWA + 模块化单体 API + 既有异步 Worker
 
-**Performance Goals**: 95% 文字/剪切板保存反馈 < 2 秒；95% 在线任务状态变化 < 5 秒；100,000 篇验收数据下 95% 博客组合搜索首屏 < 2 秒；常规自动保存 p95 < 2 秒；文章列表和时间轴首屏无感知阻塞
+**Performance Goals**: 95% 文字/剪切板保存反馈 < 2 秒；95% 在线任务状态变化 < 5 秒；100,000 篇验收数据下 95% 博客组合搜索首屏 < 2 秒；常规自动保存 p95 < 2 秒；文章列表和时间轴首屏无感知阻塞；移动端分类选择与行操作反馈 p95 < 2 秒
 
 **Constraints**: 原始内容与草稿先于抓取/AI/索引持久化；Markdown 为唯一正文真相；AI 只写候选且按字段策略应用；文章改变时强制待合并；数字、日期、代码、命令、URL 和引用确定性保护；任务固定文章与 Skill 版本；URL 获取防 SSRF；所有查询按所有者过滤；公开兼容不在本次扩展；不新增 Worker 服务或基础设施
 
-**Scale/Scope**: 延续最多 5 个账户、100,000 篇文章、50,000 个媒体资产的个人服务器基线；覆盖 9 个用户故事、14 个 MVP 页面与 7 个 MVP 弹窗/抽屉，P1/P2/P3 功能按故事独立交付
+**Scale/Scope**: 延续最多 5 个账户、100,000 篇文章、50,000 个媒体资产的个人服务器基线；覆盖 11 个用户故事、15 个 MVP 页面与 8 个 MVP 弹窗/抽屉，P1/P2/P3 功能按故事独立交付
 
 ## Constitution Check
 
@@ -43,6 +43,10 @@
 - [x] REST、SSE 派生状态、消息和 `blog-optimization.v1` 输出都定义版本化契约并进行 schema 校验。
 - [x] 每个用户故事先安排契约、单元、集成、组件或 E2E 测试；采集、AI、队列和搜索失败场景验证内容存活。
 - [x] 页面使用业务状态而非队列术语；任务详情、活动记录和结构化日志提供安全诊断信息。
+- [x] 移动端博客列表采用单列内容优先布局；左右滑动动作均提供按钮替代、取消回弹和高风险确认。
+- [x] 移动端总站底部导航固定在视口底部，使用明确层级、不透明背景、底部安全区和内容预留空间，避免内容遮挡主导航。
+- [x] 结构化主分类优先于标签/关键词进入列表首屏、筛选、编辑器属性和批量操作；分类树有界且停用历史可追踪。
+- [x] 部署更新记录只保存安全版本元数据；commit/push 位于新镜像构建之前，失败时阻止部署继续。
 
 **Pre-research gate**: PASS。无宪法违例和未解决澄清项。
 
@@ -61,6 +65,8 @@
 9. AI 使用 `blog-optimization.v1` 严格输出与确定性保护 token 校验。
 10. 搜索延续正式数据直查 + `SearchDocument` GIN 派生索引，不增加新搜索服务。
 11. 分类/标签复用总站身份并通过博客扩展表治理；关键词保持独立。
+12. 移动端使用保守手势阈值和可发现的按钮菜单，滑动只作为快捷入口，不成为唯一操作路径。
+13. 文章首期只有一个主分类；分类选择在列表、编辑器和批量操作中复用同一所有权/启用校验。
 12. 词云是低优先级、可重建的持久快照，不进入文章保存路径。
 
 ## Phase 1: Architecture and Design
@@ -136,6 +142,8 @@
 
 - 博客模块查询可组合 Post 核心列、Category/Tag/Keyword 关系、来源 URL 和 JSONB 结构字段；所有路径先限定 user_id 和 deleted_at。
 - `SearchDocument` 写入标题、摘要、Markdown、标签、分类、关键词和扁平结构字段；全局搜索沿用 `post` 类型。
+- 文章列表首期直接返回 `category_id`，前端以分类缓存映射名称；分类选择失败不改变文章当前主分类。
+- `app/AppShell.vue` 负责总站响应式导航；移动端底部导航使用固定定位和独立层级，`.content` 预留导航高度并适配 `safe-area-inset-bottom`。
 - 直接数据查询保证刚保存文章可找到；派生 GIN/trigram 索引负责规模下的排序、高亮和代码/CJK 兜底。
 - 时间轴按 `occurred_at` 或 `created_at` 范围游标分页；无发生时间时 API 返回 `time_basis=created_at`。
 - 词云生成读取正式文章和规范 Tag/Keyword，应用停用词/阈值，保存 `PostWordCloudSnapshot`；失败不删除上次成功结果。
@@ -146,6 +154,14 @@
 - 服务对 Skill、内容类型、分类和标签默认值做所有权、启用和适用校验；失效默认按明确顺序回退并返回 warning。
 - 自动应用默认关闭；设置和 Skill 策略取更严格值。正文、来源、代码/命令/引用和已有人工作值不能通过设置放宽为无确认覆盖。
 - 设置更新只影响新创建或新提交任务，不回写历史来源、修订、Skill 版本或 PostAIRun。
+- 移动端手势状态只属于当前页面交互，不持久化为业务状态；归类/归档/丢弃仍通过显式业务接口写入并记录 Activity。
+
+### 11. Deployment update transparency and Git gate
+
+- `frontend/public/release-history.json` 是由部署入口生成并随代码提交的安全版本清单，只包含版本、提交、时间、环境、状态、摘要和变更文件。
+- `AppShell.vue` 启动后读取最新清单，以浏览器本地已查看版本作为去重标记；新版本显示更新公告，公告可一次导航到 `/settings/updates`。
+- `ReleaseHistoryPage.vue` 展示当前版本和历史版本的运行状态、部署状态、Git push 状态、commit 短 ID、发布时间和可展开的变更文件。
+- `deploy.sh up` 在构建 frontend/backend 镜像前执行工作区检查、commit 和当前分支 push；push 失败立即退出，不进入构建和部署阶段。发布元数据不读取或写入任何 secret。
 
 ## Contracts
 
@@ -268,8 +284,10 @@ frontend/
 ├── package.json
 ├── src/
 │   ├── api/{posts.ts,blogCapture.ts,blogSkills.ts,blogTaxonomy.ts,blogQueries.ts}
+│   ├── api/releases.ts
 │   ├── router/index.ts
 │   ├── app/AppShell.vue
+│   ├── modules/releases/{ReleaseUpdateDialog.vue,ReleaseHistoryPage.vue}
 │   └── modules/posts/
 │       ├── BlogModuleLayout.vue
 │       ├── PostListPage.vue
@@ -319,7 +337,8 @@ frontend/
 6. 对并发使用 V1 提交任务、V2 人工保存、候选返回和再次竞争应用的三方路径。
 7. 对所有列表、详情、资源、Skill、任务和搜索执行跨用户所有权矩阵。
 8. 以 100,000 篇文章运行模块搜索 p95、时间轴游标分页和词云后台生成性能验收。
-9. 在 360px、桌面、键盘和屏幕阅读器路径验证新建、编辑、候选审核与任务状态。
+9. 在 360px、桌面、键盘和屏幕阅读器路径验证新建、编辑、候选审核、任务状态、更新公告和底部导航不遮挡内容。
+10. 在干净、脏工作区、无上游分支和 push 失败场景验证部署 Git gate 与安全 release metadata。
 
 ## Post-Design Constitution Check
 
@@ -330,6 +349,7 @@ frontend/
 - URL 抓取增加必要的 SSRF 安全边界，但没有引入通用抓取服务。
 - 两个现有 Worker、Outbox、AsyncJob、SSE、通知、搜索和存储能力被复用；无新基础设施。
 - 所有高风险写入都有版本检查、活动记录和恢复路径；日志不包含私密正文。
+- 发布更新有可读公告、历史版本状态和安全元数据；Git commit/push gate 在镜像构建前执行。
 - 测试计划覆盖契约先行、所有权、幂等、依赖失败、迁移和数据存活。
 
 ## Complexity Tracking

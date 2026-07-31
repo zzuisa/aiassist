@@ -93,6 +93,18 @@ test('focus mode hides the outline and sidebar', async ({ page }) => {
   await expect(page.locator('.sidebar')).toHaveCount(0)
 })
 
+test('clicking an outline heading moves the source editor to that chapter', async ({ page }) => {
+  await login(page)
+  await newBlankPost(page)
+  const markdown = `# 第一章\n\n${'前文\n'.repeat(80)}\n## 目标章节\n\n目标内容`
+  const source = page.locator('textarea.md-source')
+  await source.fill(markdown)
+  await page.getByRole('button', { name: '目标章节' }).click()
+  const expected = markdown.indexOf('## 目标章节')
+  await expect.poll(() => source.evaluate((el) => (el as HTMLTextAreaElement).selectionStart))
+    .toBe(expected)
+})
+
 test('narrow viewport stacks the workbench', async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 800 })
   await login(page)
@@ -100,6 +112,25 @@ test('narrow viewport stacks the workbench', async ({ page }) => {
   await expect(page.locator('.workbench')).toBeVisible()
   await page.locator('textarea.md-source').fill('内容')
   await expect(page.locator('.save-state')).toHaveText(/保存中|已保存/)
+})
+
+test('mobile blog list keeps category-first actions usable at 360px', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 })
+  await login(page)
+  await page.goto('/blog')
+
+  await expect(page.getByLabel('按结构化分类筛选')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
+
+  const firstRow = page.locator('.post-row').first()
+  if (await firstRow.count()) {
+    await firstRow.getByRole('button', { name: /更多操作/ }).click()
+    await expect(firstRow.locator('.accessible-actions')).toBeVisible()
+    await expect(firstRow.getByRole('button', { name: '归类' })).toBeVisible()
+  }
+
+  await page.getByRole('link', { name: '分类' }).click()
+  await expect(page).toHaveURL(/\/blog\/taxonomy$/)
 })
 
 // --- US4: review an AI candidate and apply only selected fields ---

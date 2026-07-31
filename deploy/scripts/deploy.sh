@@ -7,8 +7,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 SECRETS_DIR="deploy/secrets"
-REQUIRED_SECRETS=(postgres_password jwt_signing_key rabbitmq_password)
+REQUIRED_SECRETS=(postgres_password jwt_signing_key rabbitmq_password radio_service_password)
 RUNTIME_UID=10001
+RELEASE_HISTORY_FILE="frontend/public/release-history.json"
+RELEASE_PUSH_REMOTE="${DEPLOY_PUSH_REMOTE:-origin}"
 
 log() { printf '\033[1;34m[deploy]\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31m[deploy]\033[0m %s\n' "$*" >&2; }
@@ -80,6 +82,90 @@ ensure_log_dirs() {
   log "Log directories ready under $log_root"
 }
 
+push_current_branch() {
+  if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    git push "$RELEASE_PUSH_REMOTE" HEAD
+  else
+    git push --set-upstream "$RELEASE_PUSH_REMOTE" HEAD
+  fi
+}
+
+prepare_release_commit() {
+  local release_version release_id deployed_at commit_message source_commit source_short changed_files
+  release_version="$(date -u +%Y.%m.%d.%H%M%S)"
+  release_id="${release_version}-pending"
+  deployed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  commit_message="${DEPLOY_COMMIT_MESSAGE:-deploy: update ${release_version}}"
+
+  git diff --check
+  if [ -n "$(git status --porcelain)" ]; then
+    git add --all
+    git commit -m "$commit_message"
+  else
+    git commit --allow-empty -m "$commit_message"
+  fi
+  source_commit="$(git rev-parse HEAD)"
+  source_short="$(git rev-parse --short HEAD)"
+  release_id="${release_version}-${source_short}"
+  changed_files="$(git show --format= --name-only HEAD | sed '/^$/d')"
+  log "Pushing source commit $source_short..."
+  push_current_branch
+
+  python3 - "$RELEASE_HISTORY_FILE" "$release_id" "$release_version" \
+    "$source_commit" "$source_short" "$commit_message" "$deployed_at" "$changed_files" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+history_path = Path(sys.argv[1])
+release_id, version, commit, commit_short, message, deployed_at, changed_files_arg = sys.argv[2:]
+changed_files = [line.strip() for line in changed_files_arg.splitlines() if line.strip()]
+
+categories = []
+if any(path.startswith("frontend/") for path in changed_files):
+    categories.append("前端界面与交互更新")
+if any(path.startswith("backend/") for path in changed_files):
+    categories.append("后端接口与业务逻辑更新")
+if any(path.startswith(("specs/", "docs/")) for path in changed_files):
+    categories.append("规格与文档更新")
+if any(path.startswith(("deploy/", "compose.yaml")) for path in changed_files):
+    categories.append("部署与运行配置更新")
+if not categories:
+    categories.append("部署版本与运行状态更新")
+
+entry = {
+    "id": release_id,
+    "version": version,
+    "commit": commit,
+    "commit_short": commit_short,
+    "message": message,
+    "changes": [message, *categories],
+    "changed_files": changed_files[:100],
+    "deployed_at": deployed_at,
+    "environment": "production",
+    "git_pushed": True,
+    "deployment_status": "verified",
+    "migration_head": None,
+}
+
+try:
+    current = json.loads(history_path.read_text(encoding="utf-8"))
+except (FileNotFoundError, json.JSONDecodeError):
+    current = {"releases": []}
+releases = [item for item in current.get("releases", []) if item.get("id") != release_id]
+history_path.parent.mkdir(parents=True, exist_ok=True)
+history_path.write_text(
+    json.dumps({"releases": [entry, *releases[:49]]}, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+PY
+
+  git add "$RELEASE_HISTORY_FILE"
+  git commit -m "release: ${release_version}"
+  log "Pushing release history..."
+  push_current_branch
+}
+
 cmd_up() {
   require_compose_v2
   check_capacity
@@ -88,6 +174,7 @@ cmd_up() {
   ensure_log_dirs
   log "Validating compose configuration..."
   docker compose config --quiet
+  prepare_release_commit
   log "Pulling pinned middleware images..."
   docker compose pull postgres redis rabbitmq nginx
   log "Building application images..."

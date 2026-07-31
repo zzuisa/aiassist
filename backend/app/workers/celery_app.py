@@ -59,6 +59,7 @@ TASK_ROUTES = {
     "app.workers.tasks.plan.*": {"queue": "llm"},
     "app.workers.tasks.images.*": {"queue": "image"},
     "app.workers.tasks.capture_ai.*": {"queue": "llm"},
+    "app.workers.tasks.blog.extract": {"queue": "search"},
     "app.workers.tasks.blog.*": {"queue": "llm"},
     "app.workers.tasks.assistant.*": {"queue": "llm"},
     "app.workers.tasks.maintenance.*": {"queue": "maintenance"},
@@ -99,30 +100,39 @@ celery.conf.imports = (
 )
 
 
-# Load the Beat schedule (safe: celery is already configured above).
-import app.workers.beat_schedule  # noqa: E402,F401
-
-
 # Wire up structured logging for worker and beat processes.  The signal fires
 # once per process after the worker initialises; it resolves the service name
 # from the worker hostname prefix so fast/heavy/beat each get their own log file.
-from celery.signals import beat_init, worker_init  # noqa: E402
+from celery.signals import (  # noqa: E402
+    after_setup_logger,
+    after_setup_task_logger,
+    beat_init,
+    worker_init,
+)
+
+# Load the Beat schedule (safe: celery is already configured above).
+import app.workers.beat_schedule  # noqa: E402,F401
+
+_worker_log_service = "worker"
 
 
 @worker_init.connect
 def _setup_worker_logging(sender=None, **_kwargs):  # type: ignore[no-untyped-def]
+    global _worker_log_service
+    hostname = getattr(sender, "hostname", "") or ""
+    if hostname.startswith("fast@"):
+        _worker_log_service = "worker-fast"
+    elif hostname.startswith("heavy@"):
+        _worker_log_service = "worker-heavy"
+
+
+@after_setup_logger.connect
+@after_setup_task_logger.connect
+def _setup_worker_handlers(**_kwargs):  # type: ignore[no-untyped-def]
     from app.core.config import get_settings
     from app.core.observability import configure_logging
 
-    settings = get_settings()
-    hostname = getattr(sender, "hostname", "") or ""
-    if hostname.startswith("fast@"):
-        svc = "worker-fast"
-    elif hostname.startswith("heavy@"):
-        svc = "worker-heavy"
-    else:
-        svc = "worker"
-    configure_logging(settings.log_level, service=svc)
+    configure_logging(get_settings().log_level, service=_worker_log_service)
 
 
 @beat_init.connect

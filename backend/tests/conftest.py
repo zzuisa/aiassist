@@ -54,7 +54,9 @@ def _apply_migrations() -> None:
 
     reset_engine()
     cfg = Config("alembic.ini")
-    cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+    # Alembic stores this value in ConfigParser, where literal percent signs in
+    # URL-encoded passwords must be doubled to avoid interpolation errors.
+    cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL.replace("%", "%%"))
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
 

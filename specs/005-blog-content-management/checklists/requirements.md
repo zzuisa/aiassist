@@ -31,6 +31,13 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
+## Mobile and Classification Scope
+
+- [x] Mobile list behavior has explicit swipe, cancel and accessible fallback requirements
+- [x] 360px acceptance coverage and touch-target expectations are measurable
+- [x] Structured primary category is prioritized ahead of tags and keywords
+- [x] Category ownership, bounded hierarchy and disabled-history behavior are specified
+
 ## Notes
 
 - Validation iteration 1 completed on 2026-07-28; all items passed.

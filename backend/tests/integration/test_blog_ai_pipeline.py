@@ -117,15 +117,58 @@ def test_submit_resolves_skill_and_queues(db_session, user_id):
     db_session.commit()
 
     job, run, dup = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
     assert dup is False
     assert job.job_type == "blog.optimize"
     assert run.skill_version_id is not None
+    assert run.provider_key == "aiassist"
     assert run.model_key == "test-model"
+    assert job.status == "queued"
+    assert job.current_step == "等待执行"
+    assert job.result_json["context"] == {
+        "post_id": str(post.id),
+        "post_title": "t",
+        "provider_key": "aiassist",
+        "optimization_type": "full",
+        "scope": "all",
+    }
     p = db_session.get(Post, post.id)
     assert p.content_status == "ai_queued"
+
+
+@requires_db
+def test_submit_uses_user_default_provider(db_session, user_id):
+    from app.modules.posts import ai_service, service, settings_service
+
+    _make_skill(db_session, user_id)
+    post = service.create_post(db_session, user_id, title="t", markdown="body")
+    db_session.commit()
+
+    _job, radio_run, _ = ai_service.submit_optimization(
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="language",
+    )
+    assert radio_run.provider_key == "radio"
+    assert radio_run.model_key == "radio-gemini"
+
+    radio_run.outcome = "cancelled"
+    settings_service.set_default_ai_provider(db_session, user_id, "aiassist")
+    db_session.commit()
+    _job, aiassist_run, _ = ai_service.submit_optimization(
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="language",
+    )
+    assert aiassist_run.provider_key == "aiassist"
+    assert aiassist_run.model_key == "test-model"
 
 
 @requires_db
@@ -137,11 +180,13 @@ def test_duplicate_submission_reuses_job(db_session, user_id):
     db_session.commit()
 
     job1, run1, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
     job2, run2, dup = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
     assert dup is True
@@ -163,7 +208,8 @@ def test_valid_run_saves_candidate_without_touching_article(db_session, user_id,
     original_markdown = post.markdown
 
     _job, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
 
@@ -182,6 +228,66 @@ def test_valid_run_saves_candidate_without_touching_article(db_session, user_id,
     assert finished.outcome == "complete"
     job = db_session.get(AsyncJob, run.async_job_id)
     assert job.status == "waiting_user"
+    assert job.result_json["context"]["post_title"] == "原标题"
+    assert job.result_json["context"]["provider_key"] == "aiassist"
+
+    # These durable frames are committed as independent worker checkpoints,
+    # allowing SSE clients to render progress before the model call completes.
+    from app.models.foundation import AsyncJobEvent
+    events = list(db_session.scalars(
+        __import__("sqlalchemy").select(AsyncJobEvent)
+        .where(AsyncJobEvent.job_id == job.id)
+        .order_by(AsyncJobEvent.id)
+    ))
+    steps = [event.payload_json.get("current_step") for event in events]
+    assert "正在准备文章" in steps
+    assert "正在分析内容" in steps
+    assert "AI Assist 正在生成优化内容" in steps
+    assert "已收到结果，正在检查" in steps
+    assert "正在校验格式与受保护内容" in steps
+    assert "正在保存优化候选" in steps
+
+
+@requires_db
+def test_radio_provider_saves_review_candidate(db_session, user_id, monkeypatch):
+    from app.models.blog import PostAICandidate
+    from app.models.posts import Post, PostRevision
+    from app.modules.posts import ai_service, service
+    from app.workers.tasks import blog as blog_task
+    from sqlalchemy import select
+
+    class FakeRadio:
+        def optimize_text(self, text, *, instruction=None):
+            assert text == "原始正文。"
+            assert instruction == "语句更通顺"
+            return "优化后的正文。"
+
+    _make_skill(db_session, user_id)
+    post = service.create_post(db_session, user_id, title="标题", markdown="原始正文。")
+    db_session.commit()
+    _job, run, _ = ai_service.submit_optimization(
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="language",
+        scope="body",
+        provider_key="radio",
+        instruction="语句更通顺",
+    )
+    db_session.commit()
+    monkeypatch.setattr("app.services.radio.get_radio_client", lambda: FakeRadio())
+
+    assert blog_task.optimize_run(run.id, "body", [], "语句更通顺") == "complete"
+
+    db_session.expire_all()
+    assert db_session.get(Post, post.id).markdown == "原始正文。"
+    candidate = db_session.scalar(
+        select(PostAICandidate).where(PostAICandidate.ai_run_id == run.id)
+    )
+    revision = db_session.get(PostRevision, candidate.candidate_revision_id)
+    assert revision.markdown == "优化后的正文。"
+    assert run.provider_key == "radio"
 
 
 @requires_db
@@ -195,7 +301,8 @@ def test_malformed_output_fails_without_candidate(db_session, user_id, monkeypat
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _job, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
 
@@ -221,7 +328,8 @@ def test_protected_code_change_makes_partial_candidate(db_session, user_id, monk
     )
     db_session.commit()
     _job, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
 

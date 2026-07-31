@@ -8,6 +8,8 @@ export interface ProblemDetails {
   detail?: string
   code?: string
   trace_id?: string
+  /** Current resource state supplied for a recoverable state conflict. */
+  job_status?: 'completed' | 'failed' | 'cancelled'
   errors?: Array<Record<string, unknown>>
 }
 

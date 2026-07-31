@@ -13,6 +13,7 @@ const DISPLAY_LABELS: Record<string, { label: string; tone: Tone }> = {
   ai_review: { label: '待审核', tone: 'review' },
   capturing: { label: '抓取中', tone: 'processing' },
   parsing: { label: '解析中', tone: 'processing' },
+  transcribing: { label: '转写中', tone: 'processing' },
   aggregating: { label: '统计中', tone: 'processing' },
   failed: { label: '失败', tone: 'failed' },
   cancelled: { label: '已取消', tone: 'neutral' },
@@ -42,6 +43,7 @@ export function jobDisplay(job: Pick<AsyncJob, 'status' | 'display_status'>): {
 const TYPE_LABELS: Record<string, string> = {
   'blog.capture': '内容采集',
   'blog.parse': '内容解析',
+  'blog.bilibili_import': 'B站音视频转写',
   'blog.generate': 'AI 优化',
   'blog.optimize': 'AI 优化',
   'blog.wordcloud': '词云统计',
@@ -49,4 +51,24 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function jobTypeLabel(jobType: string): string {
   return TYPE_LABELS[jobType] ?? jobType
+}
+
+export interface BlogJobContext {
+  post_id?: string
+  post_title?: string
+  provider_key?: string
+  optimization_type?: string
+  scope?: string
+}
+
+export function jobContext(job: Pick<AsyncJob, 'result'>): BlogJobContext {
+  const value = job.result?.context
+  return value && typeof value === 'object' ? (value as BlogJobContext) : {}
+}
+
+export function providerLabel(job: Pick<AsyncJob, 'result'>): string | null {
+  const provider = jobContext(job).provider_key
+  if (provider === 'radio') return 'Radio'
+  if (provider === 'aiassist') return 'AI Assist'
+  return provider ?? null
 }

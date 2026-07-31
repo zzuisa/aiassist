@@ -62,6 +62,16 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/modules/posts/TriagePage.vue'),
           },
           {
+            path: 'taxonomy',
+            name: 'blog-taxonomy',
+            component: () => import('@/modules/posts/TaxonomyPage.vue'),
+          },
+          {
+            path: 'timeline',
+            name: 'blog-timeline',
+            component: () => import('@/modules/posts/TimelinePage.vue'),
+          },
+          {
             path: 'jobs',
             name: 'blog-jobs',
             component: () => import('@/modules/posts/BlogJobsPage.vue'),
@@ -122,6 +132,11 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),
+      },
+      {
+        path: 'settings/updates',
+        name: 'settings-updates',
+        component: () => import('@/modules/releases/ReleaseHistoryPage.vue'),
       },
     ],
   },

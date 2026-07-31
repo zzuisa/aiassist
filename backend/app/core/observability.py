@@ -65,18 +65,79 @@ def _redact_processor(
     return event_dict
 
 
-def configure_logging(level: str = "INFO", service: str = "backend") -> None:
-    """Configure structlog to write JSON to stdout and, when LOG_DIR is set,
-    also to a rotating file at ``$LOG_DIR/<service>.log`` (10 MiB × 5 files).
-    The file handler is added to the root logger so every stdlib log (SQLAlchemy,
-    uvicorn, celery, …) also flows there; structlog uses the same root handler.
+def _ensure_message(
+    _: Any, __: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """Expose the human-readable log body through the ECS message field.
+
+    Structlog calls this field event. Keeping both preserves the stable
+    machine event name while making logs readable in Kibana's message column.
     """
+    event = event_dict.get("event")
+    if event is not None:
+        event_dict.setdefault("message", str(event))
+    return event_dict
+
+
+def configure_logging(level: str = "INFO", service: str = "backend") -> None:
+    """Configure one-line JSON logs for structlog and stdlib loggers.
+
+    Uvicorn and Celery install their own non-propagating loggers.  Merely adding
+    a handler to the root logger therefore leaves their persistent log files
+    empty.  Managed handlers are attached to those loggers explicitly and this
+    function is idempotent so Celery's post-setup signals can safely call it.
+    """
+    numeric_level = logging.getLevelNamesMapping().get(level.upper(), logging.INFO)
+
+    def add_service(
+        _: Any, __: str, event_dict: MutableMapping[str, Any]
+    ) -> MutableMapping[str, Any]:
+        event_dict.setdefault("service", service)
+        return event_dict
+
+    class ExcludeUvicornAccess(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return record.name != "uvicorn.access"
+
+    foreign_pre_chain = [
+        _redact_processor,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        add_service,
+    ]
+    formatter = structlog.stdlib.ProcessorFormatter(
+        processors=[
+            structlog.processors.format_exc_info,
+            _ensure_message,
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ],
+        foreign_pre_chain=foreign_pre_chain,
+    )
+
     root = logging.getLogger()
-    root.setLevel(level.upper())
+    root.setLevel(numeric_level)
+
+    # A worker can configure logging once during import and again after Celery
+    # has replaced its handlers. Remove only handlers managed by this module.
+    named_loggers = [
+        logging.getLogger(name)
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "celery", "celery.task")
+    ]
+    closed: set[int] = set()
+    for logger in [root, *named_loggers]:
+        for handler in list(logger.handlers):
+            if getattr(handler, "_aiassist_managed", False):
+                logger.removeHandler(handler)
+                if id(handler) not in closed:
+                    handler.close()
+                    closed.add(id(handler))
 
     # --- stdout handler (always) -------------------------------------------
     stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(logging.Formatter("%(message)s"))
+    stream_handler.setFormatter(formatter)
+    stream_handler._aiassist_managed = True  # type: ignore[attr-defined]
     root.addHandler(stream_handler)
 
     # --- file handler (when LOG_DIR is injected by compose) -----------------
@@ -91,8 +152,19 @@ def configure_logging(level: str = "INFO", service: str = "backend") -> None:
                 backupCount=5,
                 encoding="utf-8",
             )
-            file_handler.setFormatter(logging.Formatter("%(message)s"))
+            file_handler.setFormatter(formatter)
+            file_handler._aiassist_managed = True  # type: ignore[attr-defined]
+            if service == "backend":
+                # Nginx owns HTTP access logging. Keeping the duplicate
+                # Uvicorn access stream out of backend.log makes the business
+                # index contain application events and failures only.
+                file_handler.addFilter(ExcludeUvicornAccess())
             root.addHandler(file_handler)
+            # Uvicorn/Celery loggers commonly set propagate=False. Attach the
+            # same file handler only in that case to avoid duplicate records.
+            for logger in named_loggers:
+                if not logger.propagate:
+                    logger.addHandler(file_handler)
         except OSError:
             # Mount may not be ready yet; fall back to stdout-only gracefully.
             pass
@@ -101,13 +173,15 @@ def configure_logging(level: str = "INFO", service: str = "backend") -> None:
         processors=[
             structlog.contextvars.merge_contextvars,
             _redact_processor,
-            structlog.processors.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer(),
+            add_service,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(level.upper())),
-        cache_logger_on_first_use=True,
+        wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
+        cache_logger_on_first_use=False,
     )
 
 

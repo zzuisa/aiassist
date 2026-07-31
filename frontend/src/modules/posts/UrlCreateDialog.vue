@@ -36,6 +36,19 @@ const usageOptions: Array<{ value: UrlUsage; label: string }> = [
 ]
 
 const looksValid = computed(() => /^\s*https?:\/\/\S+/i.test(url.value))
+const isBilibili = computed(() => {
+  try {
+    const parsed = new URL(url.value.trim())
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, '')
+    return (
+      (host === 'b23.tv' && parsed.pathname !== '/') ||
+      ((host === 'bilibili.com' || host.endsWith('.bilibili.com')) &&
+        /^\/video\/BV[a-z0-9]+(?:\/|$)/i.test(parsed.pathname))
+    )
+  } catch {
+    return false
+  }
+})
 
 async function save(): Promise<void> {
   if (!looksValid.value || busy.value) return
@@ -59,6 +72,12 @@ async function save(): Promise<void> {
         ? '该链接不被允许（可能是内网地址或非法协议）。'
         : kind === 'invalid_format'
           ? '链接格式不正确。'
+          : kind === 'radio_service_unavailable'
+            ? 'B站音视频处理服务当前不可用，请稍后重试。'
+            : kind === 'bilibili_link_unavailable'
+              ? '无法解析该 B 站链接，视频可能已失效、需要登录或存在访问限制。'
+              : kind === 'radio_transcription_failed'
+                ? '音视频转写失败，请稍后重试。'
           : '保存失败，请稍后重试。'
     busy.value = false
   }
@@ -75,7 +94,7 @@ async function save(): Promise<void> {
       v-if="saved"
       class="url-saved"
     >
-      ✓ 已保存，正在后台抓取正文…
+      ✓ {{ isBilibili ? '已保存，正在后台处理并转写音视频…' : '已保存，正在后台抓取正文…' }}
     </div>
 
     <template v-else>
@@ -140,7 +159,7 @@ async function save(): Promise<void> {
         :disabled="busy || !looksValid"
         @click="save"
       >
-        保存并抓取
+        {{ isBilibili ? '保存并转写' : '保存并抓取' }}
       </button>
     </template>
   </CaptureModal>

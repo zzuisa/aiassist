@@ -11,7 +11,7 @@ from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.db.session import get_db
-from app.modules.posts import rendering, service
+from app.modules.posts import rendering, service, taxonomy_service
 from app.modules.posts.schemas import (
     GenerateBody,
     PostCreate,
@@ -20,6 +20,8 @@ from app.modules.posts.schemas import (
     PublishBody,
     RestoreRevisionBody,
     RevisionOut,
+    TaxonomyItemOut,
+    TaxonomyWrite,
     post_detail_out,
     post_out,
     revision_out,
@@ -35,6 +37,41 @@ capture_router = APIRouter(prefix="/blog/capture", tags=["blog-capture"])
 taxonomy_router = APIRouter(prefix="/blog/taxonomy", tags=["blog-taxonomy"])
 ai_router = APIRouter(prefix="/blog/ai", tags=["blog-ai"])
 query_router = APIRouter(prefix="/blog/query", tags=["blog-query"])
+
+
+@taxonomy_router.get("/{kind}")
+def list_taxonomy(
+    kind: str,
+    enabled: bool | None = None,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[TaxonomyItemOut]:
+    return [TaxonomyItemOut(**item) for item in taxonomy_service.list_items(
+        db, user.id, kind, enabled=enabled
+    )]
+
+
+@taxonomy_router.post("/{kind}", status_code=201)
+def create_taxonomy(
+    kind: str,
+    body: TaxonomyWrite,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> TaxonomyItemOut:
+    item = taxonomy_service.create_item(
+        db,
+        user.id,
+        kind,
+        name=body.name,
+        description=body.description,
+        parent_id=body.parent_id,
+        aliases=body.aliases,
+        color=body.color,
+        enabled=body.enabled,
+        stop_word=body.stop_word,
+    )
+    db.commit()
+    return TaxonomyItemOut(**item)
 
 
 @private_router.get("")
@@ -126,16 +163,6 @@ def generate(
         user_id=user.id,
     )
     db.commit()
-    # Enqueue the generation task directly (best-effort). The worker creates an
-    # UNAPPLIED AI revision; the current text is never overwritten.
-    try:
-        from app.workers.tasks.blog import generate as blog_generate
-
-        blog_generate.delay(str(post.id), body.scenario, body.instruction)
-    except Exception:
-        from app.core.observability import get_logger
-
-        get_logger("posts").warning("blog_enqueue_failed", post_id=str(post.id))
     from app.modules.jobs.schemas import serialize_job
 
     return serialize_job(job).model_dump(mode="json")

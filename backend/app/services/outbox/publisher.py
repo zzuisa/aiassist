@@ -25,6 +25,13 @@ LEASE_SECONDS = 30
 BATCH_SIZE = 100
 MAX_RETRY = 10
 
+_CELERY_COMMANDS: dict[str, tuple[str, str]] = {
+    "blog.parse": ("app.workers.tasks.blog.extract", "search"),
+    "blog.bilibili_import": ("app.workers.tasks.blog.import_bilibili", "llm"),
+    "blog.generate": ("app.workers.tasks.blog.generate", "llm"),
+    "blog.optimize": ("app.workers.tasks.blog.optimize", "llm"),
+}
+
 
 def append_event(
     session: Session,
@@ -80,14 +87,22 @@ class OutboxPublisher:
         self._publish_fn = publish_fn or self._publish_to_broker
 
     def _publish_to_broker(self, routing_key: str, body: dict) -> None:
+        command = _CELERY_COMMANDS.get(str(body.get("event_type", "")))
+        if command is not None:
+            self._publish_celery_command(body, *command)
+            return
+
         # Lazy import so the module is usable without a broker in unit tests.
         from kombu import Connection, Exchange
 
         from app.core.config import get_settings
 
         exchange = Exchange("aiassist.commands", type="topic", durable=True)
-        with Connection(get_settings().amqp_dsn) as conn:
-            producer = conn.Producer(serializer="json", confirm_publish=True)
+        with Connection(
+            get_settings().amqp_dsn,
+            transport_options={"confirm_publish": True},
+        ) as conn:
+            producer = conn.Producer(serializer="json")
             producer.publish(
                 body,
                 exchange=exchange,
@@ -95,6 +110,39 @@ class OutboxPublisher:
                 declare=[exchange],
                 delivery_mode=2,
             )
+
+    @staticmethod
+    def _publish_celery_command(body: dict, task_name: str, queue: str) -> None:
+        """Translate a durable blog command envelope into Celery protocol.
+
+        Publishing the raw outbox JSON to a Celery queue does not create a
+        Celery task. Known imperative events are therefore dispatched through
+        Celery after the business transaction has committed. The outbox event
+        ID becomes the task ID, giving retries a stable identity.
+        """
+        from app.workers.celery_app import celery
+
+        payload = body.get("payload") or {}
+        event_type = body["event_type"]
+        if event_type in {"blog.parse", "blog.bilibili_import"}:
+            args = [payload["source_id"]]
+        elif event_type == "blog.generate":
+            args = [payload["post_id"], payload["scenario"], payload.get("instruction")]
+        elif event_type == "blog.optimize":
+            args = [
+                payload["run_id"],
+                payload.get("scope", "all"),
+                payload.get("selected_fields") or [],
+                payload.get("instruction"),
+            ]
+        else:  # defensive guard if the command mapping grows incorrectly
+            raise ValueError(f"unsupported Celery command: {event_type}")
+        celery.send_task(
+            task_name,
+            args=args,
+            queue=queue,
+            task_id=body["event_id"],
+        )
 
     def claim_batch(self, session: Session, limit: int = BATCH_SIZE) -> list[OutboxEvent]:
         now = datetime.now(UTC)
@@ -133,9 +181,25 @@ class OutboxPublisher:
                 try:
                     self._publish_fn(event.routing_key, body)
                 except Exception as exc:  # broker/publish failure: back off
-                    self._mark_failed(session, event.id, str(exc))
+                    retry_count, status = self._mark_failed(session, event.id, str(exc))
+                    log.warning(
+                        "outbox_publish_failed",
+                        event_id=str(event.id),
+                        event_type=event.event_type,
+                        routing_key=event.routing_key,
+                        retry_count=retry_count,
+                        outbox_status=status,
+                        error_type=type(exc).__name__,
+                        error=str(exc)[:500],
+                    )
                     continue
                 self._mark_published(session, event.id)
+                log.info(
+                    "outbox_published",
+                    event_id=str(event.id),
+                    event_type=event.event_type,
+                    routing_key=event.routing_key,
+                )
                 published += 1
             return published
         finally:
@@ -151,10 +215,10 @@ class OutboxPublisher:
         )
         session.commit()
 
-    def _mark_failed(self, session: Session, event_id: uuid.UUID, err: str) -> None:
+    def _mark_failed(self, session: Session, event_id: uuid.UUID, err: str) -> tuple[int, str]:
         row = session.get(OutboxEvent, event_id)
         if row is None:
-            return
+            return 0, "missing"
         row.retry_count += 1
         row.last_error = err[:500]
         row.locked_by = None
@@ -163,6 +227,7 @@ class OutboxPublisher:
         row.next_attempt_at = datetime.now(UTC) + timedelta(seconds=backoff)
         row.status = "failed" if row.retry_count >= MAX_RETRY else "pending"
         session.commit()
+        return row.retry_count, row.status
 
     def run_forever(self, poll_interval: float = 1.0) -> None:  # pragma: no cover
         log.info("outbox_publisher_start", worker=self._worker_id)

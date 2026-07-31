@@ -33,6 +33,7 @@ def _run_out(run) -> dict:
         "optimization_type": run.optimization_type,
         "content_class": run.content_class,
         "skill_version_id": str(run.skill_version_id),
+        "provider_key": run.provider_key,
         "model_key": run.model_key,
         "ai_schema_version": run.ai_schema_version,
         "input_hash": run.input_hash,
@@ -55,7 +56,10 @@ def optimize(
         db, user.id, post_id,
         post_version=body.post_version, optimization_type=body.optimization_type,
         scope=body.scope, selected_fields=body.selected_fields,
-        skill_id=body.skill_id, model_key=body.model_key, instruction=body.instruction,
+        skill_id=body.skill_id,
+        provider_key=body.provider_key,
+        model_key=body.model_key,
+        instruction=body.instruction,
     )
     db.commit()
     return serialize_job(job).model_dump(mode="json")

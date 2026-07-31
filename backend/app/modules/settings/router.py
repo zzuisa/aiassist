@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
+from app.modules.posts import settings_service as blog_settings_service
 from app.modules.settings import service
 from app.modules.tasks import plan_service
 
@@ -23,12 +26,18 @@ class NotificationPreferences(BaseModel):
     quiet_hours_end: str | None = None
 
 
+class AIOptimizationPreferences(BaseModel):
+    model_config = {"extra": "forbid"}
+    default_provider: Literal["radio", "aiassist"] = "radio"
+
+
 class SettingsPatch(BaseModel):
     model_config = {"extra": "forbid"}
     display_name: str | None = Field(default=None, min_length=1, max_length=80)
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     locale: str | None = Field(default=None, min_length=2, max_length=16)
     notification_preferences: NotificationPreferences | None = None
+    ai_optimization: AIOptimizationPreferences | None = None
 
 
 class PasswordChange(BaseModel):
@@ -37,7 +46,10 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=12, max_length=256)
 
 
-def _settings_out(user, deps: dict) -> dict:  # type: ignore[no-untyped-def]
+def _settings_out(user, deps: dict, blog_settings) -> dict:  # type: ignore[no-untyped-def]
+    default_provider = blog_settings_service.settings_to_dict(blog_settings)["ai_apply"][
+        "default_provider"
+    ]
     return {
         "user": {
             "id": str(user.id),
@@ -49,6 +61,24 @@ def _settings_out(user, deps: dict) -> dict:  # type: ignore[no-untyped-def]
         },
         "notification_preferences": user.notification_preferences,
         "dependencies": deps,
+        "ai_optimization": {
+            "default_provider": default_provider,
+            "version": blog_settings.version,
+            "providers": [
+                {
+                    "key": "radio",
+                    "label": "Radio（Gemini 轻量正文优化）",
+                    "configured": deps["radio"]["configured"],
+                    "state": deps["radio"]["state"],
+                },
+                {
+                    "key": "aiassist",
+                    "label": "AI Assist（完整优化）",
+                    "configured": deps["llm"]["configured"],
+                    "state": deps["llm"]["state"],
+                },
+            ],
+        },
     }
 
 
@@ -57,7 +87,9 @@ def get_settings_endpoint(
     user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
     db_user = service.get_user(db, user.id)
-    return _settings_out(db_user, service.dependency_states())
+    blog_settings = blog_settings_service.get_settings(db, user.id)
+    db.commit()
+    return _settings_out(db_user, service.dependency_states(), blog_settings)
 
 
 @router.patch("")
@@ -67,11 +99,21 @@ def patch_settings(
     db: Session = Depends(get_db),
 ) -> dict:
     data = body.model_dump(exclude_unset=True)
+    ai_preferences = data.pop("ai_optimization", None)
     if body.notification_preferences is not None:
         data["notification_preferences"] = body.notification_preferences.model_dump()
-    db_user = service.update_settings(db, user.id, data)
+    db_user = (
+        service.update_settings(db, user.id, data)
+        if data
+        else service.get_user(db, user.id)
+    )
+    blog_settings = blog_settings_service.get_settings(db, user.id)
+    if ai_preferences is not None:
+        blog_settings = blog_settings_service.set_default_ai_provider(
+            db, user.id, ai_preferences["default_provider"]
+        )
     db.commit()
-    return _settings_out(db_user, service.dependency_states())
+    return _settings_out(db_user, service.dependency_states(), blog_settings)
 
 
 @router.post("/password", status_code=204)

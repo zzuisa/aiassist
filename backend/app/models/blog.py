@@ -50,6 +50,12 @@ class PostSource(Base, TimestampMixin):
     normalized_markdown: Mapped[str | None] = mapped_column(Text)
     user_note: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    # Stable external identity for imports.  JSON metadata remains available
+    # for provider-specific details, while these columns support real database
+    # idempotency and safe concurrent migration runs.
+    external_system: Mapped[str | None] = mapped_column(String(32))
+    external_record_id: Mapped[str | None] = mapped_column(String(128))
+    external_task_id: Mapped[str | None] = mapped_column(String(128))
     snapshot_object_key: Mapped[str | None] = mapped_column(String(512))
     content_hash: Mapped[str | None] = mapped_column(String(64))
     fetch_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -73,6 +79,14 @@ class PostSource(Base, TimestampMixin):
         ),
         Index("ix_post_sources_user_status", "user_id", "status", "created_at"),
         Index("ix_post_sources_user_post", "user_id", "post_id", "created_at"),
+        Index(
+            "uq_post_sources_external_record",
+            "user_id",
+            "external_system",
+            "external_record_id",
+            unique=True,
+            postgresql_where=text("external_system is not null and external_record_id is not null"),
+        ),
         Index(
             "ix_post_sources_user_url",
             "user_id",
@@ -275,6 +289,7 @@ class PostAIRun(Base):
     content_class: Mapped[str] = mapped_column(String(16), nullable=False)
     content_type_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     skill_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    provider_key: Mapped[str] = mapped_column(String(32), nullable=False, default="radio")
     model_key: Mapped[str] = mapped_column(String(120), nullable=False)
     ai_schema_version: Mapped[str] = mapped_column(
         String(32), nullable=False, default="blog-optimization.v1"
@@ -292,6 +307,7 @@ class PostAIRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         UniqueConstraint("async_job_id", name="uq_ai_run_job"),
+        CheckConstraint("provider_key in ('radio','aiassist')", name="ai_run_provider"),
         Index("ix_ai_runs_user_post", "user_id", "post_id", "created_at"),
     )
 

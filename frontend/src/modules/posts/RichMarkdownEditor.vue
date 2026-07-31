@@ -16,6 +16,8 @@ const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
 
 const root = ref<HTMLDivElement | null>(null)
+const wrap = ref<HTMLDivElement | null>(null)
+const fallback = ref<HTMLTextAreaElement | null>(null)
 const failed = ref(false)
 const crepe = shallowRef<Crepe | null>(null)
 
@@ -46,10 +48,32 @@ onBeforeUnmount(() => {
 function onFallbackInput(e: Event): void {
   emit('update:modelValue', (e.target as HTMLTextAreaElement).value)
 }
+
+function scrollToHeading(index: number, line = 1, offset = 0): void {
+  if (failed.value && fallback.value) {
+    const el = fallback.value
+    el.focus({ preventScroll: true })
+    el.setSelectionRange(offset, offset)
+    const lineHeight = Number.parseFloat(window.getComputedStyle(el).lineHeight) || 25.5
+    el.scrollTo({ top: Math.max(0, (line - 1) * lineHeight - 16), behavior: 'smooth' })
+    return
+  }
+  const container = wrap.value
+  const target = root.value?.querySelector<HTMLElement>(`h1, h2, h3, h4, h5, h6`)
+  const headings = root.value?.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')
+  const heading = headings?.item(index) ?? target
+  if (!container || !heading) return
+  const top = heading.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
+  container.scrollTo({ top: Math.max(0, top - 16), behavior: 'smooth' })
+  heading.classList.add('outline-target')
+  window.setTimeout(() => heading.classList.remove('outline-target'), 1400)
+}
+
+defineExpose({ scrollToHeading })
 </script>
 
 <template>
-  <div class="rich-wrap">
+  <div ref="wrap" class="rich-wrap">
     <div
       v-show="!failed"
       ref="root"
@@ -57,6 +81,7 @@ function onFallbackInput(e: Event): void {
     />
     <textarea
       v-if="failed"
+      ref="fallback"
       class="rich-fallback"
       :value="modelValue"
       @input="onFallbackInput"
@@ -71,6 +96,11 @@ function onFallbackInput(e: Event): void {
 }
 .rich-root {
   min-height: 320px;
+}
+.rich-root :deep(.outline-target) {
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft, #eef2ff);
+  transition: background 0.25s ease;
 }
 .rich-fallback {
   width: 100%;

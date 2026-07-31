@@ -9,6 +9,7 @@
 import { onMounted, ref } from 'vue'
 import type { Post, PostPatch } from '@/api/posts'
 import { contentTypesApi, type ContentType } from '@/api/blogQueries'
+import { taxonomyApi, type TaxonomyItem } from '@/api/blogTaxonomy'
 
 const props = defineProps<{ post: Post }>()
 const emit = defineEmits<{ (e: 'patch', patch: PostPatch): void }>()
@@ -26,12 +27,14 @@ const USER_STATUSES = [
 ]
 
 const contentTypes = ref<ContentType[]>([])
+const categories = ref<TaxonomyItem[]>([])
 onMounted(async () => {
-  try {
-    contentTypes.value = (await contentTypesApi.list()).filter((c) => c.enabled)
-  } catch {
-    contentTypes.value = []
-  }
+  const [types, taxonomy] = await Promise.allSettled([
+    contentTypesApi.list(),
+    taxonomyApi.list('category'),
+  ])
+  contentTypes.value = types.status === 'fulfilled' ? types.value.filter((c) => c.enabled) : []
+  categories.value = taxonomy.status === 'fulfilled' ? taxonomy.value : []
 })
 
 function typesForClass(): ContentType[] {
@@ -41,11 +44,35 @@ function typesForClass(): ContentType[] {
 function toDateInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
 }
+
+function categoryOptions(): TaxonomyItem[] {
+  return categories.value.filter((category) => category.enabled || category.id === props.post.category_id)
+}
 </script>
 
 <template>
   <aside class="sidebar">
     <section>
+      <label class="fld">
+        <span>结构化分类</span>
+        <select
+          :value="post.category_id ?? ''"
+          aria-label="结构化分类"
+          @change="emit('patch', { category_id: ($event.target as HTMLSelectElement).value || null })"
+        >
+          <option value="">
+            （未分类）
+          </option>
+          <option
+            v-for="category in categoryOptions()"
+            :key="category.id"
+            :value="category.id"
+          >
+            {{ category.name }}{{ category.enabled ? '' : '（历史停用）' }}
+          </option>
+        </select>
+      </label>
+
       <label class="fld">
         <span>内容类别</span>
         <select
@@ -127,7 +154,7 @@ function toDateInput(iso: string | null): string {
 
     <section class="readonly">
       <h3>组织与关联</h3>
-      <p>分类 / 标签 / 关键词管理将在后续版本开放。</p>
+      <p>分类优先用于稳定归档；标签与关键词保持独立。</p>
       <ul class="meta">
         <li>标签：{{ post.tag_ids.length }}</li>
         <li>关键词：{{ post.keyword_ids.length }}</li>

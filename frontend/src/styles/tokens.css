@@ -28,6 +28,8 @@
   --space-4: 16px;
   --space-6: 24px;
   --tap-target: 44px;
+  --mobile-swipe-threshold: 72px;
+  --mobile-row-action-width: 76px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }

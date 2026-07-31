@@ -80,6 +80,26 @@ def test_cancel_preserves_job_record(client, make_user):
     assert client.get(f"/api/v1/jobs/{job_id}").status_code == 200
 
 
+def test_repeated_cancel_is_idempotent(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    job_id = _make_job(user.id, status="processing")
+    assert client.post(f"/api/v1/jobs/{job_id}/cancel", headers=h).status_code == 202
+    repeated = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=h)
+    assert repeated.status_code == 202
+    assert repeated.json()["status"] == "cancelled"
+
+
+def test_cancel_finished_job_exposes_current_status(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    job_id = _make_job(user.id, status="failed", retryable=True)
+    rejected = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=h)
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "job_finished"
+    assert rejected.json()["job_status"] == "failed"
+
+
 def test_stale_worker_result_after_cancel_is_ignored(make_user):
     """A worker finishing after cancellation must not resurrect the job."""
     from app.db.session import session_scope

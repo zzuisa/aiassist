@@ -791,6 +791,9 @@ components:
             normalized_markdown: { type: [string, 'null'] }
             user_note: { type: [string, 'null'] }
             metadata: { type: object }
+            external_system: { type: [string, 'null'], maxLength: 32 }
+            external_record_id: { type: [string, 'null'], maxLength: 128 }
+            external_task_id: { type: [string, 'null'], maxLength: 128 }
             has_snapshot: { type: boolean }
             attempt_count: { type: integer, minimum: 0 }
             error: { oneOf: [{ $ref: '#/components/schemas/JobError' }, { type: 'null' }] }
@@ -804,6 +807,7 @@ components:
         scope: { type: string, enum: [all, body, metadata, selected_fields], default: all }
         selected_fields: { type: array, maxItems: 200, uniqueItems: true, items: { type: string, maxLength: 128 } }
         skill_id: { type: [string, 'null'], format: uuid }
+        provider_key: { type: [string, 'null'], enum: [radio, aiassist, null] }
         model_key: { type: [string, 'null'], maxLength: 120 }
         instruction: { type: [string, 'null'], maxLength: 2000 }
         request_nonce: { type: [string, 'null'], maxLength: 64 }

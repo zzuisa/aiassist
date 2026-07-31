@@ -120,6 +120,62 @@ def test_publish_failure_backs_off_and_stays_pending() -> None:
         assert row.next_attempt_at > datetime.now(UTC)
 
 
+@pytest.mark.parametrize(
+    ("event_type", "payload", "task_name", "queue", "expected_args"),
+    [
+        (
+            "blog.parse",
+            {"source_id": "source-1", "post_id": "post-1", "job_id": "job-1"},
+            "app.workers.tasks.blog.extract",
+            "search",
+            ["source-1"],
+        ),
+        (
+            "blog.generate",
+            {"post_id": "post-1", "scenario": "generate_blog", "instruction": None},
+            "app.workers.tasks.blog.generate",
+            "llm",
+            ["post-1", "generate_blog", None],
+        ),
+        (
+            "blog.optimize",
+            {
+                "run_id": "run-1",
+                "scope": "all",
+                "selected_fields": ["title"],
+                "instruction": "shorten",
+            },
+            "app.workers.tasks.blog.optimize",
+            "llm",
+            ["run-1", "all", ["title"], "shorten"],
+        ),
+    ],
+)
+def test_blog_outbox_envelope_becomes_celery_task(
+    monkeypatch, event_type, payload, task_name, queue, expected_args
+) -> None:
+    from app.workers.celery_app import celery
+
+    sent: list[dict] = []
+
+    def fake_send_task(name, **kwargs):
+        sent.append({"name": name, **kwargs})
+
+    monkeypatch.setattr(celery, "send_task", fake_send_task)
+    body = {"event_id": "event-1", "event_type": event_type, "payload": payload}
+
+    OutboxPublisher._publish_celery_command(body, task_name, queue)
+
+    assert sent == [
+        {
+            "name": task_name,
+            "args": expected_args,
+            "queue": queue,
+            "task_id": "event-1",
+        }
+    ]
+
+
 def test_duplicate_delivery_dedupes_via_consumer_receipt() -> None:
     """A consumer inserts (name,event_id); the second insert conflicts."""
     event_id = uuid.uuid4()

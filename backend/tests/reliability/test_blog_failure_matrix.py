@@ -29,25 +29,24 @@ def user_id(make_user):
 
 
 @requires_db
-def test_url_capture_commits_when_broker_is_down(db_session, user_id, monkeypatch):
-    """The durable rows persist even though the Celery enqueue raises."""
+def test_url_capture_uses_outbox_only_after_commit(db_session, user_id, monkeypatch):
+    """Capture never dispatches directly from inside the business transaction."""
     from app.models.foundation import AsyncJob, OutboxEvent
     from app.models.blog import PostSource
     from app.modules.posts import capture_service
     from app.workers.tasks import blog as blog_task
 
-    # Simulate a dead broker: .delay() raises. capture_service must swallow it.
-    def _broker_down(*_a, **_k):
-        raise RuntimeError("broker unreachable")
+    def _premature_dispatch(*_a, **_k):
+        raise AssertionError("Celery must not be called before commit")
 
-    monkeypatch.setattr(blog_task.extract, "delay", _broker_down)
+    monkeypatch.setattr(blog_task.extract, "delay", _premature_dispatch)
 
     post, src, job, _ = capture_service.capture_url(
         db_session, user_id, url="https://example.com/a", note="n"
     )
     db_session.commit()
 
-    # Everything is durable despite the failed enqueue.
+    # Everything is durable and the Outbox publisher is the sole dispatcher.
     assert db_session.get(PostSource, src.id).status == "pending"
     assert db_session.get(AsyncJob, job.id) is not None
     outbox_count = db_session.scalar(
@@ -216,7 +215,8 @@ def test_provider_timeout_fails_run_without_candidate(db_session, user_id, monke
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _j, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
 
@@ -242,7 +242,8 @@ def test_cancellation_before_generation_is_honored(db_session, user_id, monkeypa
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _j, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     # User cancels before the worker runs.
     ai_service.cancel_run(db_session, user_id, run.id)
@@ -273,7 +274,8 @@ def test_duplicate_worker_delivery_is_idempotent(db_session, user_id, monkeypatc
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _j, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+        db_session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     db_session.commit()
 
@@ -301,7 +303,8 @@ def _seed_candidate(session, user_id):
     post.summary = "V1摘要"
     session.flush()
     _j, run, _ = ai_service.submit_optimization(
-        session, user_id, post.id, post_version=post.version, optimization_type="full",
+        session, user_id, post.id, post_version=post.version,
+        optimization_type="full", provider_key="aiassist",
     )
     candidate = ai_service.save_candidate(
         session, run, candidate_markdown="AI正文",

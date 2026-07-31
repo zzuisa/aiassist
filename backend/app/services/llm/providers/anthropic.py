@@ -6,6 +6,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.services.llm.base import LLMError
+from app.services.llm.providers.http import llm_http_timeout
 
 
 class AnthropicProvider:
@@ -30,7 +31,7 @@ class AnthropicProvider:
                     "system": f"{system}\n只输出符合要求的 JSON，不要额外文本。",
                     "messages": [{"role": "user", "content": user}],
                 },
-                timeout=60,
+                timeout=llm_http_timeout(),
             )
         except httpx.TimeoutException as exc:
             raise LLMError("timeout", str(exc)) from exc

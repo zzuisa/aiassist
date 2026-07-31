@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 // Mock the AI client so the dialog never hits the network. Keep the real
 // classifier/types export so the component's imports still resolve.
@@ -14,6 +14,12 @@ vi.mock('@/api/blogAI', async () => {
     },
   }
 })
+vi.mock('@/api/blogSkills', () => ({
+  blogSkillsApi: { list: vi.fn().mockResolvedValue([]) },
+}))
+vi.mock('@/api/settings', () => ({
+  settingsApi: { get: vi.fn() },
+}))
 const routerPush = vi.fn()
 // Neutralise router usage in the pages.
 vi.mock('vue-router', () => ({
@@ -24,6 +30,7 @@ vi.mock('vue-router', () => ({
 
 import { blogAIApi } from '@/api/blogAI'
 import { api } from '@/api/client'
+import { settingsApi } from '@/api/settings'
 import OptimizePostDialog from '@/modules/posts/OptimizePostDialog.vue'
 import BlogJobsPage from '@/modules/posts/BlogJobsPage.vue'
 import BlogJobDetailPage from '@/modules/posts/BlogJobDetailPage.vue'
@@ -34,34 +41,45 @@ import { useJobsStore } from '@/stores/jobs'
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
+  vi.mocked(settingsApi.get).mockResolvedValue({
+    ai_optimization: {
+      default_provider: 'radio',
+      version: 1,
+      providers: [],
+    },
+  } as never)
 })
 
 describe('OptimizePostDialog', () => {
-  it('submits an optimization bound to the current version and emits the job id', async () => {
-    vi.mocked(blogAIApi.optimize).mockResolvedValue({ id: 'job-9' } as never)
+  it('submits an optimization bound to the current version and emits the job', async () => {
+    const submittedJob = { id: 'job-9', status: 'queued' }
+    vi.mocked(blogAIApi.optimize).mockResolvedValue(submittedJob as never)
     const w = mount(OptimizePostDialog, { props: { postId: 'p1', postVersion: 7 } })
 
+    await flushPromises()
     await w.find('.primary').trigger('click')
     await Promise.resolve()
 
     expect(blogAIApi.optimize).toHaveBeenCalledWith('p1', {
       post_version: 7,
-      optimization_type: 'full',
-      scope: 'all',
+      optimization_type: 'language',
+      scope: 'body',
       selected_fields: [],
       skill_id: null,
+      provider_key: 'radio',
       model_key: null,
       instruction: null,
     })
-    expect(w.emitted('submitted')!.at(-1)).toEqual(['job-9'])
+    expect(w.emitted('submitted')!.at(-1)).toEqual([submittedJob])
   })
 
   it('requires and passes selected fields when scope is selected_fields', async () => {
     vi.mocked(blogAIApi.optimize).mockResolvedValue({ id: 'job-1' } as never)
     const w = mount(OptimizePostDialog, { props: { postId: 'p1', postVersion: 2 } })
 
-    // Second select is the scope control.
-    await w.findAll('select')[1].setValue('selected_fields')
+    await flushPromises()
+    await w.find('select[aria-label="AI 优化服务"]').setValue('aiassist')
+    await w.find('select[aria-label="范围"]').setValue('selected_fields')
     // With no fields chosen the submit button is disabled.
     expect((w.find('.primary').element as HTMLButtonElement).disabled).toBe(true)
 
@@ -72,6 +90,22 @@ describe('OptimizePostDialog', () => {
     const body = vi.mocked(blogAIApi.optimize).mock.calls[0][1]
     expect(body.scope).toBe('selected_fields')
     expect(body.selected_fields).toEqual(['title', 'summary'])
+    expect(body.provider_key).toBe('aiassist')
+  })
+
+  it('loads AI Assist as the user configured default', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue({
+      ai_optimization: {
+        default_provider: 'aiassist',
+        version: 2,
+        providers: [],
+      },
+    } as never)
+    const w = mount(OptimizePostDialog, { props: { postId: 'p1', postVersion: 3 } })
+    await flushPromises()
+    expect((w.find('select[aria-label="AI 优化服务"]').element as HTMLSelectElement).value)
+      .toBe('aiassist')
+    expect(w.text()).toContain('高级选项')
   })
 
   it('surfaces a version conflict without emitting', async () => {
@@ -80,6 +114,7 @@ describe('OptimizePostDialog', () => {
       new ApiError({ type: '', title: '', status: 409, code: 'version_conflict' }),
     )
     const w = mount(OptimizePostDialog, { props: { postId: 'p1', postVersion: 1 } })
+    await flushPromises()
     await w.find('.primary').trigger('click')
     await Promise.resolve()
     expect(w.find('.opt-error').text()).toContain('文章已被修改')
@@ -116,6 +151,8 @@ describe('BlogJobsPage', () => {
     store.applyJobEvent({
       job_id: 'b1', job_version: 1, job_type: 'blog.optimize', status: 'processing',
       progress: 30, scope: 'blog', display_status: 'ai_processing', created_at: '2026-01-01',
+      current_step: 'Radio 正在生成优化内容',
+      result: { context: { post_title: '并行优化文章', provider_key: 'radio' } },
     })
     store.applyJobEvent({
       job_id: 't1', job_version: 1, job_type: 'voice.transcribe', status: 'processing',
@@ -127,6 +164,9 @@ describe('BlogJobsPage', () => {
 
     expect(w.text()).toContain('AI 优化')
     expect(w.text()).toContain('优化中')
+    expect(w.text()).toContain('并行优化文章')
+    expect(w.text()).toContain('Radio')
+    expect(w.text()).toContain('1 个进行中')
     expect(w.text()).not.toContain('voice.transcribe')
   })
 
@@ -190,6 +230,21 @@ describe('CandidateComparePage', () => {
     expect(w.find('.conflict-banner').exists()).toBe(true)
     // Conflicting field is NOT pre-selected; the two ai_only fields are.
     expect(w.find('.impact strong').text()).toBe('2')
+  })
+
+  it('shows a human-readable body review instead of only a code diff', async () => {
+    vi.mocked(blogAIApi.compareCandidate).mockResolvedValue(compareFixture() as never)
+    const w = mount(CandidateComparePage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(w.find('.body-review').text()).toContain('具体改了什么')
+    expect(w.find('.change-pane--removed').text()).toContain('b')
+    expect(w.find('.change-pane--added').text()).toContain('AI正文')
+
+    await w.findAll('[role="tab"]')[1].trigger('click')
+    expect(w.find('.preview-card--candidate').text()).toContain('AI正文')
+    expect(w.find('.preview-card').text()).toContain('不会被修改')
   })
 
   it('applies only the selected fields under the current version', async () => {

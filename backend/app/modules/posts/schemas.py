@@ -144,6 +144,31 @@ class ContentTypeOut(BaseModel):
     updated_at: str
 
 
+class TaxonomyWrite(BaseModel):
+    model_config = {"extra": "forbid"}
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    parent_id: uuid.UUID | None = None
+    aliases: list[str] = Field(default_factory=list, max_length=50)
+    color: str | None = Field(default=None, max_length=32)
+    enabled: bool = True
+    stop_word: bool = False
+
+
+class TaxonomyItemOut(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: str
+    kind: str
+    name: str
+    description: str | None
+    parent_id: str | None
+    aliases: list[str]
+    color: str | None
+    enabled: bool
+    stop_word: bool
+    usage_count: int
+
+
 class GenerateBody(BaseModel):
     """Legacy AI generation request (pre-005 blog.generate job)."""
 
@@ -175,6 +200,7 @@ class OptimizeBody(BaseModel):
     scope: str = Field(default="all", pattern="^(all|body|metadata|selected_fields)$")
     selected_fields: list[str] = Field(default_factory=list, max_length=200)
     skill_id: uuid.UUID | None = None
+    provider_key: str | None = Field(default=None, pattern="^(radio|aiassist)$")
     model_key: str | None = Field(default=None, max_length=120)
     instruction: str | None = Field(default=None, max_length=2000)
     request_nonce: str | None = Field(default=None, max_length=64)
@@ -332,6 +358,9 @@ class PostSourceOut(BaseModel):
     normalized_markdown: str | None
     user_note: str | None
     metadata: dict[str, Any]
+    external_system: str | None
+    external_record_id: str | None
+    external_task_id: str | None
     has_snapshot: bool
     attempt_count: int
     captured_at: str | None
@@ -421,7 +450,7 @@ class PostOut(BaseModel):
     tag_ids: list[str] = Field(default_factory=list)
     keyword_ids: list[str] = Field(default_factory=list)
     language: str
-    editor_mode: str = "markdown"
+    editor_mode: str = "rich"
     occurred_at: str | None = None
     location: str | None = None
     project: str | None = None
@@ -494,7 +523,7 @@ def post_out(p: Post) -> PostOut:
         content_type_id=str(p.content_type_id) if getattr(p, "content_type_id", None) else None,
         category_id=str(p.category_id) if getattr(p, "category_id", None) else None,
         language=getattr(p, "language", "zh-CN"),
-        editor_mode=getattr(p, "editor_mode", "markdown"),
+        editor_mode=getattr(p, "editor_mode", "rich"),
         occurred_at=p.occurred_at.isoformat() if getattr(p, "occurred_at", None) else None,
         location=getattr(p, "location_text", None),
         project=getattr(p, "project_text", None),
@@ -579,6 +608,9 @@ def source_out(s: Any) -> PostSourceOut:
         normalized_markdown=s.normalized_markdown,
         user_note=s.user_note,
         metadata=meta,
+        external_system=getattr(s, "external_system", None),
+        external_record_id=getattr(s, "external_record_id", None),
+        external_task_id=getattr(s, "external_task_id", None),
         has_snapshot=bool(s.snapshot_object_key),
         attempt_count=s.fetch_attempt_count,
         captured_at=s.captured_at.isoformat() if s.captured_at else None,

@@ -50,6 +50,7 @@ export interface ArticleRow {
   title: string
   content_status: string
   content_class: string
+  category_id: string | null
   status: string
   ai_state: 'none' | 'processing' | 'review' | 'failed' | 'optimized'
   source_count: number
@@ -64,9 +65,52 @@ export interface ArticleListResult {
   counts_by_status: Record<string, number>
 }
 
+export interface BlogSearchItem {
+  id: string
+  title: string
+  summary: string | null
+  content_class: string
+  category_id: string | null
+  category: string | null
+  tags: string[]
+  content_status: string
+  status: string
+  matched_fields: string[]
+  highlight: string | null
+  occurred_at: string | null
+  updated_at: string
+}
+
+export interface BlogSearchResult {
+  query: string
+  items: BlogSearchItem[]
+  next_cursor: number | null
+  total: number
+}
+
+export interface TimelineItem {
+  id: string
+  title: string
+  summary: string | null
+  content_class: string
+  category_id: string | null
+  status: string
+  content_status: string
+  time: string
+  time_basis: 'occurred_at' | 'created_at'
+}
+
+export interface TimelineResult {
+  items: TimelineItem[]
+  next_cursor: number | null
+  total: number
+  time_basis: 'occurred_at_or_created_at'
+}
+
 export interface ArticleFilters {
   content_status?: string
   content_class?: string
+  category_id?: string
   status?: string
   ai_state?: string
   search?: string
@@ -110,7 +154,7 @@ export interface MergeBody {
   title?: string | null
 }
 
-function toQuery(f: ArticleFilters): Record<string, string> {
+function toQuery(f: object): Record<string, string> {
   const q: Record<string, string> = {}
   for (const [k, v] of Object.entries(f)) {
     if (v !== undefined && v !== null && v !== '') q[k] = String(v)
@@ -121,6 +165,16 @@ function toQuery(f: ArticleFilters): Record<string, string> {
 export const articlesApi = {
   list: (filters: ArticleFilters = {}) =>
     api.get<ArticleListResult>('/blog/articles', toQuery(filters)),
+  search: (q: string, filters: Omit<ArticleFilters, 'search' | 'cursor'> = {}, cursor = 0) =>
+    api.get<BlogSearchResult>('/blog/search', toQuery({ ...filters, q, cursor })),
+  timeline: (filters: {
+    year?: number
+    month?: number
+    content_class?: string
+    category_id?: string
+    cursor?: number
+    limit?: number
+  } = {}) => api.get<TimelineResult>('/blog/timeline', toQuery(filters)),
   triage: (reason?: TriageReason) =>
     api.get<TriageResult>('/blog/triage', reason ? { reason } : undefined),
   batch: (postIds: string[], op: BatchOp, params: Record<string, unknown> = {}) =>

@@ -30,7 +30,39 @@ def test_get_settings_includes_dependencies(client, make_user):
     body = resp.json()
     assert body["user"]["email"] == user.email
     assert "mail" in body["dependencies"]
+    assert "radio" in body["dependencies"]
     assert body["dependencies"]["storage"]["state"] == "ready"
+    assert body["ai_optimization"]["default_provider"] == "radio"
+    assert [provider["key"] for provider in body["ai_optimization"]["providers"]] == [
+        "radio",
+        "aiassist",
+    ]
+
+
+def test_patch_default_ai_provider_persists(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    resp = client.patch(
+        "/api/v1/settings",
+        json={"ai_optimization": {"default_provider": "aiassist"}},
+        headers=h,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ai_optimization"]["default_provider"] == "aiassist"
+    assert client.get("/api/v1/settings").json()["ai_optimization"][
+        "default_provider"
+    ] == "aiassist"
+
+
+def test_patch_invalid_ai_provider_rejected(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    resp = client.patch(
+        "/api/v1/settings",
+        json={"ai_optimization": {"default_provider": "unknown"}},
+        headers=h,
+    )
+    assert resp.status_code == 422
 
 
 def test_patch_timezone_valid(client, make_user):

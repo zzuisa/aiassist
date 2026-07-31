@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
@@ -26,6 +26,52 @@ from app.modules.posts.schemas import (
 query_router = APIRouter(prefix="/blog", tags=["blog-query"])
 
 
+@query_router.get("/search")
+def search_blog_articles(
+    q: str = Query(min_length=1, max_length=200),
+    content_class: str | None = None,
+    category_id: uuid.UUID | None = None,
+    ai_state: str | None = None,
+    cursor: int = 0,
+    limit: int = 30,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return query_service.search_posts(
+        db,
+        user.id,
+        q,
+        content_class=content_class,
+        category_id=category_id,
+        ai_state=ai_state,
+        cursor=max(cursor, 0),
+        limit=min(max(limit, 1), 100),
+    )
+
+
+@query_router.get("/timeline")
+def timeline_blog_articles(
+    year: int | None = Query(default=None, ge=1970, le=2200),
+    month: int | None = Query(default=None, ge=1, le=12),
+    content_class: str | None = None,
+    category_id: uuid.UUID | None = None,
+    cursor: int = 0,
+    limit: int = 30,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return query_service.timeline_posts(
+        db,
+        user.id,
+        year=year,
+        month=month,
+        content_class=content_class,
+        category_id=category_id,
+        cursor=max(cursor, 0),
+        limit=min(max(limit, 1), 100),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Article management: list / triage / merge / batch / export (spec 005, US6)
 # ---------------------------------------------------------------------------
@@ -35,6 +81,7 @@ query_router = APIRouter(prefix="/blog", tags=["blog-query"])
 def list_articles(
     content_status: str | None = None,
     content_class: str | None = None,
+    category_id: uuid.UUID | None = None,
     status: str | None = None,
     ai_state: str | None = None,
     search: str | None = None,
@@ -47,7 +94,7 @@ def list_articles(
 ) -> dict:
     return query_service.list_posts(
         db, user.id,
-        content_status=content_status, content_class=content_class, status=status,
+        content_status=content_status, content_class=content_class, category_id=category_id, status=status,
         ai_state=ai_state, search=search, include_inactive=include_inactive,
         sort=sort, cursor=cursor, limit=min(limit, 100),
     )
