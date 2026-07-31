@@ -3,14 +3,15 @@
 //
 // Dependency-free and XSS-safe: all raw HTML in the source is escaped before any
 // Markdown structure is applied, so no author or pasted markup can inject nodes.
-// Fenced code gets a copy button; ```mermaid``` and $$…$$ blocks are shown as
-// clearly-labelled read-only source (no external renderer is loaded).
+// Fenced code gets a copy button; Mermaid and ECharts blocks are rendered with
+// a local, strict visual renderer and retain an expandable source view.
 import { computed, ref } from 'vue'
+import VisualBlock from '@/modules/posts/VisualBlock.vue'
 
 const props = defineProps<{ markdown: string }>()
 
 interface Block {
-  kind: 'html' | 'code' | 'mermaid' | 'formula'
+  kind: 'html' | 'code' | 'mermaid' | 'echarts' | 'formula'
   content: string
   lang?: string
 }
@@ -88,25 +89,31 @@ function renderMarkdownBlock(src: string, headingIndex: { value: number }): stri
 }
 
 const blocks = computed<Block[]>(() => {
-  const escaped = escapeHtml(props.markdown)
+  const source = props.markdown
   const out: Block[] = []
   const headingIndex = { value: 0 }
   const fence = /```(\w+)?\n([\s\S]*?)```/g
   let lastIndex = 0
   let m: RegExpExecArray | null
-  while ((m = fence.exec(escaped)) !== null) {
+  while ((m = fence.exec(source)) !== null) {
     if (m.index > lastIndex) {
       out.push({
         kind: 'html',
-        content: renderMarkdownBlock(escaped.slice(lastIndex, m.index), headingIndex),
+        content: renderMarkdownBlock(escapeHtml(source.slice(lastIndex, m.index)), headingIndex),
       })
     }
     const lang = (m[1] || '').toLowerCase()
+    // Code/visual blocks are rendered through text nodes or strict renderers;
+    // escaping their source here would corrupt JSON and Mermaid syntax.
     const code = m[2].replace(/\n$/, '')
-    out.push({ kind: lang === 'mermaid' ? 'mermaid' : 'code', content: code, lang })
+    out.push({
+      kind: lang === 'mermaid' ? 'mermaid' : lang === 'echarts' ? 'echarts' : 'code',
+      content: code,
+      lang,
+    })
     lastIndex = fence.lastIndex
   }
-  let tail = escaped.slice(lastIndex)
+  let tail = escapeHtml(source.slice(lastIndex))
   // Read-only formula blocks ($$ … $$) are surfaced as labelled source.
   const formula = /\$\$([\s\S]*?)\$\$/g
   const tailOut: Block[] = []
@@ -164,13 +171,18 @@ async function copy(text: string, i: number): Promise<void> {
         v-html="b.content"
       />
       <!-- eslint-enable vue/no-v-html -->
-      <figure
+      <VisualBlock
         v-else-if="b.kind === 'mermaid'"
-        class="md-special"
-      >
-        <figcaption>Mermaid（只读）</figcaption>
-        <pre>{{ b.content }}</pre>
-      </figure>
+        kind="mermaid"
+        :source="b.content"
+        caption="流程图（Mermaid）"
+      />
+      <VisualBlock
+        v-else-if="b.kind === 'echarts'"
+        kind="echarts"
+        :source="b.content"
+        caption="数据图表"
+      />
       <figure
         v-else-if="b.kind === 'formula'"
         class="md-special"

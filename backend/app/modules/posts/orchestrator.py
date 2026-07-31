@@ -40,6 +40,8 @@ BLOG_ENHANCEMENT_SYSTEM_PROMPT = r"""你是「AI Assist 博客增强编排器（
 
 只输出符合请求 JSON Schema 的一个 JSON 对象，不输出解释文字或 Markdown 代码围栏。最终对象必须包含 status、article_assessment、decision、optimized_article、enhancements、quality_report、usage；每个视觉增强必须包含标题/说明和 alt_text。Quality 检查只删除无依据或低价值增强，不用更多虚构内容修补。
 
+视觉增强的 content 必须使用可执行结构：visualize 使用 {"mermaid":"flowchart TD..."}；answers-charts 使用 {"chart_type":"bar|line|pie|scatter|table","data":[{"label":"...","value":0}],"unit":"...","source":[]}，只使用正文已有且口径一致的数据；imagegen/answers-images 使用 {"prompt":"..."} 或 {"query":"..."}。不要把 HTML、脚本、data URI 或未经验证的图片地址放入 content。
+
 模型与工具无关：不得依赖 Claude CLI。Qwen、DeepSeek 或其他兼容 JSON Schema 的模型均按同一规则工作。"""
 
 
@@ -48,11 +50,13 @@ _CAPABILITY_DEFAULTS: tuple[dict[str, Any], ...] = (
         "name": "visualize",
         "type": "skill",
         "description": "把明确的流程、层级、关系、状态变化或系统结构转成精确可读的可视化表达",
+        "enabled": True,
     },
     {
         "name": "answers-charts",
         "type": "skill",
         "description": "根据文章中可靠、结构化的数值生成数据图表",
+        "enabled": True,
     },
     {
         "name": "answers-images",

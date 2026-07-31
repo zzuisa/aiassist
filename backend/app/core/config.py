@@ -129,6 +129,8 @@ class Settings(BaseSettings):
     # JSON list of locally registered blog enhancement capabilities.  Only
     # non-secret manifest fields are exposed to the model orchestrator.
     blog_capabilities_json: str = ""
+    blog_allow_retrieved_images: bool = False
+    blog_allow_generated_images: bool = False
     speech_provider: str = "none"
     speech_default_model: str = ""
     llm_provider_key_file: str | None = None

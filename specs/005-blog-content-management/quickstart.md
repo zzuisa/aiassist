@@ -21,6 +21,16 @@
 
 AI Assist 完整优化还会先执行 Blog Enhancement Orchestrator 的共享诊断。能力注册通过后端环境变量 `BLOG_CAPABILITIES_JSON` 注入，例如只启用本地流程图能力时可传入不含 endpoint/secret 的清单；未启用的视觉能力应在结果中标记 `skipped` 或 `unavailable`，而不是生成装饰性内容。
 
+### 可视化能力
+
+- `visualize`：默认启用。模型输出 Mermaid，后端做安全/语法校验，候选正文和阅读预览中渲染流程图。
+- `answers-charts`：默认启用。模型只能使用正文中已有的统一口径数据，输出 ECharts 结构；后端校验后在候选正文和阅读预览中渲染图表。
+- `answers-images` / `imagegen`：默认关闭。需要注册 `type=http-api`、`enabled=true` 和 HTTPS `endpoint`，密钥仅通过 `token_file` 注入，不能写入环境变量或 Prompt。图片服务需要返回 `url`、`data[].url`、`images[].url` 或 `results[].url` 之一。
+
+要允许图片能力参与自动优化，还需显式设置 `BLOG_ALLOW_RETRIEVED_IMAGES=true` 或 `BLOG_ALLOW_GENERATED_IMAGES=true`。例如 SiliconFlow 兼容接口可以使用 `https://api.siliconflow.cn/v1/images/generations`，并在能力项中配置 `model` 和现有 LLM provider 的 `token_file`；不开启开关时不会产生图片调用。
+
+流程图和图表不需要额外的模型或 API Key；它们由当前 Blog Enhancement LLM 生成结构化内容，再由本地渲染器执行。图片能力只有在明确注册服务后才会产生外部调用。
+
 ## 2. Contract and Migration Gate
 
 Run before user-story work:

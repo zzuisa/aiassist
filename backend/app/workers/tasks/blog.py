@@ -635,6 +635,7 @@ def optimize_run(
         build_system_prompt,
         build_user_payload,
     )
+    from app.modules.posts.visuals import enhancements_markdown, execute_enhancements
     from app.services.llm.base import LLMError, StructuredRequest
     from app.services.llm.gateway import get_llm_gateway
     from app.services.llm.schemas import (
@@ -692,7 +693,12 @@ def optimize_run(
             ai_service.mark_run_failed(s, run, code="cancelled")
             return "cancelled"
 
-        orchestration_plan = build_plan(post.title, body)
+        settings = get_settings()
+        visual_options = {
+            "allow_retrieved_images": settings.blog_allow_retrieved_images,
+            "allow_generated_images": settings.blog_allow_generated_images,
+        }
+        orchestration_plan = build_plan(post.title, body, options=visual_options)
         provider_label = "Radio" if run.provider_key == "radio" else "AI Assist"
         jobs_service.transition(
             s,
@@ -714,7 +720,7 @@ def optimize_run(
                 category=post.content_class,
                 target_audience=None,
                 author_intent=instruction,
-                options={"allow_rewrite": scope != "metadata"},
+                options={"allow_rewrite": scope != "metadata", **visual_options},
                 skill_config=config,
                 plan=orchestration_plan,
             )
@@ -856,6 +862,15 @@ def optimize_run(
         s.commit()
 
         orchestration_result = None
+        visual_items: list[dict] = []
+        if isinstance(result, BlogEnhancementResultV1):
+            visual_items = execute_enhancements(result, max_visual_items=2)
+            if visual_items:
+                visual_markdown = enhancements_markdown(visual_items)
+                if visual_markdown:
+                    result.optimized_article.content_markdown = (
+                        result.optimized_article.content_markdown.rstrip() + visual_markdown
+                    )
         result, orchestration_result = _normalize_orchestration_result(result, post)
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)
@@ -872,6 +887,7 @@ def optimize_run(
             "model_warnings": [w.model_dump(mode="json") for w in result.warnings],
             "rejected_fields": rejected,
             "orchestration_plan": orchestration_plan.as_dict(),
+            "visual_enhancements": visual_items,
         }
         if orchestration_result is not None:
             validation["orchestration_result"] = {

@@ -396,6 +396,8 @@
 - [x] T200 Implement provider-neutral Blog Enhancement system prompt, deterministic diagnosis, Agent/visual budget gates and safe capability manifest injection in `backend/app/modules/posts/orchestrator.py` and `backend/app/core/config.py`
 - [x] T201 Implement strict `BlogEnhancementResultV1` output models and adapt the total-controller result to the existing `blog-optimization.v1` candidate contract in `backend/app/services/llm/schemas.py` and `backend/app/workers/tasks/blog.py`
 - [x] T202 Validate orchestrator, contract and AI pipeline behavior with an isolated PostgreSQL test run and record the capability configuration guidance in this quickstart
+- [x] T203 Execute and validate Mermaid/ECharts enhancements locally; render them in Markdown and candidate review with expandable source data
+- [x] T204 Add a guarded HTTP adapter for optional `imagegen`/`answers-images` capabilities and document secret-file configuration
 
 **Checkpoint**: A full AI Assist optimization performs value gating before model work, can safely skip low-value enhancements, and still produces the existing reviewable candidate without mutating the authored article.
 
