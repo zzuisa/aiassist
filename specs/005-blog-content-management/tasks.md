@@ -377,7 +377,7 @@
 - [x] T195 Implement current/history version status panel and settings navigation entry in `frontend/src/modules/releases/ReleaseHistoryPage.vue`, `frontend/src/router/index.ts` and `frontend/src/modules/settings/SettingsPage.vue`
 - [x] T196 Implement safe release metadata generation, Git commit/push gate and non-zero failure behavior before image build in `deploy/scripts/deploy.sh`
 - [x] T197 Add release metadata security, deployment failure and update-history acceptance guidance in `specs/005-blog-content-management/quickstart.md` and `specs/001-personal-life-os/deployment.md`
-- [ ] T198 Validate release popup/history, metadata generation, commit/push gate, production build and deployment health; record evidence in `specs/005-blog-content-management/quickstart.md`
+- [x] T198 Validate release popup/history, metadata generation, commit/push gate, production build and deployment health; record evidence in `specs/005-blog-content-management/quickstart.md`
 
 **Checkpoint**: A successful deployment has a pushed commit and a visible update record; an unseen version opens an update announcement, and users can navigate to historical version status.
 

@@ -231,6 +231,7 @@ Validated for this priority increment on 2026-07-31:
 - Backend category/list contract coverage is present in `backend/tests/contract/test_blog_content_api.py`; the runtime image intentionally excludes pytest, so that suite was not executed inside the deployed container.
 - Release popup/history component coverage is present in `frontend/tests/component/app-shell.spec.ts` and `frontend/tests/component/release-history.spec.ts`; release metadata is served without service-worker precache so every deployment is fetched fresh.
 - `deploy/scripts/deploy.sh` commits and pushes the worktree before building images, then commits and pushes the release history metadata; release metadata contains no secrets or article content.
+- Release verification on 2026-07-31: source commits `e7e508d`, `07ed9d0` and release metadata commits `1b70e24`, `2361f08` are pushed to `origin/005-blog-content-management`; `/release-history.json` returned HTTP 200 with mode 644, and all Compose healthchecks plus both Worker pongs passed.
 
 ## 8. Final Regression Gate
 
