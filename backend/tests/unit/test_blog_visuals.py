@@ -45,6 +45,52 @@ def test_mermaid_is_normalized_and_inserted():
     assert "```mermaid" in enhancements_markdown(items)
 
 
+def test_visual_plan_is_normalized_and_rendered_as_reader_facing_block():
+    result = _result([
+        {
+            "id": "plan-1", "agent": "logic-agent", "capability": "visualize", "status": "executed",
+            "insert_after": "body", "reason": "普通读者需要步骤图", "content": {
+                "visual_plan": {
+                    "visual_type": "illustrated_steps", "layout": "compact_horizontal", "theme": "fresh",
+                    "title": "建立早起习惯",
+                    "nodes": [
+                        {"id": "prepare", "label": "睡前准备", "detail": "提前放下手机", "icon": "moon"},
+                        {"id": "wake", "label": "固定起床", "detail": "每天同一时间", "icon": "sun"},
+                        {"id": "reward", "label": "即时奖励", "detail": "安排喜欢的早餐", "icon": "star"},
+                    ],
+                    "edges": [
+                        {"from": "prepare", "to": "wake", "label": "第二天"},
+                        {"from": "wake", "to": "reward", "label": "起床后"},
+                    ],
+                },
+            }, "caption": "早起步骤", "alt_text": "建立早起习惯的三个步骤",
+        }
+    ])
+    items = execute_enhancements(result)
+    assert items[0]["content"]["format"] == "visual-plan"
+    markdown = enhancements_markdown(items)
+    assert "```visual-plan" in markdown
+    assert "睡前准备" in markdown
+
+
+def test_visual_plan_rejects_invalid_edges():
+    result = _result([
+        {
+            "id": "plan-1", "agent": "logic-agent", "capability": "visualize", "status": "executed",
+            "insert_after": "body", "reason": "无效", "content": {
+                "visual_plan": {
+                    "visual_type": "compact_flow", "layout": "compact_horizontal", "theme": "fresh",
+                    "title": "无效图", "nodes": [
+                        {"id": "a", "label": "A"}, {"id": "b", "label": "B"}, {"id": "c", "label": "C"},
+                    ], "edges": [{"from": "a", "to": "missing"}],
+                },
+            }, "caption": "无效", "alt_text": "无效",
+        }
+    ])
+    execute_enhancements(result)
+    assert result.enhancements[0].status == "failed"
+
+
 def test_chart_rejects_non_numeric_points():
     result = _result([
         {

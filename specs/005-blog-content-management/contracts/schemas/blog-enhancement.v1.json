@@ -53,7 +53,49 @@
       "properties": {
         "id": { "type": "string" }, "agent": { "type": "string" }, "capability": { "type": "string" },
         "status": { "enum": ["executed", "skipped", "unavailable", "failed"] }, "insert_after": { "type": "string" },
-        "reason": { "type": "string" }, "content": { "type": "object" }, "caption": { "type": "string" }, "alt_text": { "type": "string" }
+        "reason": { "type": "string" },
+        "content": {
+          "type": "object",
+          "properties": {
+            "format": { "enum": ["visual-plan", "mermaid", "echarts", "image"] },
+            "visual_plan": { "$ref": "#/$defs/visualPlan" },
+            "mermaid": { "type": "string", "maxLength": 20000 },
+            "chart_type": { "enum": ["bar", "line", "pie", "scatter", "table"] },
+            "data": { "type": "array", "maxItems": 100 },
+            "image_url": { "type": "string", "maxLength": 2048 }
+          },
+          "additionalProperties": true
+        },
+        "caption": { "type": "string" }, "alt_text": { "type": "string" }
+      }
+    },
+    "visualPlan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["visual_type", "layout", "theme", "title", "nodes", "edges"],
+      "properties": {
+        "visual_type": { "enum": ["illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"] },
+        "layout": { "enum": ["compact_horizontal", "compact_vertical", "timeline", "radial"] },
+        "theme": { "enum": ["warm", "fresh", "calm", "energetic", "neutral"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "nodes": { "type": "array", "minItems": 3, "maxItems": 7, "items": { "$ref": "#/$defs/visualNode" } },
+        "edges": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/visualEdge" } }
+      }
+    },
+    "visualNode": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "detail": { "type": "string", "maxLength": 80 },
+        "icon": { "type": "string", "maxLength": 24 }
+      }
+    },
+    "visualEdge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string" }, "to": { "type": "string" }, "label": { "type": "string", "maxLength": 30 }
       }
     },
     "qualityReport": {

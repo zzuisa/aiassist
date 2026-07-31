@@ -100,7 +100,7 @@
 
 - `BlogEditorShell.vue` 管理标题、属性、保存和路由；`MarkdownSourceEditor.vue` 管理源文本；`RichMarkdownEditor.vue` 封装 Milkdown；`MarkdownPreview.vue` 负责安全预览。
 - 两种模式只交换 Markdown 字符串，不保存编辑器内部文档树。切换先执行往返检查；发现不受支持节点时创建版本并要求确认降级。
-- 预览沿用 `markdown-it-py`/前端等价解析规则和安全渲染策略，默认禁用原始 HTML。Mermaid 在隔离渲染容器中只读执行；公式和代码高亮不影响存储文本。
+- 预览沿用 `markdown-it-py`/前端等价解析规则和安全渲染策略，默认禁用原始 HTML。普通读者视觉增强优先使用受限 `visual-plan` JSON，由前端以紧凑卡片式 SVG 渲染并支持 PNG 导出；技术图继续在隔离容器中只读执行 Mermaid。公式和代码高亮不影响存储文本。
 - 自动保存采用 1.5 秒停顿 + 显式保存/离开保护，始终携带版本；失败保留编辑缓存并显示未保存状态。
 - 文件和图片复用 UploadSession 的 `attachment`/`post_cover` purpose 与保护访问，不新增媒体中心。
 

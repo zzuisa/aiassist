@@ -11,7 +11,7 @@ import VisualBlock from '@/modules/posts/VisualBlock.vue'
 const props = defineProps<{ markdown: string }>()
 
 interface Block {
-  kind: 'html' | 'code' | 'mermaid' | 'echarts' | 'formula'
+  kind: 'html' | 'code' | 'mermaid' | 'visual-plan' | 'echarts' | 'formula'
   content: string
   lang?: string
 }
@@ -92,7 +92,7 @@ const blocks = computed<Block[]>(() => {
   const source = props.markdown
   const out: Block[] = []
   const headingIndex = { value: 0 }
-  const fence = /```(\w+)?\n([\s\S]*?)```/g
+  const fence = /```([\w-]+)?\n([\s\S]*?)```/g
   let lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = fence.exec(source)) !== null) {
@@ -107,7 +107,14 @@ const blocks = computed<Block[]>(() => {
     // escaping their source here would corrupt JSON and Mermaid syntax.
     const code = m[2].replace(/\n$/, '')
     out.push({
-      kind: lang === 'mermaid' ? 'mermaid' : lang === 'echarts' ? 'echarts' : 'code',
+      kind:
+        lang === 'mermaid'
+          ? 'mermaid'
+          : lang === 'visual-plan'
+            ? 'visual-plan'
+            : lang === 'echarts'
+              ? 'echarts'
+              : 'code',
       content: code,
       lang,
     })
@@ -176,6 +183,12 @@ async function copy(text: string, i: number): Promise<void> {
         kind="mermaid"
         :source="b.content"
         caption="流程图（Mermaid）"
+      />
+      <VisualBlock
+        v-else-if="b.kind === 'visual-plan'"
+        kind="visual-plan"
+        :source="b.content"
+        caption="文章要点图"
       />
       <VisualBlock
         v-else-if="b.kind === 'echarts'"

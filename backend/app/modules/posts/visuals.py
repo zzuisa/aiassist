@@ -1,9 +1,9 @@
 """Execution and normalization for blog visual enhancements.
 
-Mermaid and ECharts are local, deterministic capabilities: the model proposes
-the source/data and this module validates it before it reaches a candidate.
-Image capabilities are deliberately adapter-based and disabled until an
-operator registers an allow-listed HTTP endpoint in BLOG_CAPABILITIES_JSON.
+Visual plans are the preferred format for reader-facing explainers: the model
+proposes a small, semantic graph and the frontend renders it as a compact,
+styled SVG that can be downloaded as PNG. Mermaid remains supported as a
+backward-compatible format for technical diagrams.
 """
 
 from __future__ import annotations
@@ -21,7 +21,13 @@ from app.core.config import get_settings
 _MAX_MERMAID = 20_000
 _MAX_CHART_POINTS = 100
 _MAX_IMAGE_RESPONSE = 64 * 1024
+_MAX_VISUAL_NODES = 7
+_MAX_VISUAL_EDGES = 10
 _DANGEROUS_MERMAID = re.compile(r"<\s*script|javascript:|data:text/html|on\w+\s*=", re.I)
+_VISUAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")
+_VISUAL_LAYOUTS = {"compact_horizontal", "compact_vertical", "timeline", "radial"}
+_VISUAL_TYPES = {"illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"}
+_VISUAL_THEMES = {"warm", "fresh", "calm", "energetic", "neutral"}
 
 
 def _configured_capability(name: str) -> dict[str, Any] | None:
@@ -88,6 +94,84 @@ def _as_chart(content: dict[str, Any]) -> dict[str, Any] | None:
         "source": [str(item)[:500] for item in content.get("source", [])[:10]]
         if isinstance(content.get("source"), list)
         else [],
+    }
+
+
+def _as_visual_plan(content: dict[str, Any]) -> dict[str, Any] | None:
+    """Validate the small graph contract used by the compact visual renderer."""
+    raw = content.get("visual_plan") or content.get("plan")
+    if not isinstance(raw, dict):
+        return None
+    visual_type = raw.get("visual_type", "compact_flow")
+    layout = raw.get("layout", "compact_horizontal")
+    theme = raw.get("theme", "fresh")
+    title = raw.get("title", "")
+    nodes = raw.get("nodes")
+    edges = raw.get("edges", [])
+    if visual_type not in _VISUAL_TYPES or layout not in _VISUAL_LAYOUTS or theme not in _VISUAL_THEMES:
+        return None
+    if not isinstance(title, str) or not (1 <= len(title.strip()) <= 120):
+        return None
+    if not isinstance(nodes, list) or not (3 <= len(nodes) <= _MAX_VISUAL_NODES):
+        return None
+    if not isinstance(edges, list) or len(edges) > _MAX_VISUAL_EDGES:
+        return None
+
+    normalized_nodes: list[dict[str, str]] = []
+    node_ids: set[str] = set()
+    for node in nodes:
+        if not isinstance(node, dict):
+            return None
+        node_id = node.get("id")
+        label = node.get("label")
+        if (
+            not isinstance(node_id, str)
+            or not _VISUAL_ID.fullmatch(node_id)
+            or node_id in node_ids
+            or not isinstance(label, str)
+            or not (1 <= len(label.strip()) <= 40)
+        ):
+            return None
+        node_ids.add(node_id)
+        normalized_nodes.append(
+            {
+                "id": node_id,
+                "label": label.strip(),
+                "detail": str(node.get("detail", "")).strip()[:80],
+                "icon": str(node.get("icon", "step")).strip()[:24],
+            }
+        )
+
+    normalized_edges: list[dict[str, str]] = []
+    for edge in edges:
+        if not isinstance(edge, dict):
+            return None
+        source = edge.get("from")
+        target = edge.get("to")
+        if (
+            not isinstance(source, str)
+            or not isinstance(target, str)
+            or source not in node_ids
+            or target not in node_ids
+            or source == target
+        ):
+            return None
+        normalized_edges.append(
+            {
+                "from": source,
+                "to": target,
+                "label": str(edge.get("label", "")).strip()[:30],
+            }
+        )
+    if not normalized_edges and visual_type not in {"before_after", "timeline"}:
+        return None
+    return {
+        "visual_type": visual_type,
+        "layout": layout,
+        "theme": theme,
+        "title": title.strip(),
+        "nodes": normalized_nodes,
+        "edges": normalized_edges,
     }
 
 
@@ -181,12 +265,16 @@ def execute_enhancements(result: Any, *, max_visual_items: int = 2) -> list[dict
             continue
         content = enhancement.content if isinstance(enhancement.content, dict) else {}
         if enhancement.capability == "visualize":
-            source = _as_mermaid(content)
-            if source is None:
-                enhancement.status = "failed"
-                enhancement.reason = "Mermaid 内容未通过安全或语法门控"
-                continue
-            enhancement.content = {"format": "mermaid", "mermaid": source}
+            visual_plan = _as_visual_plan(content)
+            if visual_plan is not None:
+                enhancement.content = {"format": "visual-plan", "visual_plan": visual_plan}
+            else:
+                source = _as_mermaid(content)
+                if source is None:
+                    enhancement.status = "failed"
+                    enhancement.reason = "视觉方案未通过安全或结构门控"
+                    continue
+                enhancement.content = {"format": "mermaid", "mermaid": source}
         elif enhancement.capability == "answers-charts":
             chart = _as_chart(content)
             if chart is None:
@@ -220,7 +308,10 @@ def enhancements_markdown(enhancements: list[dict[str, Any]]) -> str:
         content = item.get("content") or {}
         caption = str(item.get("caption") or "可视化增强")[:500]
         alt_text = str(item.get("alt_text") or caption)[:500]
-        if item.get("capability") == "visualize" and content.get("mermaid"):
+        if item.get("capability") == "visualize" and content.get("visual_plan"):
+            visual_payload = json.dumps(content, ensure_ascii=False, separators=(",", ":"))
+            parts.append(f"\n\n> {caption}\n\n```visual-plan\n{visual_payload}\n```")
+        elif item.get("capability") == "visualize" and content.get("mermaid"):
             parts.append(f"\n\n> {caption}\n\n```mermaid\n{content['mermaid']}\n```")
         elif item.get("capability") == "answers-charts" and content.get("data"):
             chart_payload = json.dumps(content, ensure_ascii=False, separators=(",", ":"))
