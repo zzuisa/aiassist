@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.234900-2dbaf9d",
+      "version": "2026.07.31.234900",
+      "commit": "2dbaf9dc4bb25303bf7a78bdbe4946b27611bb78",
+      "commit_short": "2dbaf9d",
+      "message": "fix: recover stale CSRF token on optimize",
+      "changes": [
+        "fix: recover stale CSRF token on optimize",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/src/api/client.ts",
+        "frontend/tests/unit/api-client.spec.ts"
+      ],
+      "deployed_at": "2026-07-31T23:49:00Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.233804-a55dc1f",
       "version": "2026.07.31.233804",
       "commit": "a55dc1ffaa39bd6fc47bb2867177f7cc1c69c54b",
