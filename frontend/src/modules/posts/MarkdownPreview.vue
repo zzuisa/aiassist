@@ -26,12 +26,14 @@ function escapeHtml(s: string): string {
 
 function inline(s: string): string {
   // Operates on already-escaped text; only introduces our own safe tags.
+  const safeImageSource = (src: string): boolean =>
+    /^https?:\/\//.test(src) || /^\/api\/v1\/posts\/[0-9a-f-]+\/visual-assets\/[0-9a-f-]+\.png$/i.test(src)
   return s
     .replace(/`([^`]+)`/g, (_m, c) => `<code>${c}</code>`)
     .replace(/\*\*([^*]+)\*\*/g, (_m, c) => `<strong>${c}</strong>`)
     .replace(/(^|[^*])\*([^*]+)\*/g, (_m, p, c) => `${p}<em>${c}</em>`)
     .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt, src) =>
-      /^https?:\/\//.test(src) ? `<img alt="${alt}" src="${src}">` : escapeHtml(`![${alt}](${src})`),
+      safeImageSource(src) ? `<img alt="${alt}" src="${src}">` : escapeHtml(`![${alt}](${src})`),
     )
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, txt, href) =>
       /^https?:\/\//.test(href)
@@ -245,7 +247,12 @@ async function copy(text: string, i: number): Promise<void> {
   border-radius: 4px;
 }
 .md-body :deep(img) {
+  display: block;
   max-width: 100%;
+  height: auto;
+  margin: 1rem auto;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
 }
 .md-code {
   position: relative;

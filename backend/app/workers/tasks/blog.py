@@ -114,7 +114,11 @@ def _finish_parse(
         if ok and extracted and _is_stub_body(post.markdown, src_row.original_url):
             post.markdown = extracted
             rev = post_service.new_revision(
-                session, post, extracted, "import", post.current_revision_id,
+                session,
+                post,
+                extracted,
+                "import",
+                post.current_revision_id,
                 change_summary="从链接导入正文",
             )
             rev.applied_at = datetime.now(UTC)
@@ -124,12 +128,20 @@ def _finish_parse(
     if job is not None and job.status not in ("completed", "cancelled"):
         if ok:
             jobs_service.transition(
-                session, job, status="completed", current_step="完成", progress=100,
+                session,
+                job,
+                status="completed",
+                current_step="完成",
+                progress=100,
             )
         else:
             jobs_service.transition(
-                session, job, status="failed", error_code=code or "extract_failed",
-                error_message=error_message, error_retryable=error_retryable,
+                session,
+                job,
+                status="failed",
+                error_code=code or "extract_failed",
+                error_message=error_message,
+                error_retryable=error_retryable,
             )
 
 
@@ -176,7 +188,11 @@ def extract_source(source_id: uuid.UUID) -> str:
 
         if job is not None and job.status not in ("processing", "completed"):
             jobs_service.transition(
-                s, job, status="processing", current_step="抓取网页", progress=10,
+                s,
+                job,
+                status="processing",
+                current_step="抓取网页",
+                progress=10,
             )
         src.status = "processing"
         src.fetched_at = datetime.now(UTC)
@@ -355,9 +371,7 @@ def import_bilibili_source(source_id: uuid.UUID) -> str:
         try:
             client = get_radio_client()
             if not source.external_task_id:
-                source.external_task_id = client.submit_bilibili_transcription(
-                    source.original_url
-                )
+                source.external_task_id = client.submit_bilibili_transcription(source.original_url)
                 if job is not None:
                     jobs_service.transition(
                         session, job, current_step="等待音视频处理", progress=10
@@ -534,7 +548,7 @@ def _proposed_fields(result) -> list[str]:  # type: ignore[no-untyped-def]
             fields.append(name)
     if getattr(result, "content_class_suggestion", None) is not None:
         fields.append("content_class")
-    for key in (getattr(result, "structured_fields", {}) or {}):
+    for key in getattr(result, "structured_fields", {}) or {}:
         fields.append(f"structured_data.{key}")
     return fields
 
@@ -635,7 +649,7 @@ def optimize_run(
         build_system_prompt,
         build_user_payload,
     )
-    from app.modules.posts.visuals import enhancements_markdown, execute_enhancements
+    from app.modules.posts.visuals import execute_enhancements, insert_enhancements
     from app.services.llm.base import LLMError, StructuredRequest
     from app.services.llm.gateway import get_llm_gateway
     from app.services.llm.schemas import (
@@ -677,8 +691,12 @@ def optimize_run(
             if strategy == "reject":
                 ai_service.mark_run_failed(s, run, code="content_too_long")
                 jobs_service.transition(
-                    s, job, status="failed", error_code="content_too_long",
-                    error_message="内容超出技能允许长度", error_retryable=False,
+                    s,
+                    job,
+                    status="failed",
+                    error_code="content_too_long",
+                    error_message="内容超出技能允许长度",
+                    error_retryable=False,
                 )
                 return "failed"
             # chunk / summarize_then_process: MVP truncates to the ceiling.
@@ -733,9 +751,7 @@ def optimize_run(
             from app.services.radio import RadioServiceError, get_radio_client
 
             try:
-                optimized_markdown = get_radio_client().optimize_text(
-                    body, instruction=instruction
-                )
+                optimized_markdown = get_radio_client().optimize_text(body, instruction=instruction)
             except RadioServiceError as exc:
                 ai_service.mark_run_failed(s, run, code=exc.code)
                 jobs_service.transition(
@@ -866,13 +882,17 @@ def optimize_run(
         orchestration_result = None
         visual_items: list[dict] = []
         if isinstance(result, BlogEnhancementResultV1):
-            visual_items = execute_enhancements(result, max_visual_items=2)
+            visual_items = execute_enhancements(
+                result,
+                max_visual_items=2,
+                user_id=post.user_id,
+                post_id=post.id,
+            )
             if visual_items:
-                visual_markdown = enhancements_markdown(visual_items)
-                if visual_markdown:
-                    result.optimized_article.content_markdown = (
-                        result.optimized_article.content_markdown.rstrip() + visual_markdown
-                    )
+                result.optimized_article.content_markdown = insert_enhancements(
+                    result.optimized_article.content_markdown,
+                    visual_items,
+                )
         result, orchestration_result = _normalize_orchestration_result(result, post)
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)
@@ -903,13 +923,24 @@ def optimize_run(
         s.commit()
 
         ai_service.save_candidate(
-            s, run, candidate_markdown=candidate_md, field_diff=field_diff,
-            validation=validation, outcome=outcome,
+            s,
+            run,
+            candidate_markdown=candidate_md,
+            field_diff=field_diff,
+            validation=validation,
+            outcome=outcome,
         )
         jobs_service.transition(
-            s, job, status="waiting_user", current_step="待审核", progress=100,
-            result={"candidate_id": str(run.candidate_id), "outcome": outcome,
-                    "rejected_fields": rejected},
+            s,
+            job,
+            status="waiting_user",
+            current_step="待审核",
+            progress=100,
+            result={
+                "candidate_id": str(run.candidate_id),
+                "outcome": outcome,
+                "rejected_fields": rejected,
+            },
         )
         _notify_optimization_done(s, run, post, outcome)
         log.info(
@@ -947,7 +978,10 @@ def _notify_optimization_done(session, run, post, outcome: str) -> None:  # type
     acks_late=True,
 )
 def optimize(  # type: ignore[no-untyped-def]
-    self, run_id: str, scope: str = "all",
-    selected_fields: list[str] | None = None, instruction: str | None = None,
+    self,
+    run_id: str,
+    scope: str = "all",
+    selected_fields: list[str] | None = None,
+    instruction: str | None = None,
 ) -> str:
     return optimize_run(uuid.UUID(run_id), scope, selected_fields or [], instruction)

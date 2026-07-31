@@ -23,7 +23,7 @@ AI Assist 完整优化还会先执行 Blog Enhancement Orchestrator 的共享诊
 
 ### 可视化能力
 
-- `visualize`：默认启用。面向普通读者时模型优先输出受限的 `visual-plan` 节点/关系 JSON，后端做结构校验，前端以紧凑卡片式 SVG 渲染并支持保存为 PNG；技术图继续兼容 Mermaid。
+- `visualize`：默认启用。面向普通读者时模型优先输出受限的 `visual-plan` 节点/关系 JSON，后端做结构校验，Worker 使用 CJK 字体直接生成紧凑 PNG 资产，存入私有对象存储并把 Markdown 图片插入正文导语后；技术图继续兼容 Mermaid。
 - `answers-charts`：默认启用。模型只能使用正文中已有的统一口径数据，输出 ECharts 结构；后端校验后在候选正文和阅读预览中渲染图表。
 - `answers-images` / `imagegen`：默认关闭。需要注册 `type=http-api`、`enabled=true` 和 HTTPS `endpoint`，密钥仅通过 `token_file` 注入，不能写入环境变量或 Prompt。图片服务需要返回 `url`、`data[].url`、`images[].url` 或 `results[].url` 之一。
 

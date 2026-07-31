@@ -79,6 +79,21 @@ paths:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}/visual-assets/{asset_id}.png:
+    get:
+      summary: Stream an owned generated visual PNG for an article
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - name: asset_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Private generated visual asset
+          content:
+            image/png: {}
+        '404': { $ref: '#/components/responses/Problem' }
   /posts/captures/clipboard:
     post:
       summary: Save original clipboard content and create a draft before AI

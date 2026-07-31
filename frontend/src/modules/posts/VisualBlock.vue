@@ -23,7 +23,6 @@ const props = defineProps<{
 
 const canvas = ref<HTMLElement | null>(null)
 const error = ref('')
-const downloadState = ref<'idle' | 'done' | 'failed'>('idle')
 let chart: ECharts | null = null
 let renderSerial = 0
 
@@ -167,7 +166,6 @@ async function render(): Promise<void> {
   if (!target) return
   const serial = ++renderSerial
   error.value = ''
-  downloadState.value = 'idle'
   if (chart) {
     chart.dispose()
     chart = null
@@ -203,55 +201,6 @@ function resize(): void {
   chart?.resize()
 }
 
-async function downloadPng(): Promise<void> {
-  const svg = canvas.value?.querySelector('svg')
-  if (!svg) return
-  try {
-    const serialized = new XMLSerializer().serializeToString(svg)
-    const image = new Image()
-    const url = URL.createObjectURL(new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' }))
-    image.onload = () => {
-      const viewBox = svg.viewBox.baseVal
-      const scale = 2
-      const bitmap = document.createElement('canvas')
-      bitmap.width = Math.ceil((viewBox.width || svg.clientWidth) * scale)
-      bitmap.height = Math.ceil((viewBox.height || svg.clientHeight) * scale)
-      const context = bitmap.getContext('2d')
-      if (!context) {
-        URL.revokeObjectURL(url)
-        downloadState.value = 'failed'
-        return
-      }
-      context.fillStyle = '#ffffff'
-      context.fillRect(0, 0, bitmap.width, bitmap.height)
-      context.drawImage(image, 0, 0, bitmap.width, bitmap.height)
-      bitmap.toBlob((blob) => {
-        URL.revokeObjectURL(url)
-        if (!blob) {
-          downloadState.value = 'failed'
-          return
-        }
-        const downloadUrl = URL.createObjectURL(blob)
-        const anchor = document.createElement('a')
-        anchor.href = downloadUrl
-        anchor.download = 'ai-assist-visual.png'
-        document.body.append(anchor)
-        anchor.click()
-        anchor.remove()
-        URL.revokeObjectURL(downloadUrl)
-        downloadState.value = 'done'
-      }, 'image/png')
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(url)
-      downloadState.value = 'failed'
-    }
-    image.src = url
-  } catch {
-    downloadState.value = 'failed'
-  }
-}
-
 onMounted(async () => {
   await nextTick()
   await render()
@@ -273,22 +222,6 @@ onBeforeUnmount(() => {
       role="img"
       :aria-label="caption || (kind === 'visual-plan' ? '文章要点图' : kind === 'mermaid' ? '流程图' : '数据图表')"
     />
-    <div
-      v-if="kind === 'visual-plan' && !error"
-      class="visual-actions"
-    >
-      <button
-        type="button"
-        class="visual-download"
-        @click="downloadPng"
-      >
-        {{ downloadState === 'done' ? '已保存 PNG' : '保存为 PNG' }}
-      </button>
-      <span
-        v-if="downloadState === 'failed'"
-        class="visual-download-error"
-      >保存失败，请重试</span>
-    </div>
     <p
       v-if="error"
       class="visual-error"
@@ -327,22 +260,6 @@ onBeforeUnmount(() => {
   height: auto;
   margin: 0 auto;
 }
-.visual-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.65rem;
-}
-.visual-download {
-  border: 1px solid var(--color-border, #cbd5e1);
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  background: var(--color-surface, #fff);
-  color: var(--color-accent, #2563eb);
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-.visual-download-error,
 .visual-error {
   color: var(--color-danger, #b91c1c);
   font-size: 0.8rem;

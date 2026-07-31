@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
@@ -26,6 +27,8 @@ from app.modules.posts.schemas import (
     post_out,
     revision_out,
 )
+from app.services.storage.base import ObjectNotFoundError
+from app.services.storage.providers.local import get_storage
 
 private_router = APIRouter(prefix="/posts", tags=["posts"])
 public_router = APIRouter(prefix="/public", tags=["public"])
@@ -46,9 +49,10 @@ def list_taxonomy(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[TaxonomyItemOut]:
-    return [TaxonomyItemOut(**item) for item in taxonomy_service.list_items(
-        db, user.id, kind, enabled=enabled
-    )]
+    return [
+        TaxonomyItemOut(**item)
+        for item in taxonomy_service.list_items(db, user.id, kind, enabled=enabled)
+    ]
 
 
 @taxonomy_router.post("/{kind}", status_code=201)
@@ -101,6 +105,32 @@ def get_post(
     db: Session = Depends(get_db),
 ) -> PostOut:
     return post_detail_out(db, service.get_post(db, user.id, post_id))
+
+
+@private_router.get("/{post_id}/visual-assets/{asset_id}.png")
+def visual_asset(
+    post_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Stream a generated visual only to the owner of its post.
+
+    The object key is derived from the checked post and UUID rather than taken
+    from Markdown, so an article cannot use its image URL to read another
+    user's storage object.
+    """
+    post = service.get_post(db, user.id, post_id)
+    key = f"posts/{post.user_id}/visuals/{post.id}/{asset_id}.png"
+    try:
+        stream = get_storage().open_stream(key)
+    except ObjectNotFoundError as exc:
+        raise NotFoundError("Visual asset not found") from exc
+    return StreamingResponse(
+        stream,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @private_router.patch("/{post_id}")
@@ -219,9 +249,7 @@ def restore_revision(
     db: Session = Depends(get_db),
 ) -> PostOut:
     """Restore a past revision as a new user_edit revision (non-destructive)."""
-    post = service.restore_revision(
-        db, user.id, post_id, revision_id, current_version=body.version
-    )
+    post = service.restore_revision(db, user.id, post_id, revision_id, current_version=body.version)
     db.commit()
     return post_out(post)
 

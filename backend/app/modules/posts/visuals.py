@@ -1,22 +1,27 @@
 """Execution and normalization for blog visual enhancements.
 
-Visual plans are the preferred format for reader-facing explainers: the model
-proposes a small, semantic graph and the frontend renders it as a compact,
-styled SVG that can be downloaded as PNG. Mermaid remains supported as a
-backward-compatible format for technical diagrams.
+Visual plans are the preferred format for reader-facing explainers.  The worker
+turns the validated plan into a real PNG using a CJK-capable font, stores it as
+a private post asset, and inserts a normal Markdown image into the article.
+Mermaid remains supported as a backward-compatible format for technical
+diagrams.
 """
 
 from __future__ import annotations
 
+import io
 import json
 import re
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from PIL import Image, ImageDraw, ImageFont
 
 from app.core.config import get_settings
+from app.services.storage.providers.local import get_storage
 
 _MAX_MERMAID = 20_000
 _MAX_CHART_POINTS = 100
@@ -28,6 +33,206 @@ _VISUAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")
 _VISUAL_LAYOUTS = {"compact_horizontal", "compact_vertical", "timeline", "radial"}
 _VISUAL_TYPES = {"illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"}
 _VISUAL_THEMES = {"warm", "fresh", "calm", "energetic", "neutral"}
+_FONT_CANDIDATES = (
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
+
+
+def _font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    candidates = (
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", *_FONT_CANDIDATES)
+        if bold
+        else _FONT_CANDIDATES
+    )
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _wrap_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    max_width: int,
+    max_lines: int,
+) -> list[str]:
+    """Wrap by measured pixels, not character count, so CJK text stays aligned."""
+    value = text.strip()
+    if not value:
+        return []
+    lines: list[str] = []
+    current = ""
+    for char in value:
+        candidate = current + char
+        if current and draw.textlength(candidate, font=font) > max_width:
+            lines.append(current)
+            current = char
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    if len(lines) <= max_lines:
+        return lines
+    lines = lines[:max_lines]
+    last = lines[-1]
+    while last and draw.textlength(last + "…", font=font) > max_width:
+        last = last[:-1]
+    lines[-1] = (last or "…") + "…"
+    return lines
+
+
+def _draw_arrow(
+    draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int], color: str
+) -> None:
+    draw.line([start, end], fill=color, width=4)
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    if abs(dx) >= abs(dy):
+        direction = 1 if dx >= 0 else -1
+        tip = end
+        points = [tip, (tip[0] - direction * 13, tip[1] - 7), (tip[0] - direction * 13, tip[1] + 7)]
+    else:
+        direction = 1 if dy >= 0 else -1
+        tip = end
+        points = [tip, (tip[0] - 7, tip[1] - direction * 13), (tip[0] + 7, tip[1] - direction * 13)]
+    draw.polygon(points, fill=color)
+
+
+def _edge_label(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    center: tuple[int, int],
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    ink: str,
+) -> None:
+    if not text:
+        return
+    box = draw.textbbox((0, 0), text, font=font)
+    width = box[2] - box[0] + 20
+    height = box[3] - box[1] + 10
+    x = center[0] - width // 2
+    y = center[1] - height // 2
+    draw.rounded_rectangle(
+        (x, y, x + width, y + height),
+        radius=height // 2,
+        fill="#ffffff",
+        outline="#d8e2e8",
+        width=1,
+    )
+    draw.text((center[0], center[1]), text, font=font, fill=ink, anchor="mm")
+
+
+def render_visual_plan_png(plan: dict[str, Any]) -> bytes:
+    """Render a validated plan as a deterministic, readable PNG.
+
+    The renderer deliberately uses measured text metrics and a generous card
+    layout.  This avoids the browser SVG text-baseline/overflow failures that
+    motivated replacing the previous client-side download flow.
+    """
+    palette = {
+        "warm": ((255, 249, 242), "#513b2f", "#8d7567", "#d7a17a", "#ee965c"),
+        "fresh": ((243, 251, 248), "#173f3c", "#5b7773", "#76aaa2", "#4cae97"),
+        "calm": ((246, 248, 255), "#303858", "#68728e", "#96a4d6", "#768be3"),
+        "energetic": ((255, 249, 241), "#472b20", "#866658", "#df9078", "#f27148"),
+        "neutral": ((248, 249, 251), "#2d3742", "#687583", "#9aa9b7", "#697e94"),
+    }
+    background, ink, muted, line, accent = palette.get(plan["theme"], palette["fresh"])
+    nodes = plan["nodes"]
+    layout = plan["layout"]
+    columns = 1 if layout == "compact_vertical" else len(nodes) if len(nodes) <= 4 else 3
+    card_width, card_height = 330, 220
+    gap_x, gap_y = 34, 44
+    rows = (len(nodes) + columns - 1) // columns
+    width = max(920, columns * card_width + max(0, columns - 1) * gap_x + 72)
+    height = 112 + rows * card_height + max(0, rows - 1) * gap_y + 54
+    image = Image.new("RGB", (width, height), background)
+    draw = ImageDraw.Draw(image)
+    title_font = _font(34, bold=True)
+    label_font = _font(25, bold=True)
+    detail_font = _font(18)
+    edge_font = _font(16)
+    draw.text((36, 32), plan["title"], font=title_font, fill=ink)
+    positions: dict[str, tuple[int, int]] = {}
+    content_width = columns * card_width + max(0, columns - 1) * gap_x
+    start_x = (width - content_width) // 2
+    for index, node in enumerate(nodes):
+        row, column = divmod(index, columns)
+        x = start_x + column * (card_width + gap_x)
+        y = 112 + row * (card_height + gap_y)
+        positions[node["id"]] = (x, y)
+        draw.rounded_rectangle(
+            (x, y, x + card_width, y + card_height),
+            radius=24,
+            fill="#ffffff",
+            outline=accent,
+            width=3,
+        )
+        draw.ellipse((x + 24, y + 28, x + 74, y + 78), fill=accent)
+        draw.text(
+            (x + 49, y + 53), str(index + 1), font=_font(23, bold=True), fill="#ffffff", anchor="mm"
+        )
+        label_lines = _wrap_text(draw, node["label"], label_font, card_width - 108, 2)
+        draw.multiline_text(
+            (x + 92, y + 30), "\n".join(label_lines), font=label_font, fill=ink, spacing=3
+        )
+        detail_y = y + 104 if len(label_lines) <= 1 else y + 134
+        detail_lines = _wrap_text(draw, node.get("detail", ""), detail_font, card_width - 48, 3)
+        draw.multiline_text(
+            (x + 24, detail_y), "\n".join(detail_lines), font=detail_font, fill=muted, spacing=5
+        )
+
+    for edge in plan["edges"]:
+        source = positions.get(edge["from"])
+        target = positions.get(edge["to"])
+        if source is None or target is None:
+            continue
+        source_row = next(
+            i // columns for i, node in enumerate(nodes) if node["id"] == edge["from"]
+        )
+        target_row = next(i // columns for i, node in enumerate(nodes) if node["id"] == edge["to"])
+        source_col = next(i % columns for i, node in enumerate(nodes) if node["id"] == edge["from"])
+        target_col = next(i % columns for i, node in enumerate(nodes) if node["id"] == edge["to"])
+        if source_row == target_row and target_col > source_col:
+            start = (source[0] + card_width, source[1] + card_height // 2)
+            end = (target[0], target[1] + card_height // 2)
+            _draw_arrow(draw, start, end, line)
+            _edge_label(
+                draw,
+                edge.get("label", ""),
+                ((start[0] + end[0]) // 2, start[1] - 24),
+                edge_font,
+                ink,
+            )
+        elif source_row == target_row:
+            route_y = min(height - 26, source[1] + card_height + 22)
+            start = (source[0] + card_width // 2, source[1] + card_height)
+            end = (target[0] + card_width // 2, target[1] + card_height)
+            draw.line([start, (start[0], route_y), (end[0], route_y), end], fill=line, width=4)
+            _draw_arrow(draw, (end[0], route_y), end, line)
+            _edge_label(
+                draw,
+                edge.get("label", ""),
+                ((start[0] + end[0]) // 2, route_y - 24),
+                edge_font,
+                ink,
+            )
+        else:
+            start = (source[0] + card_width // 2, source[1] + card_height)
+            end = (target[0] + card_width // 2, target[1])
+            mid_y = (start[1] + end[1]) // 2
+            draw.line([start, (start[0], mid_y), (end[0], mid_y), end], fill=line, width=4)
+            _draw_arrow(draw, (end[0], mid_y), end, line)
+            _edge_label(
+                draw, edge.get("label", ""), ((start[0] + end[0]) // 2, mid_y - 24), edge_font, ink
+            )
+    output = io.BytesIO()
+    image.save(output, format="PNG", optimize=True)
+    return output.getvalue()
 
 
 def _configured_capability(name: str) -> dict[str, Any] | None:
@@ -108,7 +313,11 @@ def _as_visual_plan(content: dict[str, Any]) -> dict[str, Any] | None:
     title = raw.get("title", "")
     nodes = raw.get("nodes")
     edges = raw.get("edges", [])
-    if visual_type not in _VISUAL_TYPES or layout not in _VISUAL_LAYOUTS or theme not in _VISUAL_THEMES:
+    if (
+        visual_type not in _VISUAL_TYPES
+        or layout not in _VISUAL_LAYOUTS
+        or theme not in _VISUAL_THEMES
+    ):
         return None
     if not isinstance(title, str) or not (1 <= len(title.strip()) <= 120):
         return None
@@ -234,9 +443,7 @@ def _call_image_capability(name: str, enhancement: Any) -> tuple[str | None, dic
         for key in ("data", "images", "results"):
             values = payload.get(key)
             if isinstance(values, list):
-                candidates.extend(
-                    item.get("url") for item in values if isinstance(item, dict)
-                )
+                candidates.extend(item.get("url") for item in values if isinstance(item, dict))
     for value in candidates:
         url = _safe_image_url(value)
         if url:
@@ -253,8 +460,19 @@ def _call_image_capability(name: str, enhancement: Any) -> tuple[str | None, dic
     return None, {"code": "INVALID_RESPONSE", "message": f"{name} 未返回安全图片 URL"}
 
 
-def execute_enhancements(result: Any, *, max_visual_items: int = 2) -> list[dict[str, Any]]:
-    """Validate local visuals and execute configured image adapters in place."""
+def execute_enhancements(
+    result: Any,
+    *,
+    max_visual_items: int = 2,
+    user_id: uuid.UUID | None = None,
+    post_id: uuid.UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Validate visuals and persist reader-facing visual plans as PNG assets.
+
+    The optional IDs keep the pure unit-test path backward compatible. Worker
+    calls always provide them, which changes the enhancement into a Markdown
+    image backed by a private, ownership-checked post asset.
+    """
     executed: list[dict[str, Any]] = []
     for enhancement in result.enhancements:
         if enhancement.status != "executed":
@@ -267,7 +485,24 @@ def execute_enhancements(result: Any, *, max_visual_items: int = 2) -> list[dict
         if enhancement.capability == "visualize":
             visual_plan = _as_visual_plan(content)
             if visual_plan is not None:
-                enhancement.content = {"format": "visual-plan", "visual_plan": visual_plan}
+                if user_id is not None and post_id is not None:
+                    asset_id = uuid.uuid4()
+                    key = f"posts/{user_id}/visuals/{post_id}/{asset_id}.png"
+                    png = render_visual_plan_png(visual_plan)
+                    get_storage().put_stream(
+                        key,
+                        io.BytesIO(png),
+                        media_type="image/png",
+                        max_bytes=max(len(png), 1),
+                    )
+                    enhancement.content = {
+                        "format": "image",
+                        "image_url": f"/api/v1/posts/{post_id}/visual-assets/{asset_id}.png",
+                        "asset_id": str(asset_id),
+                        "visual_plan": visual_plan,
+                    }
+                else:
+                    enhancement.content = {"format": "visual-plan", "visual_plan": visual_plan}
             else:
                 source = _as_mermaid(content)
                 if source is None:
@@ -286,9 +521,7 @@ def execute_enhancements(result: Any, *, max_visual_items: int = 2) -> list[dict
             url, metadata = _call_image_capability(enhancement.capability, enhancement)
             if url is None:
                 enhancement.status = (
-                    "unavailable"
-                    if metadata.get("code") == "CAPABILITY_UNAVAILABLE"
-                    else "failed"
+                    "unavailable" if metadata.get("code") == "CAPABILITY_UNAVAILABLE" else "failed"
                 )
                 enhancement.reason = str(metadata.get("message", "图片能力不可用"))
                 continue
@@ -308,7 +541,9 @@ def enhancements_markdown(enhancements: list[dict[str, Any]]) -> str:
         content = item.get("content") or {}
         caption = str(item.get("caption") or "可视化增强")[:500]
         alt_text = str(item.get("alt_text") or caption)[:500]
-        if item.get("capability") == "visualize" and content.get("visual_plan"):
+        if content.get("image_url"):
+            parts.append(f"\n\n> {caption}\n\n![{alt_text}]({content['image_url']})")
+        elif item.get("capability") == "visualize" and content.get("visual_plan"):
             visual_payload = json.dumps(content, ensure_ascii=False, separators=(",", ":"))
             parts.append(f"\n\n> {caption}\n\n```visual-plan\n{visual_payload}\n```")
         elif item.get("capability") == "visualize" and content.get("mermaid"):
@@ -316,6 +551,34 @@ def enhancements_markdown(enhancements: list[dict[str, Any]]) -> str:
         elif item.get("capability") == "answers-charts" and content.get("data"):
             chart_payload = json.dumps(content, ensure_ascii=False, separators=(",", ":"))
             parts.append(f"\n\n> {caption}\n\n```echarts\n{chart_payload}\n```")
-        elif content.get("image_url"):
-            parts.append(f"\n\n> {caption}\n\n![{alt_text}]({content['image_url']})")
     return "".join(parts)
+
+
+def insert_enhancements(markdown: str, enhancements: list[dict[str, Any]]) -> str:
+    """Place visual material after the article introduction.
+
+    ``insert_after=body`` is the model's semantic request for reader-facing
+    body content.  The first prose paragraph is the most stable location: it
+    gives the reader context before the image and keeps the image beside the
+    section that explains it.
+    """
+    block = enhancements_markdown(enhancements)
+    if not block:
+        return markdown
+    lines = markdown.splitlines(keepends=True)
+    in_intro = False
+    insert_at: int | None = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            if in_intro:
+                insert_at = index + 1
+                break
+            continue
+        if stripped.startswith("#"):
+            continue
+        if not in_intro:
+            in_intro = True
+    if insert_at is None:
+        return markdown.rstrip() + block + "\n"
+    return "".join(lines[:insert_at]) + block.lstrip("\n") + "\n\n" + "".join(lines[insert_at:])
