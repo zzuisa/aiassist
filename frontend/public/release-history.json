@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.233252-0365dbf",
+      "version": "2026.07.31.233252",
+      "commit": "0365dbf28a17e9ff0ae05cbb6673d72485babe9d",
+      "commit_short": "0365dbf",
+      "message": "fix: use simplified Chinese font for visual PNGs",
+      "changes": [
+        "fix: use simplified Chinese font for visual PNGs",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/visuals.py"
+      ],
+      "deployed_at": "2026-07-31T23:32:52Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.232546-55922dd",
       "version": "2026.07.31.232546",
       "commit": "55922ddef1adc93db13ef0e052b66c980eaadf34",
