@@ -1,6 +1,36 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.151939-3603e2d",
+      "version": "2026.07.31.151939",
+      "commit": "3603e2d15e5e86c0f299bb230135ef66a7e1d975",
+      "commit_short": "3603e2d",
+      "message": "feat: add blog enhancement orchestrator",
+      "changes": [
+        "feat: add blog enhancement orchestrator",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/core/config.py",
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/services/llm/schemas.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_ai_schema.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json",
+        "specs/005-blog-content-management/plan.md",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/spec.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-07-31T15:19:39Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.130836-a59e1a3",
       "version": "2026.07.31.130836",
       "commit": "a59e1a3caab75629a9b4859eadfb192992ccda41",
