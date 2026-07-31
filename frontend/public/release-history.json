@@ -1,6 +1,35 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.232546-55922dd",
+      "version": "2026.07.31.232546",
+      "commit": "55922ddef1adc93db13ef0e052b66c980eaadf34",
+      "commit_short": "55922dd",
+      "message": "fix: generate and embed readable blog visual PNGs",
+      "changes": [
+        "fix: generate and embed readable blog visual PNGs",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/router.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/contracts/openapi.yaml",
+        "specs/005-blog-content-management/plan.md",
+        "specs/005-blog-content-management/quickstart.md"
+      ],
+      "deployed_at": "2026-07-31T23:25:46Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.230516-376f62d",
       "version": "2026.07.31.230516",
       "commit": "376f62dedecd1ac6d149135e8ad1403f97b961ff",
