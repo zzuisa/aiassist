@@ -75,3 +75,20 @@ def test_prompt_is_provider_neutral_and_payload_reuses_plan(monkeypatch):
     assert "Claude CLI" in system
     assert "shared_analysis" in payload
     assert json.loads(payload)["available_capabilities"]
+
+
+def test_explicit_board_request_allows_visual_agent_for_essay(monkeypatch):
+    from app.core.config import reload_settings
+    from app.modules.posts import orchestrator
+
+    monkeypatch.setenv("BLOG_CAPABILITIES_JSON", json.dumps([{"name": "visualize", "enabled": True}]))
+    reload_settings()
+    content = (
+        "很多选择看似是效率问题，其实先取决于目标。\n\n"
+        "当目标不清晰时，继续增加工具只会制造更多噪音。\n\n"
+        "因此应先确认目标，再判断是否需要工具，最后复盘结果。"
+    )
+    plan = orchestrator.build_plan("一个关于选择的道理", content, instruction="请用板书式流程图梳理这段话的脉络")
+
+    assert "logic-agent" in plan.selected_agents
+    assert any("板书式" in item for item in plan.recommended_actions)

@@ -40,7 +40,7 @@ BLOG_ENHANCEMENT_SYSTEM_PROMPT = r"""你是「AI Assist 博客增强编排器（
 
 只输出符合请求 JSON Schema 的一个 JSON 对象，不输出解释文字或 Markdown 代码围栏。最终对象必须包含 status、article_assessment、decision、optimized_article、enhancements、quality_report、usage；每个视觉增强必须包含标题/说明和 alt_text。Quality 检查只删除无依据或低价值增强，不用更多虚构内容修补。
 
-视觉增强的 content 必须使用可执行结构：visualize 使用 {"mermaid":"flowchart TD..."}；answers-charts 使用 {"chart_type":"bar|line|pie|scatter|table","data":[{"label":"...","value":0}],"unit":"...","source":[]}，只使用正文已有且口径一致的数据；imagegen/answers-images 使用 {"prompt":"..."} 或 {"query":"..."}。不要把 HTML、脚本、data URI 或未经验证的图片地址放入 content。
+视觉增强的 content 必须使用可执行结构：visualize 使用 {"mermaid":"flowchart TD..."} 或 {"mermaid":"mindmap..."}；answers-charts 使用 {"chart_type":"bar|line|pie|scatter|table","data":[{"label":"...","value":0}],"unit":"...","source":[]}，只使用正文已有且口径一致的数据；imagegen/answers-images 使用 {"prompt":"..."} 或 {"query":"..."}。不要把 HTML、脚本、data URI 或未经验证的图片地址放入 content。
 
 模型与工具无关：不得依赖 Claude CLI。Qwen、DeepSeek 或其他兼容 JSON Schema 的模型均按同一规则工作。"""
 
@@ -194,7 +194,13 @@ def assess_article(title: str, content: str) -> Assessment:
     )
 
 
-def build_plan(title: str, content: str, *, options: dict[str, Any] | None = None) -> OrchestrationPlan:
+def build_plan(
+    title: str,
+    content: str,
+    *,
+    options: dict[str, Any] | None = None,
+    instruction: str | None = None,
+) -> OrchestrationPlan:
     options = {
         "allow_visualize": True,
         "allow_charts": True,
@@ -204,6 +210,11 @@ def build_plan(title: str, content: str, *, options: dict[str, Any] | None = Non
         **(options or {}),
     }
     assessment = assess_article(title, content)
+    explicit_visual_request = bool(
+        instruction
+        and re.search(r"流程图|可视化|板书|脉络|因果图|决策路径|关系图", instruction)
+        and not re.search(r"不要|无需|不生成|跳过", instruction)
+    )
     capabilities = {item["name"]: item for item in registered_capabilities()}
     max_calls = max(1, min(8, int(options.get("max_agent_calls", 4))))
     selected: list[str] = []
@@ -231,8 +242,14 @@ def build_plan(title: str, content: str, *, options: dict[str, Any] | None = Non
 
     consider_visual(
         "logic-agent", "visualize",
-        assessment.logical_complexity >= 2 and assessment.visual_potential >= 2,
-        "逻辑节点或关系不足以降低理解成本", "allow_visualize",
+        (
+            assessment.logical_complexity >= 2 and assessment.visual_potential >= 2
+        ) or (
+            explicit_visual_request
+            and assessment.information_density >= 1
+            and len(text_lines(content)) >= 3
+        ),
+        "逻辑节点不足，或正文信息量不足以支撑板书式梳理", "allow_visualize",
     )
     consider_visual(
         "data-agent", "answers-charts",
@@ -256,6 +273,8 @@ def build_plan(title: str, content: str, *, options: dict[str, Any] | None = Non
         recommended = ["仅应用通过质量检查的局部文字优化"]
         if any(item in selected for item in ("logic-agent", "data-agent")):
             recommended.append("视觉内容必须附标题、说明和 alt text")
+        if explicit_visual_request and "logic-agent" in selected:
+            recommended.append("按用户要求将观点、因果或判断路径整理为板书式图示")
 
     key_points = [line.strip(" -*") for line in text_lines(content)[:8]]
     summary = (content.strip().replace("\n", " ")[:240] or title.strip())

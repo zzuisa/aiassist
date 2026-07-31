@@ -58,7 +58,9 @@ def _as_mermaid(content: dict[str, Any]) -> str | None:
     source = source.strip()
     if not source or len(source) > _MAX_MERMAID or _DANGEROUS_MERMAID.search(source):
         return None
-    diagram_start = r"^(?:flowchart|graph|sequenceDiagram|stateDiagram|timeline|classDiagram)\b"
+    diagram_start = (
+        r"^(?:flowchart|graph|mindmap|sequenceDiagram|stateDiagram|timeline|classDiagram)\b"
+    )
     if not re.match(diagram_start, source):
         return None
     return source

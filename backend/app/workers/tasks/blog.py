@@ -698,7 +698,9 @@ def optimize_run(
             "allow_retrieved_images": settings.blog_allow_retrieved_images,
             "allow_generated_images": settings.blog_allow_generated_images,
         }
-        orchestration_plan = build_plan(post.title, body, options=visual_options)
+        orchestration_plan = build_plan(
+            post.title, body, options=visual_options, instruction=instruction
+        )
         provider_label = "Radio" if run.provider_key == "radio" else "AI Assist"
         jobs_service.transition(
             s,
