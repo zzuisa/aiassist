@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026.07.31.130836-a59e1a3",
+      "version": "2026.07.31.130836",
+      "commit": "a59e1a3caab75629a9b4859eadfb192992ccda41",
+      "commit_short": "a59e1a3",
+      "message": "fix: refine desktop blog swipe actions",
+      "changes": [
+        "fix: refine desktop blog swipe actions",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/src/modules/posts/PostListPage.vue"
+      ],
+      "deployed_at": "2026-07-31T13:08:36Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.125508-07ed9d0",
       "version": "2026.07.31.125508",
       "commit": "07ed9d043b96f00dbc44a75edebca72e126eacd1",
