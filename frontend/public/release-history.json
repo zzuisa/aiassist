@@ -1,6 +1,35 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.104808-a360578",
+      "version": "2026.08.01.104808",
+      "commit": "a360578747bcd723a37dd874c8f67ee02867d3f0",
+      "commit_short": "a360578",
+      "message": "deploy: update 2026.08.01.104808",
+      "changes": [
+        "deploy: update 2026.08.01.104808",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/jobs/router.py",
+        "backend/app/modules/jobs/schemas.py",
+        "backend/app/modules/jobs/service.py",
+        "backend/tests/integration/test_job_controls.py",
+        "frontend/src/components/jobs/TaskCenterDrawer.vue",
+        "frontend/src/stores/jobs.ts",
+        "frontend/tests/component/task_center.spec.ts",
+        "specs/001-personal-life-os/contracts/openapi.yaml",
+        "specs/005-blog-content-management/contracts/openapi.yaml"
+      ],
+      "deployed_at": "2026-08-01T10:48:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.002050-568488d",
       "version": "2026.08.01.002050",
       "commit": "568488d456813e9f1f3f1913802ca28a7230d2f5",
