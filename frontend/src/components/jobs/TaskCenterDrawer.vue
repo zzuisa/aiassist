@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { useJobsStore } from '@/stores/jobs'
 import { jobLabel, formatTime, formatDuration } from '@/api/jobs'
@@ -10,7 +10,7 @@ import { jobContext, providerLabel } from '@/modules/posts/blogJobStatus'
 // Global task center: active / waiting / failed sections with business copy,
 // a labelled progress bar, start/finish times, and clear failure reasons.
 // Progress updates in place — never as repeated toasts.
-defineProps<{ open: boolean }>()
+const props = defineProps<{ open: boolean }>()
 defineEmits<{ (e: 'close'): void }>()
 
 const jobs = useJobsStore()
@@ -23,9 +23,34 @@ const active = computed(() =>
     .filter((j) => j.status !== 'waiting_user')
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
 )
+const completed = computed(() =>
+  [...jobs.jobs.values()]
+    .filter((j) => j.status === 'completed')
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+)
+const clearingCompleted = ref(false)
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) void jobs.refreshFromRest().catch(() => undefined)
+  },
+  { immediate: true },
+)
 
 async function retry(job: AsyncJob): Promise<void> {
   await api.post(`/jobs/${job.id}/retry`)
+}
+
+async function clearCompleted(): Promise<void> {
+  if (!completed.value.length || clearingCompleted.value) return
+  if (!window.confirm(`确定清空 ${completed.value.length} 个已完成任务吗？`)) return
+  clearingCompleted.value = true
+  try {
+    await jobs.clearCompleted()
+  } finally {
+    clearingCompleted.value = false
+  }
 }
 
 // --- Quick-add plan Q&A (answered right here in the task center) ---
@@ -217,8 +242,26 @@ async function skipPlan(job: AsyncJob): Promise<void> {
         </transition-group>
       </section>
 
+      <section
+        v-if="completed.length"
+        aria-label="已完成"
+      >
+        <div class="section-head">
+          <h3>已完成（{{ completed.length }}）</h3>
+          <button
+            type="button"
+            class="clear-completed"
+            :disabled="clearingCompleted"
+            aria-label="清空已完成任务"
+            @click="clearCompleted"
+          >
+            {{ clearingCompleted ? '清理中…' : `清空已完成任务（${completed.length}）` }}
+          </button>
+        </div>
+      </section>
+
       <p
-        v-if="!active.length && !waiting.length && !jobs.failedJobs.length"
+        v-if="!active.length && !waiting.length && !jobs.failedJobs.length && !completed.length"
         class="empty"
       >
         暂无后台任务。
@@ -260,6 +303,27 @@ header {
 h3 {
   font-size: 0.9rem;
   margin: var(--space-3) 0 var(--space-2);
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.section-head h3 { margin-right: auto; }
+.clear-completed {
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.clear-completed:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 .job {
   padding: var(--space-3);

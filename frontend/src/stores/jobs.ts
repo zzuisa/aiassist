@@ -110,6 +110,19 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
+  async function clearCompleted(): Promise<number> {
+    const result = await api.del<{ deleted_count: number }>('/jobs/completed')
+    let removed = 0
+    for (const [id, job] of jobs.value) {
+      if (job.status === 'completed') {
+        jobs.value.delete(id)
+        jobVersions.value.delete(id)
+        removed += 1
+      }
+    }
+    return result.deleted_count ?? removed
+  }
+
   function connect(): void {
     if (source) return
     source = new EventSource('/api/v1/events/jobs', { withCredentials: true })
@@ -168,6 +181,7 @@ export const useJobsStore = defineStore('jobs', () => {
     applySnapshot,
     applyNotification,
     refreshFromRest,
+    clearCompleted,
     connect,
     disconnect,
     clear,

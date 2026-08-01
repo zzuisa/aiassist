@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError
@@ -234,6 +234,19 @@ def list_jobs(
         stmt = stmt.where(AsyncJob.status.in_(statuses))
     stmt = stmt.order_by(AsyncJob.created_at.desc()).limit(limit)
     return list(session.scalars(stmt).all())
+
+
+def clear_completed_jobs(session: Session, user_id: uuid.UUID) -> int:
+    """Delete only the owner's terminal successful job records.
+
+    AsyncJobEvent rows are removed by the database's cascading foreign key. No
+    business entity is referenced by a foreign key from AsyncJob, so clearing
+    task history cannot delete the underlying post, capture, or other result.
+    """
+    result = session.execute(
+        delete(AsyncJob).where(AsyncJob.user_id == user_id, AsyncJob.status == "completed")
+    )
+    return result.rowcount or 0
 
 
 def events_after(

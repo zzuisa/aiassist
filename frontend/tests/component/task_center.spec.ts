@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import TaskCenterDrawer from '@/components/jobs/TaskCenterDrawer.vue'
@@ -7,6 +8,11 @@ import { useJobsStore } from '@/stores/jobs'
 
 beforeEach(() => {
   setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('TaskCenterDrawer', () => {
@@ -87,6 +93,43 @@ describe('TaskCenterDrawer', () => {
     expect(wrapper.text()).toContain('图片分析未完成')
     expect(wrapper.text()).toContain('结束')
     expect(wrapper.text()).toContain('已重试 2 次')
+  })
+
+  it('offers to clear completed jobs and removes them after confirmation', async () => {
+    const jobs = useJobsStore()
+    jobs.applyJobEvent({
+      job_id: 'done',
+      job_version: 1,
+      job_type: 'capture.process',
+      status: 'completed',
+      progress: 100,
+      created_at: '2026-07-24T10:00:00Z',
+    })
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/jobs/completed')) {
+        return Promise.resolve(new Response(JSON.stringify({ deleted_count: 1 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      }
+      return Promise.resolve(new Response('[]', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="清空已完成任务"]').exists()).toBe(true)
+    await wrapper.find('[aria-label="清空已完成任务"]').trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledWith('确定清空 1 个已完成任务吗？')
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/jobs/completed', expect.objectContaining({ method: 'DELETE' }))
+    expect(wrapper.find('[aria-label="已完成"]').exists()).toBe(false)
   })
 
   it('shows a retry button only for retryable failures', () => {

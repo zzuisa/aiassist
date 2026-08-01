@@ -39,6 +39,8 @@ def _make_job(user_id, status="failed", retryable=True):
             )
         elif status == "processing":
             jobs_service.transition(s, job, status="processing", progress=50)
+        elif status == "completed":
+            jobs_service.transition(s, job, status="completed", progress=100)
         return job.id
 
 
@@ -138,3 +140,31 @@ def test_progress_monotonic_via_api(client, make_user):
         jobs_service.transition(s, job, progress=20)  # cannot go backwards
     resp = client.get(f"/api/v1/jobs/{jid}", headers=h)
     assert resp.json()["progress"] == 80
+
+
+def test_clear_completed_jobs_deletes_only_owned_completed_records(client, make_user):
+    owner = make_user()
+    other = make_user()
+    h = _login(client, owner.email)
+    completed_id = _make_job(owner.id, status="completed")
+    retained_id = _make_job(owner.id, status="processing")
+    other_completed_id = _make_job(other.id, status="completed")
+
+    response = client.delete("/api/v1/jobs/completed", headers=h)
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted_count": 1}
+    assert client.get(f"/api/v1/jobs/{completed_id}").status_code == 404
+    assert client.get(f"/api/v1/jobs/{retained_id}").status_code == 200
+    _login(client, other.email)
+    assert client.get(f"/api/v1/jobs/{other_completed_id}").status_code == 200
+
+
+def test_clear_completed_jobs_requires_csrf(client, make_user):
+    user = make_user()
+    _make_job(user.id, status="completed")
+    _login(client, user.email)
+
+    response = client.delete("/api/v1/jobs/completed")
+
+    assert response.status_code == 403

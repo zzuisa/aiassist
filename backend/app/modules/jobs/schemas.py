@@ -44,6 +44,10 @@ class AsyncJobOut(BaseModel):
     display_status: str | None = None
 
 
+class ClearCompletedJobsOut(BaseModel):
+    deleted_count: int
+
+
 # ---------------------------------------------------------------------------
 # Blog job derivation (spec 005, T024)
 #

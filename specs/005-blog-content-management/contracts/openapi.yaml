@@ -640,6 +640,17 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/BlogJob' }
+  /jobs/completed:
+    delete:
+      security:
+        - sessionCookie: []
+      summary: Clear the current user's completed job history
+      responses:
+        '200':
+          description: Number of deleted jobs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClearCompletedJobs' }
 components:
   securitySchemes:
     sessionCookie:
@@ -935,6 +946,11 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         finished_at: { type: [string, 'null'], format: date-time }
+    ClearCompletedJobs:
+      type: object
+      required: [deleted_count]
+      properties:
+        deleted_count: { type: integer, minimum: 0 }
     JobError:
       type: object
       required: [code, message, retryable]

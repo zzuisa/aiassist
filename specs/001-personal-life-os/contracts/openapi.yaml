@@ -879,6 +879,15 @@ paths:
           explode: false
       responses:
         '200': {description: Jobs, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/AsyncJob'}}}}}
+  /jobs/completed:
+    delete:
+      tags: [jobs]
+      security:
+        - cookieAuth: []
+          csrfHeader: []
+      summary: Clear the current user's completed job history
+      responses:
+        '200': {description: Number of deleted jobs, content: {application/json: {schema: {$ref: '#/components/schemas/ClearCompletedJobs'}}}}
   /jobs/{job_id}:
     get:
       tags: [jobs]
@@ -1401,6 +1410,11 @@ components:
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         finished_at: {type: [string, 'null'], format: date-time}
+    ClearCompletedJobs:
+      type: object
+      required: [deleted_count]
+      properties:
+        deleted_count: {type: integer, minimum: 0}
     JobError:
       type: object
       required: [code, message, retryable]

@@ -13,7 +13,7 @@ from app.core.errors import AuthenticationError
 from app.db.session import get_db
 from app.modules.auth import service as auth_service
 from app.modules.jobs import service as jobs_service
-from app.modules.jobs.schemas import AsyncJobOut, serialize_job
+from app.modules.jobs.schemas import AsyncJobOut, ClearCompletedJobsOut, serialize_job
 from app.modules.jobs.sse import event_stream
 
 router = APIRouter(tags=["jobs"])
@@ -27,6 +27,16 @@ def list_jobs(
 ) -> list[AsyncJobOut]:
     jobs = jobs_service.list_jobs(db, user.id, statuses=status)
     return [serialize_job(j) for j in jobs]
+
+
+@router.delete("/jobs/completed", response_model=ClearCompletedJobsOut)
+def clear_completed_jobs(
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> ClearCompletedJobsOut:
+    deleted_count = jobs_service.clear_completed_jobs(db, user.id)
+    db.commit()
+    return ClearCompletedJobsOut(deleted_count=deleted_count)
 
 
 @router.get("/jobs/{job_id}", response_model=AsyncJobOut)
