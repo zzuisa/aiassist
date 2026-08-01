@@ -1229,3 +1229,151 @@ def run_keyword_recompute(job_id: uuid.UUID, user_id: uuid.UUID) -> str:
 @celery.task(name="app.workers.tasks.blog.keyword_recompute", acks_late=True)
 def keyword_recompute(job_id: str, user_id: str) -> str:
     return run_keyword_recompute(uuid.UUID(job_id), uuid.UUID(user_id))
+
+
+def run_wordcloud(snapshot_id: uuid.UUID, min_frequency: int, max_terms: int) -> str:
+    from datetime import UTC, datetime
+
+    from sqlalchemy import func, select
+
+    from app.models.blog import (
+        PostKeyword,
+        PostKeywordLink,
+        PostTagProfile,
+        PostWordCloudSnapshot,
+    )
+    from app.models.foundation import AsyncJob, Tag
+    from app.models.posts import Post, PostTag
+    from app.modules.jobs import service as jobs_service
+    from app.modules.posts import settings_service
+
+    try:
+        with session_scope() as session:
+            snapshot = session.get(PostWordCloudSnapshot, snapshot_id)
+            if snapshot is None:
+                return "missing"
+            job = session.get(AsyncJob, snapshot.async_job_id) if snapshot.async_job_id else None
+            if job is None:
+                return "missing"
+            if job.status == "completed":
+                return "completed"
+            if job.status == "cancelled":
+                return "cancelled"
+            job.error_code = None
+            job.error_message = None
+            job.error_retryable = False
+            jobs_service.transition(
+                session, job, status="processing", progress=10, current_step="正在聚合词云"
+            )
+
+            filters = snapshot.filter_json or {}
+            post_ids = select(Post.id).where(
+                Post.user_id == snapshot.user_id,
+                Post.deleted_at.is_(None),
+                Post.content_status.notin_(("archived", "discarded")),
+            )
+            if filters.get("year"):
+                post_ids = post_ids.where(
+                    func.extract("year", func.coalesce(Post.occurred_at, Post.created_at))
+                    == int(filters["year"])
+                )
+            if filters.get("month"):
+                post_ids = post_ids.where(
+                    func.extract("month", func.coalesce(Post.occurred_at, Post.created_at))
+                    == int(filters["month"])
+                )
+            if filters.get("from"):
+                post_ids = post_ids.where(
+                    func.coalesce(Post.occurred_at, Post.created_at)
+                    >= datetime.fromisoformat(str(filters["from"]).replace("Z", "+00:00"))
+                )
+            if filters.get("to"):
+                post_ids = post_ids.where(
+                    func.coalesce(Post.occurred_at, Post.created_at)
+                    <= datetime.fromisoformat(str(filters["to"]).replace("Z", "+00:00"))
+                )
+            if filters.get("content_class"):
+                post_ids = post_ids.where(Post.content_class == filters["content_class"])
+            if filters.get("category_id"):
+                post_ids = post_ids.where(Post.category_id == uuid.UUID(filters["category_id"]))
+
+            scoped_ids = post_ids.subquery()
+            article_count = session.scalar(select(func.count()).select_from(scoped_ids)) or 0
+            settings = settings_service.settings_to_dict(
+                settings_service.get_settings(session, snapshot.user_id)
+            )["word_cloud"]
+            excluded = {str(term).casefold() for term in settings.get("exclude_terms", [])}
+            if snapshot.source_kind == "tag":
+                rows = session.execute(
+                    select(Tag.id, Tag.name, func.count(func.distinct(PostTag.post_id)))
+                    .join(PostTag, PostTag.tag_id == Tag.id)
+                    .join(PostTagProfile, PostTagProfile.tag_id == Tag.id)
+                    .where(
+                        Tag.user_id == snapshot.user_id,
+                        PostTag.user_id == snapshot.user_id,
+                        PostTagProfile.enabled.is_(True),
+                        PostTag.post_id.in_(select(scoped_ids.c.id)),
+                    )
+                    .group_by(Tag.id)
+                ).all()
+            else:
+                rows = session.execute(
+                    select(
+                        PostKeyword.id,
+                        PostKeyword.canonical_text,
+                        func.count(func.distinct(PostKeywordLink.post_id)),
+                    )
+                    .join(PostKeywordLink, PostKeywordLink.keyword_id == PostKeyword.id)
+                    .where(
+                        PostKeyword.user_id == snapshot.user_id,
+                        PostKeywordLink.user_id == snapshot.user_id,
+                        PostKeyword.enabled.is_(True),
+                        PostKeyword.is_stop_word.is_(False),
+                        PostKeywordLink.post_id.in_(select(scoped_ids.c.id)),
+                    )
+                    .group_by(PostKeyword.id)
+                ).all()
+            terms = [
+                {"id": str(term_id), "term": term, "count": int(count)}
+                for term_id, term, count in rows
+                if count >= min_frequency and term.casefold() not in excluded
+            ]
+            terms.sort(key=lambda item: (-item["count"], item["term"].casefold()))
+            snapshot.terms_json = terms[:max_terms]
+            snapshot.article_count = int(article_count)
+            snapshot.status = "ready"
+            snapshot.generated_at = datetime.now(UTC)
+            snapshot.error_code = None
+            jobs_service.transition(
+                session,
+                job,
+                status="completed",
+                progress=100,
+                current_step="词云已更新",
+                result={"snapshot_id": str(snapshot.id), "term_count": len(snapshot.terms_json)},
+            )
+        return "completed"
+    except Exception:
+        with session_scope() as session:
+            snapshot = session.get(PostWordCloudSnapshot, snapshot_id)
+            if snapshot:
+                snapshot.status = "stale" if snapshot.terms_json else "failed"
+                snapshot.error_code = "wordcloud_rebuild_failed"
+                job = (
+                    session.get(AsyncJob, snapshot.async_job_id) if snapshot.async_job_id else None
+                )
+                if job and job.status != "cancelled":
+                    jobs_service.transition(
+                        session,
+                        job,
+                        status="failed",
+                        error_code="wordcloud_rebuild_failed",
+                        error_message="词云重建失败，已保留上次结果",
+                        error_retryable=True,
+                    )
+        raise
+
+
+@celery.task(name="app.workers.tasks.blog.wordcloud", acks_late=True)
+def wordcloud(snapshot_id: str, min_frequency: int, max_terms: int) -> str:
+    return run_wordcloud(uuid.UUID(snapshot_id), min_frequency, max_terms)

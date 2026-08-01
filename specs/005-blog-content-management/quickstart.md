@@ -303,6 +303,19 @@ pulling middleware or building application images. A missing, timed-out or faile
 stops deployment with a non-zero status. `DEPLOY_SKIP_CI_GATE=1` is reserved for an explicit
 operator emergency and must not be used for routine deployments.
 
+### US9 word-cloud validation evidence (2026-08-01)
+
+- Backend Ruff, formatting and mypy passed for 146 source files.
+- Disposable PostgreSQL 18.4 runs passed the word-cloud contract test, aggregation
+  integration test and two reliability tests. Coverage includes canonical filter hashes,
+  stop words, thresholds, term limits, duplicate rebuilds, cancellation and retaining the
+  last successful snapshot after a failed rebuild.
+- Node 24 passed frontend lint, typecheck, 12 focused discovery/mobile component tests and
+  the production Vite/PWA build. The cloud uses bounded sizing plus visible occurrence
+  counts, and canonical term clicks open clearable article-list filters.
+- Rebuild remains explicit and asynchronous; article saves, search and access do not depend
+  on a current word-cloud snapshot.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.

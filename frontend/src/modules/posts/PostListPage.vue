@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { blogCaptureApi } from '@/api/blogCapture'
 import { articlesApi, type ArticleRow, type BlogSearchItem } from '@/api/blogQueries'
 import { taxonomyApi, type TaxonomyItem } from '@/api/blogTaxonomy'
@@ -11,6 +11,7 @@ import QuickCaptureDialog from '@/modules/posts/QuickCaptureDialog.vue'
 import PostBatchActionBar from '@/modules/posts/PostBatchActionBar.vue'
 
 const router = useRouter()
+const route = useRoute()
 const posts = ref<ArticleRow[]>([])
 const total = ref(0)
 const nextCursor = ref<number | null>(null)
@@ -22,6 +23,8 @@ const search = ref('')
 const classFilter = ref('')
 const categoryFilter = ref('')
 const aiFilter = ref('')
+const tagFilter = ref(typeof route.query.tag_id === 'string' ? route.query.tag_id : '')
+const keywordFilter = ref(typeof route.query.keyword_id === 'string' ? route.query.keyword_id : '')
 const cursor = ref(0)
 const selected = ref<string[]>([])
 const categories = ref<TaxonomyItem[]>([])
@@ -74,6 +77,8 @@ const activeFilters = computed(() => {
     const label = AI_STATES.find((item) => item.v === aiFilter.value)?.label ?? aiFilter.value
     filters.push({ key: 'ai', label: `AI：${label}`, clear: () => { aiFilter.value = '' } })
   }
+  if (tagFilter.value) filters.push({ key: 'tag', label: '标签筛选', clear: () => { tagFilter.value = '' } })
+  if (keywordFilter.value) filters.push({ key: 'keyword', label: '关键词筛选', clear: () => { keywordFilter.value = '' } })
   return filters
 })
 
@@ -109,6 +114,8 @@ async function load(): Promise<void> {
   const res = await articlesApi.list({
     content_class: classFilter.value || undefined,
     category_id: categoryFilter.value || undefined,
+    tag_id: tagFilter.value || undefined,
+    keyword_id: keywordFilter.value || undefined,
     ai_state: aiFilter.value || undefined,
     cursor: cursor.value,
   })
@@ -126,7 +133,7 @@ onMounted(async () => {
 })
 
 // Re-query when a filter changes (reset to first page).
-watch([search, classFilter, categoryFilter, aiFilter], () => {
+watch([search, classFilter, categoryFilter, aiFilter, tagFilter, keywordFilter], () => {
   cursor.value = 0
   selected.value = []
   void load()

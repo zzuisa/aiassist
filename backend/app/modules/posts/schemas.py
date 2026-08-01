@@ -186,6 +186,14 @@ class TaxonomyMergeBody(BaseModel):
     target_id: uuid.UUID
 
 
+class WordCloudRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    source_kind: str = Field(pattern="^(tag|keyword)$")
+    filter: dict = Field(default_factory=dict)
+    min_frequency: int | None = Field(default=None, ge=1, le=100000)
+    max_terms: int | None = Field(default=None, ge=1, le=500)
+
+
 class GenerateBody(BaseModel):
     """Legacy AI generation request (pre-005 blog.generate job)."""
 

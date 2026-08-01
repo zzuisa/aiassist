@@ -72,6 +72,16 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/modules/posts/TimelinePage.vue'),
           },
           {
+            path: 'word-cloud',
+            name: 'blog-word-cloud',
+            component: () => import('@/modules/posts/WordCloudPage.vue'),
+          },
+          {
+            path: 'settings',
+            name: 'blog-settings',
+            component: () => import('@/modules/posts/BlogSettingsPage.vue'),
+          },
+          {
             path: 'jobs',
             name: 'blog-jobs',
             component: () => import('@/modules/posts/BlogJobsPage.vue'),

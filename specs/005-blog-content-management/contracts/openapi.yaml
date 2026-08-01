@@ -608,7 +608,10 @@ paths:
           description: Last successful snapshot or empty state
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/WordCloudSnapshot' }
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/WordCloudSnapshot' }
+                  - { type: 'null' }
     post:
       summary: Create or rebuild one word-cloud snapshot asynchronously
       requestBody:

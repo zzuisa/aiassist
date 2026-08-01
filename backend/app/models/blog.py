@@ -390,7 +390,7 @@ class PostWordCloudSnapshot(Base):
     source_kind: Mapped[str] = mapped_column(String(12), nullable=False)
     filter_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     filter_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    terms_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    terms_json: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)
     article_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="ready")
     async_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

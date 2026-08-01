@@ -69,6 +69,37 @@ def test_taxonomy_crud_alias_merge_and_recompute_contract(client, make_user):
     assert recompute.json()["job_type"] == "blog.keyword_recompute"
 
 
+def test_word_cloud_get_and_rebuild_contract(client, make_user):
+    user = make_user()
+    headers = _login(client, user.email)
+    empty = client.get(
+        "/api/v1/blog/word-cloud",
+        params={"source_kind": "keyword", "filter": '{"year":2026}'},
+    )
+    assert empty.status_code == 200 and empty.json() is None
+
+    rebuild = client.post(
+        "/api/v1/blog/word-cloud",
+        json={
+            "source_kind": "keyword",
+            "filter": {"year": 2026},
+            "min_frequency": 2,
+            "max_terms": 50,
+        },
+        headers=headers,
+    )
+    assert rebuild.status_code == 202
+    assert rebuild.json()["job"]["job_type"] == "blog.wordcloud"
+    assert rebuild.json()["previous"] is None
+
+    invalid = client.get(
+        "/api/v1/blog/word-cloud",
+        params={"source_kind": "keyword", "filter": "not-json"},
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["code"] == "invalid_word_cloud_filter"
+
+
 def test_blank_capture_creates_draft(client, make_user):
     user = make_user()
     h = _login(client, user.email)

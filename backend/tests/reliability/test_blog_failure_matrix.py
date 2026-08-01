@@ -14,6 +14,7 @@ background processing are unavailable:
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -228,6 +229,57 @@ def test_keyword_recompute_redelivery_preserves_manual_links(db_session, user_id
     db_session.expire_all()
     # Recompute is idempotent and never replaces manually maintained links.
     assert db_session.get(PostKeywordLink, (post.id, uuid.UUID(keyword["id"]))) is not None
+
+
+@requires_db
+def test_wordcloud_duplicate_rebuild_and_cancellation_are_safe(db_session, user_id):
+    from app.models.foundation import OutboxEvent
+    from app.modules.jobs import service as jobs_service
+    from app.modules.posts import query_service
+    from app.workers.tasks import blog as blog_task
+
+    first, _ = query_service.request_word_cloud_rebuild(db_session, user_id, "tag", {"year": 2026})
+    second, _ = query_service.request_word_cloud_rebuild(
+        db_session, user_id, "tag", {"year": "2026"}
+    )
+    assert first.id == second.id
+    db_session.flush()
+    assert db_session.query(OutboxEvent).filter_by(event_type="blog.wordcloud").count() == 1
+    jobs_service.transition(db_session, first, status="cancelled")
+    db_session.commit()
+    assert first.entity_id is not None
+    assert blog_task.run_wordcloud(first.entity_id, 2, 100) == "cancelled"
+
+
+@requires_db
+def test_wordcloud_failure_preserves_last_success(db_session, user_id, monkeypatch):
+    from app.models.blog import PostWordCloudSnapshot
+    from app.modules.posts import query_service, settings_service
+    from app.workers.tasks import blog as blog_task
+
+    job, _ = query_service.request_word_cloud_rebuild(
+        db_session, user_id, "keyword", {"year": 2026}
+    )
+    assert job.entity_id is not None
+    snapshot = db_session.get(PostWordCloudSnapshot, job.entity_id)
+    assert snapshot is not None
+    snapshot.terms_json = [{"id": str(uuid.uuid4()), "term": "已有结果", "count": 4}]
+    snapshot.generated_at = datetime.now(UTC)
+    snapshot.status = "ready"
+    db_session.commit()
+
+    monkeypatch.setattr(
+        settings_service,
+        "settings_to_dict",
+        lambda _row: (_ for _ in ()).throw(RuntimeError("dependency failed")),
+    )
+    with pytest.raises(RuntimeError, match="dependency failed"):
+        blog_task.run_wordcloud(job.entity_id, 2, 100)
+    db_session.expire_all()
+    preserved = db_session.get(PostWordCloudSnapshot, job.entity_id)
+    assert preserved is not None
+    assert preserved.status == "stale"
+    assert preserved.terms_json[0]["term"] == "已有结果"
 
 
 # ---------------------------------------------------------------------------

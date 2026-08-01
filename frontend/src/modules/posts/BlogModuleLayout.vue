@@ -7,9 +7,11 @@ const navItems = [
   { to: '/blog', label: '文章', exact: true },
   { to: '/blog/taxonomy', label: '分类', exact: false },
   { to: '/blog/timeline', label: '时间轴', exact: false },
+  { to: '/blog/word-cloud', label: '词云', exact: false },
   { to: '/blog/triage', label: '待整理', exact: false },
   { to: '/blog/jobs', label: 'AI 任务', exact: false },
   { to: '/blog/skills', label: 'AI 技能', exact: false },
+  { to: '/blog/settings', label: '设置', exact: false },
 ]
 </script>
 

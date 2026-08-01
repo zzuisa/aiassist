@@ -6,12 +6,14 @@ and word-cloud read endpoints to the same ``/blog`` router.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
+from app.core.errors import ValidationError
 from app.db.session import get_db
 from app.modules.posts import content_types, query_service, service
 from app.modules.posts.schemas import (
@@ -19,11 +21,56 @@ from app.modules.posts.schemas import (
     ContentTypeOut,
     ContentTypeWrite,
     MergeBody,
+    WordCloudRequest,
     content_type_out,
     post_out,
 )
 
 query_router = APIRouter(prefix="/blog", tags=["blog-query"])
+
+
+@query_router.get("/word-cloud")
+def get_word_cloud(
+    source_kind: str = Query(pattern="^(tag|keyword)$"),
+    filter: str | None = None,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict | None:
+    try:
+        filters = json.loads(filter) if filter else {}
+    except json.JSONDecodeError as exc:
+        raise ValidationError(
+            "word-cloud filter must be valid JSON", code="invalid_word_cloud_filter"
+        ) from exc
+    if not isinstance(filters, dict):
+        raise ValidationError(
+            "word-cloud filter must be an object", code="invalid_word_cloud_filter"
+        )
+    snapshot = query_service.get_word_cloud_snapshot(db, user.id, source_kind, filters)
+    return query_service.serialize_word_cloud(snapshot) if snapshot else None
+
+
+@query_router.post("/word-cloud", status_code=202)
+def rebuild_word_cloud(
+    body: WordCloudRequest,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict:
+    from app.modules.jobs.schemas import serialize_job
+
+    job, previous = query_service.request_word_cloud_rebuild(
+        db,
+        user.id,
+        body.source_kind,
+        body.filter,
+        min_frequency=body.min_frequency,
+        max_terms=body.max_terms,
+    )
+    db.commit()
+    return {
+        "job": serialize_job(job).model_dump(mode="json"),
+        "previous": query_service.serialize_word_cloud(previous) if previous else None,
+    }
 
 
 @query_router.get("/search")
@@ -82,6 +129,8 @@ def list_articles(
     content_status: str | None = None,
     content_class: str | None = None,
     category_id: uuid.UUID | None = None,
+    tag_id: uuid.UUID | None = None,
+    keyword_id: uuid.UUID | None = None,
     status: str | None = None,
     ai_state: str | None = None,
     search: str | None = None,
@@ -98,6 +147,8 @@ def list_articles(
         content_status=content_status,
         content_class=content_class,
         category_id=category_id,
+        tag_id=tag_id,
+        keyword_id=keyword_id,
         status=status,
         ai_state=ai_state,
         search=search,

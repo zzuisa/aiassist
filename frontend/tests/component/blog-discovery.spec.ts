@@ -3,22 +3,28 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/api/blogQueries', () => ({
   articlesApi: { list: vi.fn(), search: vi.fn(), timeline: vi.fn() },
+  wordCloudApi: { get: vi.fn(), rebuild: vi.fn() },
 }))
 vi.mock('@/api/blogTaxonomy', () => ({
   taxonomyApi: { list: vi.fn() },
 }))
+const routerPush = vi.fn()
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPush }),
+  useRoute: () => ({ query: {} }),
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
-import { articlesApi } from '@/api/blogQueries'
+import { articlesApi, wordCloudApi } from '@/api/blogQueries'
 import { taxonomyApi } from '@/api/blogTaxonomy'
+import BlogSettingsPage from '@/modules/posts/BlogSettingsPage.vue'
 import PostListPage from '@/modules/posts/PostListPage.vue'
 import TimelinePage from '@/modules/posts/TimelinePage.vue'
+import WordCloudPage from '@/modules/posts/WordCloudPage.vue'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   vi.mocked(articlesApi.list).mockResolvedValue({
     items: [], next_cursor: null, total: 0, counts_by_status: {},
   } as never)
@@ -113,5 +119,64 @@ describe('PostListPage deep search', () => {
 
     expect((searchInput.element as HTMLInputElement).value).toBe('')
     expect(articlesApi.list).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Word cloud discovery', () => {
+  it('renders controls, stale state and non-color frequency cues', async () => {
+    vi.mocked(wordCloudApi.get).mockResolvedValue({
+      id: 's1', source_kind: 'keyword', filter: {}, article_count: 8,
+      status: 'stale', generated_at: '2026-08-01T12:00:00Z', error_code: 'failed',
+      terms: [{ id: 'k1', term: '数据库', count: 5 }],
+    })
+    const wrapper = mount(WordCloudPage)
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="词云筛选"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('上次有效结果')
+    expect(wrapper.get('button[aria-label="数据库，出现于 5 篇文章"]').text()).toContain('5')
+  })
+
+  it('saves word-cloud defaults without triggering an automatic rebuild', async () => {
+    const wrapper = mount(BlogSettingsPage)
+    await wrapper.get('input[min="1"][max="100000"]').setValue('3')
+    await wrapper.get('button').trigger('click')
+
+    expect(wrapper.text()).toContain('设置已保存')
+    expect(JSON.parse(window.localStorage.getItem('aiassist:word-cloud-settings') || '{}'))
+      .toMatchObject({ min_frequency: 3 })
+    expect(wordCloudApi.rebuild).not.toHaveBeenCalled()
+  })
+
+  it('shows loading and empty states and submits explicit rebuild controls', async () => {
+    let resolveGet: (value: null) => void = () => undefined
+    vi.mocked(wordCloudApi.get).mockReturnValue(new Promise((resolve) => { resolveGet = resolve }))
+    vi.mocked(wordCloudApi.rebuild).mockResolvedValue({
+      job: { id: 'j1', job_type: 'blog.wordcloud', status: 'pending' }, previous: null,
+    })
+    const wrapper = mount(WordCloudPage)
+    await Promise.resolve()
+    expect(wrapper.text()).toContain('正在加载词云')
+    resolveGet(null)
+    await flushPromises()
+    expect(wrapper.text()).toContain('尚无词云快照')
+    await wrapper.get('input[aria-label="最低频次"]').setValue('3')
+    await wrapper.get('.primary').trigger('click')
+    await flushPromises()
+    expect(wordCloudApi.rebuild).toHaveBeenCalledWith(expect.objectContaining({ min_frequency: 3 }))
+  })
+
+  it('navigates canonical terms to a clearable article filter', async () => {
+    vi.mocked(wordCloudApi.get).mockResolvedValue({
+      id: 's1', source_kind: 'keyword', filter: {}, article_count: 4,
+      status: 'ready', generated_at: '2026-08-01T12:00:00Z', error_code: null,
+      terms: [{ id: 'keyword-1', term: '后端', count: 4 }],
+    })
+    const wrapper = mount(WordCloudPage)
+    await flushPromises()
+    await wrapper.get('button[aria-label="后端，出现于 4 篇文章"]').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'blog', query: { keyword_id: 'keyword-1' },
+    })
   })
 })

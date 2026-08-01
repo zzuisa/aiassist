@@ -32,6 +32,7 @@ _CELERY_COMMANDS: dict[str, tuple[str, str]] = {
     "blog.optimize": ("app.workers.tasks.blog.optimize", "llm"),
     "blog.taxonomy_merge": ("app.workers.tasks.blog.taxonomy_merge", "search"),
     "blog.keyword_recompute": ("app.workers.tasks.blog.keyword_recompute", "search"),
+    "blog.wordcloud": ("app.workers.tasks.blog.wordcloud", "search"),
 }
 
 
@@ -141,6 +142,8 @@ class OutboxPublisher:
             args = [payload["merge_id"]]
         elif event_type == "blog.keyword_recompute":
             args = [payload["job_id"], payload["user_id"]]
+        elif event_type == "blog.wordcloud":
+            args = [payload["snapshot_id"], payload["min_frequency"], payload["max_terms"]]
         else:  # defensive guard if the command mapping grows incorrectly
             raise ValueError(f"unsupported Celery command: {event_type}")
         celery.send_task(

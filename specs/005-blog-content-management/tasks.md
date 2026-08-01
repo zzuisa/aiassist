@@ -427,21 +427,21 @@
 
 ### Tests for User Story 9 — write first ⚠️
 
-- [ ] T156 [P] [US9] Add word-cloud get/rebuild contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T157 [P] [US9] Add filter hash, stop-word, threshold, max-term and last-success fallback integration tests in `backend/tests/integration/test_blog_word_cloud.py`
-- [ ] T158 [P] [US9] Add duplicate rebuild, cancellation and failure-preserves-snapshot reliability tests in `backend/tests/reliability/test_blog_failure_matrix.py`
-- [ ] T159 [P] [US9] Add cloud controls, loading/stale/empty states and term-navigation component tests in `frontend/tests/component/blog-discovery.spec.ts`
+- [x] T156 [P] [US9] Add word-cloud get/rebuild contract tests in `backend/tests/contract/test_blog_content_api.py`
+- [x] T157 [P] [US9] Add filter hash, stop-word, threshold, max-term and last-success fallback integration tests in `backend/tests/integration/test_blog_word_cloud.py`
+- [x] T158 [P] [US9] Add duplicate rebuild, cancellation and failure-preserves-snapshot reliability tests in `backend/tests/reliability/test_blog_failure_matrix.py`
+- [x] T159 [P] [US9] Add cloud controls, loading/stale/empty states and term-navigation component tests in `frontend/tests/component/blog-discovery.spec.ts`
 
 ### Implementation for User Story 9
 
-- [ ] T160 [US9] Implement canonical filter normalization/hash, last-success lookup and rebuild Job transaction in `backend/app/modules/posts/query_service.py`
-- [ ] T161 [US9] Implement idempotent tag/keyword aggregation, stop-word/threshold/limit application and snapshot replacement in `backend/app/workers/tasks/blog.py`
-- [ ] T162 [US9] Implement word-cloud get/rebuild endpoints and business error serialization in `backend/app/modules/posts/query_router.py`
-- [ ] T163 [P] [US9] Implement typed word-cloud client in `frontend/src/api/blogQueries.ts`
-- [ ] T164 [US9] Implement source switch, time/class/category filters, controls, last-updated and stale/error display in `frontend/src/modules/posts/WordCloudPage.vue`
-- [ ] T165 [US9] Implement accessible bounded-size cloud layout with non-color frequency cues in `frontend/src/modules/posts/WordCloudView.vue`
-- [ ] T166 [US9] Link canonical tag/keyword clicks to clearable Post list filters in `frontend/src/modules/posts/WordCloudPage.vue` and `frontend/src/modules/posts/PostListPage.vue`
-- [ ] T167 [US9] Add word-cloud settings fields and explicit on-demand rebuild behavior in `frontend/src/modules/posts/BlogSettingsPage.vue`
+- [x] T160 [US9] Implement canonical filter normalization/hash, last-success lookup and rebuild Job transaction in `backend/app/modules/posts/query_service.py`
+- [x] T161 [US9] Implement idempotent tag/keyword aggregation, stop-word/threshold/limit application and snapshot replacement in `backend/app/workers/tasks/blog.py`
+- [x] T162 [US9] Implement word-cloud get/rebuild endpoints and business error serialization in `backend/app/modules/posts/query_router.py`
+- [x] T163 [P] [US9] Implement typed word-cloud client in `frontend/src/api/blogQueries.ts`
+- [x] T164 [US9] Implement source switch, time/class/category filters, controls, last-updated and stale/error display in `frontend/src/modules/posts/WordCloudPage.vue`
+- [x] T165 [US9] Implement accessible bounded-size cloud layout with non-color frequency cues in `frontend/src/modules/posts/WordCloudView.vue`
+- [x] T166 [US9] Link canonical tag/keyword clicks to clearable Post list filters in `frontend/src/modules/posts/WordCloudPage.vue` and `frontend/src/modules/posts/PostListPage.vue`
+- [x] T167 [US9] Add word-cloud settings fields and explicit on-demand rebuild behavior in `frontend/src/modules/posts/BlogSettingsPage.vue`
 
 **Checkpoint**: US9 remains a derived exploration aid and never becomes a dependency for search or article saves.
 

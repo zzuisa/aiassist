@@ -7,6 +7,8 @@ in later user stories. Implemented here: T116 (list) and T117 (triage).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -16,8 +18,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.sqltypes import Text
 
-from app.models.blog import PostKeyword, PostKeywordLink, PostSource
-from app.models.foundation import Category, Tag
+from app.core.errors import ValidationError
+from app.models.blog import PostKeyword, PostKeywordLink, PostSource, PostWordCloudSnapshot
+from app.models.foundation import AsyncJob, Category, Tag
 from app.models.posts import Post, PostTag
 
 # content_status values that mean "not yet an organized article" — the triage
@@ -27,6 +30,144 @@ _ACTIVE_EXCLUDED = ("archived", "discarded")
 
 # A draft/triage item untouched for this long is considered stale.
 STALE_AFTER = timedelta(days=14)
+WORD_CLOUD_FILTER_KEYS = ("year", "month", "from", "to", "content_class", "category_id")
+
+
+def normalize_word_cloud_filter(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Return a stable, bounded filter representation used for hashing and jobs."""
+    normalized: dict[str, Any] = {}
+    for key in WORD_CLOUD_FILTER_KEYS:
+        value = (raw or {}).get(key)
+        if value is None or value == "":
+            continue
+        try:
+            if key in {"year", "month"}:
+                numeric_value = int(value)
+                if key == "year" and not 1970 <= numeric_value <= 2200:
+                    raise ValidationError(
+                        "invalid word-cloud year", code="invalid_word_cloud_filter"
+                    )
+                if key == "month" and not 1 <= numeric_value <= 12:
+                    raise ValidationError(
+                        "invalid word-cloud month", code="invalid_word_cloud_filter"
+                    )
+                value = numeric_value
+            elif key == "category_id":
+                value = str(uuid.UUID(str(value)))
+            elif key in {"from", "to"}:
+                parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=UTC)
+                value = parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        except ValidationError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                f"invalid word-cloud filter field: {key}", code="invalid_word_cloud_filter"
+            ) from exc
+        if key not in {"year", "month", "category_id"}:
+            value = str(value).strip()
+        normalized[key] = value
+    return normalized
+
+
+def word_cloud_filter_hash(filters: dict[str, Any]) -> str:
+    payload = json.dumps(filters, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def serialize_word_cloud(snapshot: PostWordCloudSnapshot) -> dict[str, Any]:
+    return {
+        "id": str(snapshot.id),
+        "source_kind": snapshot.source_kind,
+        "filter": snapshot.filter_json,
+        "terms": snapshot.terms_json,
+        "article_count": snapshot.article_count,
+        "status": snapshot.status,
+        "generated_at": snapshot.generated_at.isoformat() if snapshot.generated_at else None,
+        "error_code": snapshot.error_code,
+    }
+
+
+def get_word_cloud_snapshot(
+    session: Session, user_id: uuid.UUID, source_kind: str, filters: dict[str, Any] | None
+) -> PostWordCloudSnapshot | None:
+    normalized = normalize_word_cloud_filter(filters)
+    return session.scalar(
+        select(PostWordCloudSnapshot).where(
+            PostWordCloudSnapshot.user_id == user_id,
+            PostWordCloudSnapshot.source_kind == source_kind,
+            PostWordCloudSnapshot.filter_hash == word_cloud_filter_hash(normalized),
+        )
+    )
+
+
+def request_word_cloud_rebuild(
+    session: Session,
+    user_id: uuid.UUID,
+    source_kind: str,
+    filters: dict[str, Any] | None,
+    *,
+    min_frequency: int | None = None,
+    max_terms: int | None = None,
+) -> tuple[AsyncJob, PostWordCloudSnapshot | None]:
+    if source_kind not in {"tag", "keyword"}:
+        raise ValidationError("unsupported word-cloud source", code="invalid_word_cloud_source")
+    from app.modules.jobs import service as jobs_service
+    from app.modules.posts import settings_service
+    from app.services.outbox.publisher import append_event
+
+    normalized = normalize_word_cloud_filter(filters)
+    snapshot = get_word_cloud_snapshot(session, user_id, source_kind, normalized)
+    previous = snapshot if snapshot and snapshot.generated_at else None
+    if snapshot and snapshot.async_job_id:
+        active = session.get(AsyncJob, snapshot.async_job_id)
+        if active and active.status in {"pending", "queued", "processing"}:
+            return active, previous
+    if snapshot is None:
+        snapshot = PostWordCloudSnapshot(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            source_kind=source_kind,
+            filter_json=normalized,
+            filter_hash=word_cloud_filter_hash(normalized),
+            terms_json=[],
+            status="stale",
+        )
+        session.add(snapshot)
+        session.flush()
+    settings = settings_service.settings_to_dict(settings_service.get_settings(session, user_id))[
+        "word_cloud"
+    ]
+    minimum = min_frequency or int(settings["min_term_count"])
+    maximum = max_terms or int(settings["max_terms"])
+    minimum = min(max(minimum, 1), 100_000)
+    maximum = min(max(maximum, 1), 500)
+    job = jobs_service.create_job(
+        session,
+        user_id=user_id,
+        job_type="blog.wordcloud",
+        entity_type="word_cloud_snapshot",
+        entity_id=snapshot.id,
+        idempotency_key=f"wordcloud:{snapshot.id}:{uuid.uuid4()}",
+    )
+    snapshot.async_job_id = job.id
+    snapshot.status = "stale"
+    snapshot.error_code = None
+    append_event(
+        session,
+        event_type="blog.wordcloud",
+        aggregate_type="word_cloud_snapshot",
+        aggregate_id=snapshot.id,
+        routing_key="blog.wordcloud.rebuild",
+        payload={
+            "snapshot_id": str(snapshot.id),
+            "min_frequency": minimum,
+            "max_terms": maximum,
+        },
+        user_id=user_id,
+    )
+    return job, previous
 
 
 def _derived_ai_state(post: Post) -> str:
@@ -73,6 +214,8 @@ def list_posts(
     content_status: str | None = None,
     content_class: str | None = None,
     category_id: uuid.UUID | None = None,
+    tag_id: uuid.UUID | None = None,
+    keyword_id: uuid.UUID | None = None,
     status: str | None = None,
     ai_state: str | None = None,
     search: str | None = None,
@@ -95,6 +238,26 @@ def list_posts(
         base = base.where(Post.content_class == content_class)
     if category_id:
         base = base.where(Post.category_id == category_id)
+    if tag_id:
+        base = base.where(
+            exists(
+                select(1).where(
+                    PostTag.post_id == Post.id,
+                    PostTag.user_id == user_id,
+                    PostTag.tag_id == tag_id,
+                )
+            )
+        )
+    if keyword_id:
+        base = base.where(
+            exists(
+                select(1).where(
+                    PostKeywordLink.post_id == Post.id,
+                    PostKeywordLink.user_id == user_id,
+                    PostKeywordLink.keyword_id == keyword_id,
+                )
+            )
+        )
     if status:
         base = base.where(Post.status == status)
     if search:

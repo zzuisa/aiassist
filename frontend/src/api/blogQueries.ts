@@ -107,10 +107,42 @@ export interface TimelineResult {
   time_basis: 'occurred_at_or_created_at'
 }
 
+export interface WordCloudTerm {
+  id: string
+  term: string
+  count: number
+}
+
+export interface WordCloudSnapshot {
+  id: string
+  source_kind: 'tag' | 'keyword'
+  filter: Record<string, unknown>
+  terms: WordCloudTerm[]
+  article_count: number
+  status: 'ready' | 'stale' | 'failed'
+  generated_at: string | null
+  error_code: string | null
+}
+
+export interface WordCloudJob {
+  id: string
+  job_type: string
+  status: string
+}
+
+export interface WordCloudRequest {
+  source_kind: 'tag' | 'keyword'
+  filter: Record<string, unknown>
+  min_frequency?: number
+  max_terms?: number
+}
+
 export interface ArticleFilters {
   content_status?: string
   content_class?: string
   category_id?: string
+  tag_id?: string
+  keyword_id?: string
   status?: string
   ai_state?: string
   search?: string
@@ -183,4 +215,14 @@ export const articlesApi = {
     api.post<{ id: string; markdown: string; version: number }>('/blog/articles/merge', body),
   export: (id: string) =>
     api.get<{ filename: string; title: string; markdown: string }>(`/blog/articles/${id}/export`),
+}
+
+export const wordCloudApi = {
+  get: (sourceKind: 'tag' | 'keyword', filter: Record<string, unknown>) =>
+    api.get<WordCloudSnapshot | null>('/blog/word-cloud', {
+      source_kind: sourceKind,
+      filter: JSON.stringify(filter),
+    }),
+  rebuild: (body: WordCloudRequest) =>
+    api.post<{ job: WordCloudJob; previous: WordCloudSnapshot | null }>('/blog/word-cloud', body),
 }

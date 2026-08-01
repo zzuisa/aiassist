@@ -18,6 +18,7 @@ vi.mock('@/api/blogCapture', () => ({
 }))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ query: {} }),
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
