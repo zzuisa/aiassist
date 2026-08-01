@@ -38,6 +38,12 @@ function decode(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/g, "'")
 }
+
+function resultHref(type: string, id: string, query: string): string | null {
+  if (type !== 'post') return null
+  const params = new URLSearchParams({ q: query, from: 'search' })
+  return `/blog/${encodeURIComponent(id)}/view?${params.toString()}`
+}
 </script>
 
 <template>
@@ -69,7 +75,15 @@ function decode(s: string): string {
             :key="item.entity.id"
             class="result"
           >
-            <span class="title">{{ item.title }}</span>
+            <a
+              v-if="resultHref(item.entity.type, item.entity.id, results.query)"
+              class="title result-link"
+              :href="resultHref(item.entity.type, item.entity.id, results.query) ?? undefined"
+            >{{ item.title }}</a>
+            <span
+              v-else
+              class="title"
+            >{{ item.title }}</span>
             <span
               v-for="(h, i) in item.highlights"
               :key="i"
@@ -130,6 +144,9 @@ ul {
 }
 .title {
   font-weight: 500;
+}
+.result-link {
+  color: inherit;
 }
 .highlight {
   color: var(--color-text-muted);

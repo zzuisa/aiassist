@@ -98,3 +98,32 @@ def test_empty_result_returns_no_groups(make_user):
     with session_scope() as s:
         result = search_service.search(s, user.id, "不存在的词xyz")
         assert result["groups"] == []
+
+
+def test_post_deep_fields_are_searchable_and_owner_scoped(make_user):
+    from app.models.foundation import Category, Tag
+    from app.models.posts import PostTag
+    from app.modules.posts import service as post_service
+
+    owner = make_user()
+    other = make_user()
+    with session_scope() as s:
+        category = Category(user_id=owner.id, name="故障复盘", kind="post")
+        tag = Tag(user_id=owner.id, name="可观测性")
+        s.add_all([category, tag])
+        s.flush()
+        post = post_service.create_post(
+            s, owner.id, title="网关记录", markdown="```sh\nkubectl logs api\n```"
+        )
+        post.summary = "追踪 CrashLoopBackOff 根因"
+        post.category_id = category.id
+        post.structured_data_json = {"incident": {"code": "ERR_DEEP_731"}}
+        s.add(PostTag(post_id=post.id, tag_id=tag.id, user_id=owner.id))
+        owner_id, other_id = owner.id, other.id
+
+    with session_scope() as s:
+        for needle in ("CrashLoopBackOff", "kubectl logs", "故障复盘", "可观测性", "ERR_DEEP_731"):
+            result = search_service.search(s, owner_id, needle, types=["post"])
+            assert result["groups"], needle
+            assert result["groups"][0]["items"][0]["entity"]["type"] == "post"
+        assert search_service.search(s, other_id, "ERR_DEEP_731", types=["post"])["groups"] == []

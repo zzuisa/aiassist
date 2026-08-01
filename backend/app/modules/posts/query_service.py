@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.sqltypes import Text
 
-from app.models.blog import PostSource
+from app.models.blog import PostKeyword, PostKeywordLink, PostSource
 from app.models.foundation import Category, Tag
 from app.models.posts import Post, PostTag
 
@@ -257,6 +257,17 @@ def _post_search_base(
             Category.name.ilike(like),
         )
     )
+    keyword_match = exists(
+        select(1)
+        .select_from(PostKeywordLink)
+        .join(PostKeyword, PostKeyword.id == PostKeywordLink.keyword_id)
+        .where(
+            PostKeywordLink.post_id == Post.id,
+            PostKeywordLink.user_id == user_id,
+            PostKeyword.user_id == user_id,
+            PostKeyword.canonical_text.ilike(like),
+        )
+    )
     base = select(Post).where(
         Post.user_id == user_id,
         Post.deleted_at.is_(None),
@@ -271,6 +282,7 @@ def _post_search_base(
             source_match,
             tag_match,
             category_match,
+            keyword_match,
         ),
     )
     if content_class:
@@ -305,6 +317,18 @@ def _post_search_row(session: Session, post: Post, query: str) -> dict[str, Any]
             )
         ).all()
     )
+    keywords = list(
+        session.scalars(
+            select(PostKeyword.canonical_text)
+            .join(PostKeywordLink, PostKeywordLink.keyword_id == PostKeyword.id)
+            .where(
+                PostKeywordLink.post_id == post.id,
+                PostKeywordLink.user_id == post.user_id,
+                PostKeyword.user_id == post.user_id,
+            )
+            .order_by(PostKeyword.canonical_text)
+        ).all()
+    )
     fields: dict[str, object] = {
         "title": post.title,
         "subtitle": post.subtitle,
@@ -315,6 +339,7 @@ def _post_search_row(session: Session, post: Post, query: str) -> dict[str, Any]
         "structured_data": post.structured_data_json,
         "category": category,
         "tags": " ".join(tags),
+        "keywords": " ".join(keywords),
         "source": " ".join(
             str(value or "")
             for source in sources
