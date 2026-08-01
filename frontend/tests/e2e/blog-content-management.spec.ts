@@ -14,6 +14,10 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel('密码').fill(PASSWORD!)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/\/today/)
+  // A fresh browser profile has not acknowledged the latest release yet. The
+  // announcement is expected product behaviour, so close it before exercising
+  // the underlying blog controls.
+  await page.getByRole('button', { name: '关闭更新公告' }).click()
 }
 
 test('quick capture saves and returns to the list (happy path)', async ({ page }) => {

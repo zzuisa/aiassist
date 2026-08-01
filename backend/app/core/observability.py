@@ -127,6 +127,10 @@ def configure_logging(level: str = "INFO", service: str = "backend") -> None:
         for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "celery", "celery.task")
     ]
     for logger in named_loggers:
+        # Celery may disable pre-existing stdlib loggers while installing its
+        # own logging configuration. Re-enable the application-owned targets
+        # whenever our idempotent setup runs after Celery's signal.
+        logger.disabled = False
         logger.setLevel(numeric_level)
     closed: set[int] = set()
     for logger in [root, *named_loggers]:
