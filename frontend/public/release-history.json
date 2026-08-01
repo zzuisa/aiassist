@@ -1,6 +1,47 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.180529-2207dd6",
+      "version": "2026.08.01.180529",
+      "commit": "2207dd6bd33bdbf4f57dd44a2052f9da33ab8813",
+      "commit_short": "2207dd6",
+      "message": "deploy: update 2026.08.01.180529",
+      "changes": [
+        "deploy: update 2026.08.01.180529",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/models/blog.py",
+        "backend/app/modules/posts/query_router.py",
+        "backend/app/modules/posts/query_service.py",
+        "backend/app/modules/posts/schemas.py",
+        "backend/app/services/outbox/publisher.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "backend/tests/integration/test_blog_word_cloud.py",
+        "backend/tests/reliability/test_blog_failure_matrix.py",
+        "frontend/src/api/blogQueries.ts",
+        "frontend/src/modules/posts/BlogModuleLayout.vue",
+        "frontend/src/modules/posts/BlogSettingsPage.vue",
+        "frontend/src/modules/posts/PostListPage.vue",
+        "frontend/src/modules/posts/WordCloudPage.vue",
+        "frontend/src/modules/posts/WordCloudView.vue",
+        "frontend/src/router/index.ts",
+        "frontend/tests/component/blog-discovery.spec.ts",
+        "frontend/tests/component/blog-mobile.spec.ts",
+        "specs/005-blog-content-management/contracts/openapi.yaml",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T18:05:29Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.173431-294f4a3",
       "version": "2026.08.01.173431",
       "commit": "294f4a3711b87773a07bc947f245025eff962fe6",
