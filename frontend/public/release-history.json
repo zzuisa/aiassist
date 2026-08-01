@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.132425-69e98fd",
+      "version": "2026.08.01.132425",
+      "commit": "69e98fd8c3987c2009cf9083e9cc44f86b34f24d",
+      "commit_short": "69e98fd",
+      "message": "deploy: update 2026.08.01.132425",
+      "changes": [
+        "deploy: update 2026.08.01.132425",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/api/dependencies.py",
+        "backend/app/core/observability.py",
+        "backend/app/modules/auth/router.py",
+        "backend/app/modules/auth/service.py",
+        "backend/app/modules/jobs/router.py",
+        "backend/tests/integration/test_auth.py",
+        "backend/tests/security/test_security.py"
+      ],
+      "deployed_at": "2026-08-01T13:24:25Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.131539-d95b323",
       "version": "2026.08.01.131539",
       "commit": "d95b323502f254e700d0fc6cebae1b344f9a2a83",
