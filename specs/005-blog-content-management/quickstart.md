@@ -316,6 +316,16 @@ operator emergency and must not be used for routine deployments.
 - Rebuild remains explicit and asynchronous; article saves, search and access do not depend
   on a current word-cloud snapshot.
 
+### Blog settings validation evidence (2026-08-01)
+
+- The complete five-section settings GET/PUT contract passed against disposable PostgreSQL
+  18.4, including optimistic version conflicts, AI field-policy conflicts and a redacted
+  `blog.settings.updated` Activity record.
+- Backend Ruff, formatting and mypy passed for 147 source files. Node 24 frontend lint,
+  typecheck, 10 focused component tests and the production Vite/PWA build passed.
+- The grouped UI restores only the active section, explains changes that affect future AI
+  submission/application, and never rewrites historical articles or already submitted Jobs.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.

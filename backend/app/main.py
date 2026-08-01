@@ -24,6 +24,7 @@ from app.modules.posts.capture_router import sources_router as blog_sources_rout
 from app.modules.posts.query_router import query_router as blog_query_router
 from app.modules.posts.router import private_router as posts_router
 from app.modules.posts.router import public_router as public_router
+from app.modules.posts.settings_router import router as blog_settings_router
 from app.modules.posts.skill_router import skill_router as blog_skill_router
 from app.modules.posts.taxonomy_router import router as blog_taxonomy_router
 from app.modules.search.router import router as search_router
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(blog_ai_router, prefix=API_PREFIX)
     app.include_router(blog_optimize_router, prefix=API_PREFIX)
     app.include_router(blog_query_router, prefix=API_PREFIX)
+    app.include_router(blog_settings_router, prefix=API_PREFIX)
     app.include_router(assistant_router, prefix=API_PREFIX)
     app.include_router(settings_router, prefix=API_PREFIX)
 

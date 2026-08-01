@@ -8,6 +8,9 @@ vi.mock('@/api/blogQueries', () => ({
 vi.mock('@/api/blogTaxonomy', () => ({
   taxonomyApi: { list: vi.fn() },
 }))
+vi.mock('@/api/blogSettings', () => ({
+  blogSettingsApi: { get: vi.fn(), update: vi.fn() },
+}))
 const routerPush = vi.fn()
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPush }),
@@ -17,6 +20,7 @@ vi.mock('vue-router', () => ({
 
 import { articlesApi, wordCloudApi } from '@/api/blogQueries'
 import { taxonomyApi } from '@/api/blogTaxonomy'
+import { blogSettingsApi } from '@/api/blogSettings'
 import BlogSettingsPage from '@/modules/posts/BlogSettingsPage.vue'
 import PostListPage from '@/modules/posts/PostListPage.vue'
 import TimelinePage from '@/modules/posts/TimelinePage.vue'
@@ -25,6 +29,38 @@ import WordCloudPage from '@/modules/posts/WordCloudPage.vue'
 beforeEach(() => {
   vi.clearAllMocks()
   window.localStorage.clear()
+  const blogSettings = {
+    schema_version: 'blog-settings.v1' as const,
+    create_defaults: {
+      content_class: 'essay', language: 'zh-CN', content_type_id: null, category_id: null,
+      tag_ids: [], status: 'draft', editor_mode: 'rich', ai_enabled: false,
+      default_skill_id: null, model: null, generate_summary: true, generate_keywords: true,
+      recommend_tags: true, retain_original: true,
+    },
+    clipboard: {
+      enabled: true, auto_parse: false, default_content_class: 'quick', cleanup_format: true,
+      retain_original: true, detect_urls: true, auto_ai: false, default_skill_id: null,
+    },
+    url_capture: {
+      enabled: true, auto_fetch_title: true, auto_extract_body: false,
+      default_content_class: 'bookmark', retain_original: true, retain_snapshot: false,
+      extract_images: false, auto_ai: false, default_skill_id: null,
+    },
+    ai_apply: {
+      confirm_before_apply: true, default_fields: ['title', 'markdown'], show_diff: true,
+      default_provider: 'radio' as const, allow_auto_apply: false, auto_apply_fields: [],
+      confirm_fields: ['markdown'], merge_on_version_change: true, retain_job_history: true,
+    },
+    word_cloud: {
+      enabled: true, min_term_count: 2, max_terms: 100, exclude_terms: [],
+      excluded_content_classes: [],
+    },
+    version: 1, warnings: [],
+  }
+  vi.mocked(blogSettingsApi.get).mockResolvedValue(structuredClone(blogSettings))
+  vi.mocked(blogSettingsApi.update).mockImplementation(async (value) => ({
+    ...(JSON.parse(JSON.stringify(value)) as typeof value), version: value.version + 1,
+  }))
   vi.mocked(articlesApi.list).mockResolvedValue({
     items: [], next_cursor: null, total: 0, counts_by_status: {},
   } as never)
@@ -137,15 +173,29 @@ describe('Word cloud discovery', () => {
     expect(wrapper.get('button[aria-label="数据库，出现于 5 篇文章"]').text()).toContain('5')
   })
 
-  it('saves word-cloud defaults without triggering an automatic rebuild', async () => {
+  it('saves grouped word-cloud defaults without triggering an automatic rebuild', async () => {
     const wrapper = mount(BlogSettingsPage)
+    await flushPromises()
+    await wrapper.get('nav').findAll('button')[4].trigger('click')
     await wrapper.get('input[min="1"][max="100000"]').setValue('3')
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.primary').trigger('click')
+    await flushPromises()
 
-    expect(wrapper.text()).toContain('设置已保存')
-    expect(JSON.parse(window.localStorage.getItem('aiassist:word-cloud-settings') || '{}'))
-      .toMatchObject({ min_frequency: 3 })
+    expect(wrapper.text()).toContain('博客设置已保存')
+    expect(blogSettingsApi.update).toHaveBeenCalledWith(expect.objectContaining({
+      word_cloud: expect.objectContaining({ min_term_count: 3 }),
+    }))
     expect(wordCloudApi.rebuild).not.toHaveBeenCalled()
+  })
+
+  it('shows high-risk impact and restores only the active settings group', async () => {
+    const wrapper = mount(BlogSettingsPage)
+    await flushPromises()
+    await wrapper.get('nav').findAll('button')[3].trigger('click')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    expect(wrapper.text()).toContain('允许字段自动应用')
+    await wrapper.get('footer button').trigger('click')
+    expect(wrapper.text()).toContain('已恢复本组安全默认值')
   })
 
   it('shows loading and empty states and submits explicit rebuild controls', async () => {

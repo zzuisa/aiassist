@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { wordCloudApi, type WordCloudSnapshot, type WordCloudTerm } from '@/api/blogQueries'
+import { blogSettingsApi } from '@/api/blogSettings'
 import { taxonomyApi, type TaxonomyItem } from '@/api/blogTaxonomy'
 import WordCloudView from './WordCloudView.vue'
 
@@ -10,19 +11,8 @@ const sourceKind = ref<'tag' | 'keyword'>('keyword')
 const year = ref('')
 const contentClass = ref('')
 const categoryId = ref('')
-function loadStoredSettings(): { min_frequency?: number; max_terms?: number } {
-  try {
-    return JSON.parse(window.localStorage.getItem('aiassist:word-cloud-settings') || '{}') as {
-      min_frequency?: number
-      max_terms?: number
-    }
-  } catch {
-    return {}
-  }
-}
-const stored = loadStoredSettings()
-const minFrequency = ref(stored.min_frequency ?? 2)
-const maxTerms = ref(stored.max_terms ?? 100)
+const minFrequency = ref(2)
+const maxTerms = ref(100)
 const snapshot = ref<WordCloudSnapshot | null>(null)
 const categories = ref<TaxonomyItem[]>([])
 const loading = ref(false)
@@ -52,7 +42,13 @@ onMounted(async () => {
   const taxonomyRequest = taxonomyApi.list('category', true)
     .then((items) => { categories.value = items })
     .catch(() => { categories.value = [] })
-  await Promise.all([taxonomyRequest, load()])
+  const settingsRequest = blogSettingsApi.get()
+    .then((settings) => {
+      minFrequency.value = settings.word_cloud.min_term_count
+      maxTerms.value = settings.word_cloud.max_terms
+    })
+    .catch(() => undefined)
+  await Promise.all([taxonomyRequest, settingsRequest, load()])
 })
 </script>
 

@@ -100,6 +100,59 @@ def test_word_cloud_get_and_rebuild_contract(client, make_user):
     assert invalid.json()["code"] == "invalid_word_cloud_filter"
 
 
+def test_complete_blog_settings_contract_and_activity(client, make_user, db_session):
+    from app.models.foundation import ActivityLog
+    from sqlalchemy import select
+
+    user = make_user()
+    headers = _login(client, user.email)
+    current = client.get("/api/v1/blog/settings")
+    assert current.status_code == 200
+    settings = current.json()
+    assert set(settings) == {
+        "schema_version",
+        "create_defaults",
+        "clipboard",
+        "url_capture",
+        "ai_apply",
+        "word_cloud",
+        "version",
+        "warnings",
+    }
+    assert settings["ai_apply"]["allow_auto_apply"] is False
+    assert settings["word_cloud"]["min_term_count"] == 2
+
+    settings["clipboard"]["auto_ai"] = True
+    settings["word_cloud"]["exclude_terms"] = ["以及"]
+    write = {key: value for key, value in settings.items() if key != "warnings"}
+    updated = client.put("/api/v1/blog/settings", json=write, headers=headers)
+    assert updated.status_code == 200
+    assert updated.json()["version"] == settings["version"] + 1
+    assert updated.json()["clipboard"]["auto_ai"] is True
+
+    activity = db_session.scalar(
+        select(ActivityLog).where(
+            ActivityLog.user_id == user.id,
+            ActivityLog.action == "blog.settings.updated",
+        )
+    )
+    assert activity is not None
+    assert "clipboard" in activity.after_summary_json["changed_sections"]
+
+    conflicting = updated.json()
+    conflicting["ai_apply"]["allow_auto_apply"] = True
+    conflicting["ai_apply"]["auto_apply_fields"] = ["markdown"]
+    conflicting["ai_apply"]["confirm_fields"] = ["markdown"]
+    conflict_write = {key: value for key, value in conflicting.items() if key != "warnings"}
+    rejected = client.put("/api/v1/blog/settings", json=conflict_write, headers=headers)
+    assert rejected.status_code == 422
+    assert rejected.json()["code"] == "settings_policy_conflict"
+
+    stale = client.put("/api/v1/blog/settings", json=write, headers=headers)
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "version_conflict"
+
+
 def test_blank_capture_creates_draft(client, make_user):
     user = make_user()
     h = _login(client, user.email)

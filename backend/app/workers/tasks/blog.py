@@ -1297,11 +1297,15 @@ def run_wordcloud(snapshot_id: uuid.UUID, min_frequency: int, max_terms: int) ->
             if filters.get("category_id"):
                 post_ids = post_ids.where(Post.category_id == uuid.UUID(filters["category_id"]))
 
-            scoped_ids = post_ids.subquery()
-            article_count = session.scalar(select(func.count()).select_from(scoped_ids)) or 0
             settings = settings_service.settings_to_dict(
                 settings_service.get_settings(session, snapshot.user_id)
             )["word_cloud"]
+            excluded_classes = settings.get("excluded_content_classes", [])
+            if excluded_classes:
+                post_ids = post_ids.where(Post.content_class.notin_(excluded_classes))
+
+            scoped_ids = post_ids.subquery()
+            article_count = session.scalar(select(func.count()).select_from(scoped_ids)) or 0
             excluded = {str(term).casefold() for term in settings.get("exclude_terms", [])}
             if snapshot.source_kind == "tag":
                 rows = session.execute(

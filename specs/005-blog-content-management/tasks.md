@@ -451,8 +451,8 @@
 
 **Purpose**: Complete settings, accessibility, observability, schema drift, performance and full regression after all selected story phases.
 
-- [ ] T168 [P] Implement complete create/clipboard/URL/AI/word-cloud settings API and Activity logging in `backend/app/modules/posts/settings_router.py` and `backend/app/modules/posts/settings_service.py`
-- [ ] T169 [P] Implement grouped settings UI, restore-group-default and high-risk impact summaries in `frontend/src/modules/posts/BlogSettingsPage.vue` and `frontend/src/api/blogSettings.ts`
+- [x] T168 [P] Implement complete create/clipboard/URL/AI/word-cloud settings API and Activity logging in `backend/app/modules/posts/settings_router.py` and `backend/app/modules/posts/settings_service.py`
+- [x] T169 [P] Implement grouped settings UI, restore-group-default and high-risk impact summaries in `frontend/src/modules/posts/BlogSettingsPage.vue` and `frontend/src/api/blogSettings.ts`
 - [ ] T170 [P] Add Skill dry-run Job and result validation without Post mutation in `backend/app/modules/posts/skill_router.py`, `backend/app/workers/tasks/blog.py`, and `frontend/src/modules/posts/SkillTestPage.vue`
 - [ ] T171 Add safe trace/job/post/source/skill logging, metrics and content-redaction assertions in `backend/app/core/observability.py` and `backend/tests/security/test_blog_logging.py`
 - [ ] T172 Add keyboard, focus, screen-reader, status-not-color-only and 360px acceptance coverage in `frontend/tests/e2e/accessibility.spec.ts` and `frontend/tests/e2e/blog-content-management.spec.ts`
