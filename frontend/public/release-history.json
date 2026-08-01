@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.001408-3fb9cfd",
+      "version": "2026.08.01.001408",
+      "commit": "3fb9cfdfb72abbd7e23e7abe572b9a2343203ea8",
+      "commit_short": "3fb9cfd",
+      "message": "fix: avoid duplicate reader visuals",
+      "changes": [
+        "fix: avoid duplicate reader visuals",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/workers/tasks/blog.py"
+      ],
+      "deployed_at": "2026-08-01T00:14:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.000755-0c57c4b",
       "version": "2026.08.01.000755",
       "commit": "0c57c4b73b964a36901b38097d6dbd6b9ccd45a6",
