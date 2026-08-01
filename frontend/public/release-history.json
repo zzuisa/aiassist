@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.002050-568488d",
+      "version": "2026.08.01.002050",
+      "commit": "568488d456813e9f1f3f1913802ca28a7230d2f5",
+      "commit_short": "568488d",
+      "message": "fix: fallback reader visual to source structure",
+      "changes": [
+        "fix: fallback reader visual to source structure",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/workers/tasks/blog.py"
+      ],
+      "deployed_at": "2026-08-01T00:20:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.001408-3fb9cfd",
       "version": "2026.08.01.001408",
       "commit": "3fb9cfdfb72abbd7e23e7abe572b9a2343203ea8",
