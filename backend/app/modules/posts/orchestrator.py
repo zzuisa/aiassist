@@ -425,7 +425,7 @@ def build_default_reader_visual(
         "capability": "visualize",
         "status": "executed",
         "insert_after": "body",
-        "reason": "系统自动识别为普通读者解释型文章，使用正文已有要点生成紧凑步骤图",
+        "reason": "系统自动识别为普通读者解释型文章，使用正文已有要点生成示意图",
         "content": {
             "visual_plan": {
                 "visual_type": "compact_flow",

@@ -154,6 +154,42 @@ def test_visual_plan_png_has_stable_dimensions_and_is_valid_png():
     assert image.height >= 300
 
 
+def test_visual_plan_accepts_article_driven_node_count_and_style():
+    nodes = [
+        {"id": f"node-{index}", "label": f"关键节点 {index}", "detail": "来自原文"}
+        for index in range(1, 9)
+    ]
+    result = _result(
+        [
+            {
+                "id": "plan-unrestricted",
+                "agent": "logic-agent",
+                "capability": "visualize",
+                "status": "executed",
+                "insert_after": "body",
+                "reason": "按正文关系生成",
+                "content": {
+                    "visual_plan": {
+                        "visual_type": "radial_relationship_map",
+                        "layout": "radial",
+                        "theme": "paper_ink",
+                        "title": "文章关键节点",
+                        "nodes": nodes,
+                        "edges": [],
+                    },
+                },
+                "caption": "文章关键节点",
+                "alt_text": "文章关键节点关系示意图",
+            }
+        ]
+    )
+
+    items = execute_enhancements(result)
+
+    assert items[0]["content"]["visual_plan"]["visual_type"] == "radial_relationship_map"
+    assert len(items[0]["content"]["visual_plan"]["nodes"]) == 8
+
+
 def test_visual_plan_rejects_invalid_edges():
     result = _result(
         [

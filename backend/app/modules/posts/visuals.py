@@ -299,7 +299,7 @@ def _as_chart(content: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _as_visual_plan(content: dict[str, Any]) -> dict[str, Any] | None:
-    """Validate the small graph contract used by the compact visual renderer."""
+    """Validate the graph contract used by the visual renderer."""
     raw = content.get("visual_plan") or content.get("plan")
     if not isinstance(raw, dict):
         return None
