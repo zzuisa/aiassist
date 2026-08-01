@@ -189,6 +189,7 @@ class PostKeywordLink(Base):
             "source in ('user','ai','recomputed','import')",
             name="keyword_link_source",
         ),
+        Index("ix_post_keyword_links_user_keyword_post", "user_id", "keyword_id", "post_id"),
     )
 
 
