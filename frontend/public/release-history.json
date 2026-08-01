@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.133832-3176cc6",
+      "version": "2026.08.01.133832",
+      "commit": "3176cc65d7795eba9b38634e5fea68ddc4a60336",
+      "commit_short": "3176cc6",
+      "message": "deploy: update 2026.08.01.133832",
+      "changes": [
+        "deploy: update 2026.08.01.133832",
+        "后端接口与业务逻辑更新",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        ".github/workflows/ci.yml",
+        "backend/tests/contract/test_ci_workflow.py",
+        "deploy/scripts/deploy.sh"
+      ],
+      "deployed_at": "2026-08-01T13:38:32Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.133307-51d2df5",
       "version": "2026.08.01.133307",
       "commit": "51d2df52c69e4c90515fa0be204d52914a104828",
