@@ -14,6 +14,15 @@ vi.mock('@/api/posts', async () => {
   const actual = (await vi.importActual('@/api/posts')) as Record<string, unknown>
   return { ...actual, postsApi: { get: vi.fn(), list: vi.fn() } }
 })
+vi.mock('@/api/blogTaxonomy', async () => {
+  const actual = (await vi.importActual('@/api/blogTaxonomy')) as Record<string, unknown>
+  return {
+    ...actual,
+    taxonomyApi: {
+      list: vi.fn(), create: vi.fn(), update: vi.fn(), merge: vi.fn(), recomputeKeywords: vi.fn(),
+    },
+  }
+})
 const routerPush = vi.fn()
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: {}, query: {} }),
@@ -23,7 +32,11 @@ vi.mock('vue-router', () => ({
 
 import { articlesApi } from '@/api/blogQueries'
 import { postsApi } from '@/api/posts'
+import { taxonomyApi, type TaxonomyItem } from '@/api/blogTaxonomy'
 import PostBatchActionBar from '@/modules/posts/PostBatchActionBar.vue'
+import TaxonomyEditDrawer from '@/modules/posts/TaxonomyEditDrawer.vue'
+import TaxonomyMergeDialog from '@/modules/posts/TaxonomyMergeDialog.vue'
+import TaxonomyPage from '@/modules/posts/TaxonomyPage.vue'
 import TriagePage from '@/modules/posts/TriagePage.vue'
 import TriageMergeDialog from '@/modules/posts/TriageMergeDialog.vue'
 
@@ -110,5 +123,54 @@ describe('TriageMergeDialog', () => {
       primary_id: 'p', secondary_id: 's', primary_version: 5, order: 'secondary_first',
     }))
     expect(w.emitted('merged')!.at(-1)).toEqual(['p'])
+  })
+})
+
+const taxonomyItems: Record<TaxonomyItem['kind'], TaxonomyItem[]> = {
+  category: [{ id: 'c1', kind: 'category', name: '技术', description: null, parent_id: null, aliases: [], color: null, enabled: false, stop_word: false, usage_count: 2 }],
+  tag: [{ id: 't1', kind: 'tag', name: '后端', description: null, parent_id: null, aliases: ['服务端'], color: 'blue', enabled: true, stop_word: false, usage_count: 4 }],
+  keyword: [{ id: 'k1', kind: 'keyword', name: '数据库', description: null, parent_id: null, aliases: ['DB'], color: null, enabled: true, stop_word: false, usage_count: 3 }],
+}
+
+describe('Taxonomy management', () => {
+  it('keeps categories, tags and keywords as distinct tabs and marks historical state', async () => {
+    vi.mocked(taxonomyApi.list).mockImplementation(async (kind) => taxonomyItems[kind])
+    const wrapper = mount(TaxonomyPage)
+    await flushPromises()
+
+    expect(wrapper.findAll('.tab').map((tab) => tab.text())).toEqual(['分类', '标签', '关键词'])
+    expect(wrapper.text()).toContain('已停用')
+    await wrapper.findAll('.tab')[1].trigger('click')
+    expect(wrapper.text()).toContain('服务端')
+    expect(wrapper.text()).toContain('用于横向浏览')
+  })
+
+  it('previews merge impact and submits the selected target', async () => {
+    vi.mocked(taxonomyApi.merge).mockResolvedValue(taxonomyItems.tag[1] ?? taxonomyItems.tag[0])
+    const source = { ...taxonomyItems.tag[0], usage_count: 12 }
+    const target = { ...source, id: 't2', name: '服务端', usage_count: 5 }
+    const wrapper = mount(TaxonomyMergeDialog, {
+      props: { kind: 'tag', source, items: [source, target] },
+    })
+
+    expect(wrapper.text()).toContain('迁移 12 篇文章')
+    await wrapper.find('select').setValue('t2')
+    await wrapper.find('.danger').trigger('click')
+    await flushPromises()
+    expect(taxonomyApi.merge).toHaveBeenCalledWith('tag', 't1', 't2')
+    expect(wrapper.emitted('merged')).toHaveLength(1)
+  })
+
+  it('edits keyword synonyms and stop-word state', async () => {
+    const wrapper = mount(TaxonomyEditDrawer, {
+      props: { item: taxonomyItems.keyword[0], kind: 'keyword', categories: [] },
+    })
+    await wrapper.find('input[placeholder="用逗号分隔"]').setValue('DB，数据库系统')
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+    await wrapper.find('.primary').trigger('click')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toEqual(expect.objectContaining({
+      aliases: ['DB', '数据库系统'], stop_word: true,
+    }))
   })
 })

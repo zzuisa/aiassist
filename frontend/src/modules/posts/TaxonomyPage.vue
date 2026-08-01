@@ -1,26 +1,29 @@
 <script setup lang="ts">
-// Category-first taxonomy surface (priority increment T184).
-// The first slice intentionally keeps tags and keywords separate and focuses on
-// a bounded primary category tree that can be reused by list and editor flows.
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { taxonomyApi, type TaxonomyItem } from '@/api/blogTaxonomy'
+import { taxonomyApi, type TaxonomyCreate, type TaxonomyItem } from '@/api/blogTaxonomy'
+import TaxonomyEditDrawer from './TaxonomyEditDrawer.vue'
+import TaxonomyMergeDialog from './TaxonomyMergeDialog.vue'
 
 interface TreeItem extends TaxonomyItem {
   depth: number
 }
 
-const categories = ref<TaxonomyItem[]>([])
-const name = ref('')
-const description = ref('')
-const parentId = ref('')
-const busy = ref(false)
+const kinds = ['category', 'tag', 'keyword'] as const
+const labels = { category: '分类', tag: '标签', keyword: '关键词' }
+const guidance = {
+  category: '有限层级的内容领域，一篇文章只有一个主分类。',
+  tag: '用于横向浏览的属性词，可设置别名、颜色并合并重复项。',
+  keyword: '用于检索和统计，可设置同义词与停用词，并从正文重算。',
+}
+const activeKind = ref<TaxonomyItem['kind']>('category')
+const allItems = ref<Record<TaxonomyItem['kind'], TaxonomyItem[]>>({ category: [], tag: [], keyword: [] })
+const editing = ref<TaxonomyItem | null | undefined>(undefined)
+const merging = ref<TaxonomyItem | null>(null)
 const error = ref('')
 const saved = ref('')
-
-function categoryOptionLabel(item: TreeItem): string {
-  return `${'· '.repeat(item.depth)}${item.name}`
-}
+const categories = computed(() => allItems.value.category)
+const currentItems = computed(() => allItems.value[activeKind.value])
 
 const treeItems = computed<TreeItem[]>(() => {
   const output: TreeItem[] = []
@@ -49,34 +52,40 @@ const treeItems = computed<TreeItem[]>(() => {
 
 async function load(): Promise<void> {
   try {
-    categories.value = await taxonomyApi.list('category', true)
+    const [category, tag, keyword] = await Promise.all(kinds.map((kind) => taxonomyApi.list(kind)))
+    allItems.value = { category, tag, keyword }
   } catch {
-    error.value = '分类加载失败，请稍后重试。'
+    error.value = '组织项加载失败，请稍后重试。'
   }
 }
 
-async function createCategory(): Promise<void> {
-  const trimmed = name.value.trim()
-  if (!trimmed || busy.value) return
-  busy.value = true
+async function save(value: TaxonomyCreate): Promise<void> {
   error.value = ''
   saved.value = ''
   try {
-    await taxonomyApi.create('category', {
-      name: trimmed,
-      description: description.value.trim() || null,
-      parent_id: parentId.value || null,
-    })
-    name.value = ''
-    description.value = ''
-    parentId.value = ''
-    saved.value = '分类已创建'
+    if (editing.value) await taxonomyApi.update(activeKind.value, editing.value.id, value)
+    else await taxonomyApi.create(activeKind.value, value)
+    saved.value = `${labels[activeKind.value]}已保存`
+    editing.value = undefined
     await load()
   } catch {
-    error.value = '分类创建失败，名称可能已存在或父级无效。'
-  } finally {
-    busy.value = false
+    error.value = '保存失败，请检查名称/别名冲突、父级循环或层级深度。'
   }
+}
+
+async function recompute(): Promise<void> {
+  error.value = ''
+  try {
+    const job = await taxonomyApi.recomputeKeywords()
+    saved.value = `关键词重算已提交（${job.status}）`
+  } catch {
+    error.value = '关键词重算提交失败，请稍后重试。'
+  }
+}
+
+function afterMerge(): void {
+  merging.value = null
+  void load()
 }
 
 onMounted(() => void load())
@@ -89,7 +98,7 @@ onMounted(() => void load())
         <p class="eyebrow">
           博客结构化整理
         </p>
-        <h1>分类</h1>
+        <h1>标签与分类</h1>
         <p class="intro">
           先用一个稳定的主分类说明文章属于哪个领域；标签和关键词分别承担横向浏览与检索职责。
         </p>
@@ -117,93 +126,132 @@ onMounted(() => void load())
       {{ saved }}
     </p>
 
-    <section class="layout">
-      <section class="card category-card">
-        <div class="card-head">
-          <div>
-            <h2>分类树</h2>
-            <p>{{ categories.length }} 个启用分类 · 最多 3 层</p>
-          </div>
-          <span class="hint">文章可有一个主分类</span>
+    <nav
+      class="tabs"
+      aria-label="组织类型"
+    >
+      <button
+        v-for="kind in kinds"
+        :key="kind"
+        class="tab"
+        :class="{ active: activeKind === kind }"
+        @click="activeKind = kind"
+      >
+        {{ labels[kind] }}
+      </button>
+    </nav>
+    <p class="intro concept">
+      {{ guidance[activeKind] }}
+    </p>
+
+    <section class="card category-card">
+      <div class="card-head">
+        <div>
+          <h2>{{ labels[activeKind] }}管理</h2>
+          <p>{{ currentItems.length }} 项<span v-if="activeKind === 'category'"> · 最多 3 层</span></p>
         </div>
+        <div class="actions">
+          <button
+            v-if="activeKind === 'keyword'"
+            @click="recompute"
+          >
+            从正文重算
+          </button><button
+            class="primary compact"
+            @click="editing = null"
+          >
+            新建{{ labels[activeKind] }}
+          </button>
+        </div>
+      </div>
 
-        <ul
-          v-if="treeItems.length"
-          class="tree"
-          aria-label="分类树"
+      <ul
+        v-if="activeKind === 'category' && treeItems.length"
+        class="tree"
+        aria-label="分类树"
+      >
+        <li
+          v-for="item in treeItems"
+          :key="item.id"
+          class="tree-item"
+          :style="{ paddingLeft: `${12 + item.depth * 20}px` }"
         >
-          <li
-            v-for="item in treeItems"
+          <span
+            class="tree-mark"
+            aria-hidden="true"
+          >{{ item.depth ? '└' : '●' }}</span>
+          <span class="tree-name">{{ item.name }}</span>
+          <span
+            v-if="!item.enabled"
+            class="disabled"
+          >已停用</span>
+          <span class="tree-count">{{ item.usage_count }} 篇</span>
+          <button
+            class="link"
+            @click="editing = item"
+          >
+            编辑
+          </button><button
+            class="link"
+            @click="merging = item"
+          >
+            合并
+          </button>
+        </li>
+      </ul>
+      <table
+        v-else-if="activeKind !== 'category' && currentItems.length"
+        class="item-table"
+      >
+        <thead><tr><th>名称</th><th>别名/同义词</th><th>状态</th><th>使用</th><th>操作</th></tr></thead><tbody>
+          <tr
+            v-for="item in currentItems"
             :key="item.id"
-            class="tree-item"
-            :style="{ paddingLeft: `${12 + item.depth * 20}px` }"
           >
-            <span
-              class="tree-mark"
-              aria-hidden="true"
-            >{{ item.depth ? '└' : '●' }}</span>
-            <span class="tree-name">{{ item.name }}</span>
-            <span class="tree-count">{{ item.usage_count }} 篇</span>
-          </li>
-        </ul>
-        <p
-          v-else
-          class="empty"
-        >
-          还没有分类，先创建一个常用领域。
-        </p>
-      </section>
-
-      <section class="card create-card">
-        <h2>新建分类</h2>
-        <p class="card-copy">
-          建议使用稳定的领域名称，例如“技术复盘”“旅行”“项目记录”。
-        </p>
-        <label class="field">
-          <span>名称</span>
-          <input
-            v-model="name"
-            aria-label="分类名称"
-            maxlength="120"
-            placeholder="例如：技术复盘"
-          >
-        </label>
-        <label class="field">
-          <span>父分类（可选）</span>
-          <select
-            v-model="parentId"
-            aria-label="父分类"
-          >
-            <option value="">顶层分类</option>
-            <option
-              v-for="item in treeItems"
-              :key="item.id"
-              :value="item.id"
-            >
-              {{ categoryOptionLabel(item) }}
-            </option>
-          </select>
-        </label>
-        <label class="field">
-          <span>说明（可选）</span>
-          <textarea
-            v-model="description"
-            aria-label="分类说明"
-            rows="3"
-            maxlength="500"
-            placeholder="这个分类用于归档什么内容？"
-          />
-        </label>
-        <button
-          type="button"
-          class="primary"
-          :disabled="busy || !name.trim()"
-          @click="createCategory"
-        >
-          {{ busy ? '保存中…' : '创建分类' }}
-        </button>
-      </section>
+            <td>
+              {{ item.name }}<i
+                v-if="item.color"
+                :style="{ background: item.color }"
+              />
+            </td><td>{{ item.aliases.join('、') || '—' }}</td><td>{{ item.enabled ? (item.stop_word ? '停用词' : '启用') : '已停用' }}</td><td>{{ item.usage_count }} 篇</td><td>
+              <button
+                class="link"
+                @click="editing = item"
+              >
+                编辑
+              </button><button
+                class="link"
+                @click="merging = item"
+              >
+                合并
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p
+        v-else
+        class="empty"
+      >
+        还没有{{ labels[activeKind] }}，可以先创建一个。
+      </p>
     </section>
+    <TaxonomyEditDrawer
+      v-if="editing !== undefined"
+      :item="editing"
+      :kind="activeKind"
+      :categories="categories"
+      @close="editing = undefined"
+      @save="save"
+    />
+    <TaxonomyMergeDialog
+      v-if="merging"
+      :kind="activeKind"
+      :source="merging"
+      :items="currentItems"
+      @close="merging = null"
+      @merged="afterMerge"
+    />
   </main>
 </template>
 
@@ -259,11 +307,28 @@ h1 {
   color: var(--status-done);
   background: color-mix(in srgb, var(--status-done) 8%, var(--color-surface));
 }
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
-  gap: var(--space-4);
+.tabs {
+  display: flex;
+  gap: var(--space-1);
   margin-top: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.tab {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.tab.active {
+  border-bottom-color: var(--status-ai);
+  color: var(--color-text);
+  font-weight: 700;
+}
+.concept {
+  margin-bottom: var(--space-3);
 }
 .card {
   min-width: 0;
@@ -281,10 +346,29 @@ h1 {
 .card-head p {
   margin: var(--space-1) 0 0;
 }
-.hint {
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.actions button,
+.link {
+  min-height: var(--tap-target);
+  cursor: pointer;
+}
+.compact {
+  width: auto;
+}
+.link {
+  border: 0;
+  background: transparent;
+  color: var(--status-ai);
+}
+.disabled {
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
   color: var(--color-text-muted);
-  font-size: 0.75rem;
-  white-space: nowrap;
+  font-size: 0.72rem;
 }
 .tree {
   list-style: none;
@@ -314,6 +398,25 @@ h1 {
 .tree-count {
   color: var(--color-text-muted);
   font-size: 0.78rem;
+}
+.item-table {
+  width: 100%;
+  margin-top: var(--space-3);
+  border-collapse: collapse;
+}
+.item-table th,
+.item-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-size: 0.85rem;
+}
+.item-table i {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-left: var(--space-1);
+  border-radius: 50%;
 }
 .empty {
   color: var(--color-text-muted);
@@ -371,8 +474,13 @@ button:disabled {
     display: inline-block;
     margin-top: var(--space-2);
   }
-  .layout {
-    grid-template-columns: 1fr;
+  .card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .item-table {
+    display: block;
+    overflow-x: auto;
   }
 }
 </style>

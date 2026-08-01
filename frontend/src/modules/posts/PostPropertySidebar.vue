@@ -3,9 +3,9 @@
 //
 // Edits the organisation fields that live beside the body: content class and
 // type, status, occurrence time, location and project. Taxonomy relations
-// (category/tags/keywords) and Skill selection are surfaced read-only here —
-// their management endpoints arrive in later stories — while source summary,
-// version and AI status are shown for context. Every change emits a PostPatch.
+// Category, tags and keywords use governed taxonomy choices. Disabled values
+// remain visible only when already attached, preserving historical context.
+// Every change emits a PostPatch.
 import { onMounted, ref } from 'vue'
 import type { Post, PostPatch } from '@/api/posts'
 import { contentTypesApi, type ContentType } from '@/api/blogQueries'
@@ -28,13 +28,19 @@ const USER_STATUSES = [
 
 const contentTypes = ref<ContentType[]>([])
 const categories = ref<TaxonomyItem[]>([])
+const tags = ref<TaxonomyItem[]>([])
+const keywords = ref<TaxonomyItem[]>([])
 onMounted(async () => {
-  const [types, taxonomy] = await Promise.allSettled([
+  const [types, categoryItems, tagItems, keywordItems] = await Promise.allSettled([
     contentTypesApi.list(),
     taxonomyApi.list('category'),
+    taxonomyApi.list('tag'),
+    taxonomyApi.list('keyword'),
   ])
   contentTypes.value = types.status === 'fulfilled' ? types.value.filter((c) => c.enabled) : []
-  categories.value = taxonomy.status === 'fulfilled' ? taxonomy.value : []
+  categories.value = categoryItems.status === 'fulfilled' ? categoryItems.value : []
+  tags.value = tagItems.status === 'fulfilled' ? tagItems.value : []
+  keywords.value = keywordItems.status === 'fulfilled' ? keywordItems.value : []
 })
 
 function typesForClass(): ContentType[] {
@@ -47,6 +53,14 @@ function toDateInput(iso: string | null): string {
 
 function categoryOptions(): TaxonomyItem[] {
   return categories.value.filter((category) => category.enabled || category.id === props.post.category_id)
+}
+
+function relationOptions(items: TaxonomyItem[], selected: string[]): TaxonomyItem[] {
+  return items.filter((item) => item.enabled || selected.includes(item.id))
+}
+
+function selectedValues(event: Event): string[] {
+  return Array.from((event.target as HTMLSelectElement).selectedOptions, (option) => option.value)
 }
 </script>
 
@@ -69,6 +83,42 @@ function categoryOptions(): TaxonomyItem[] {
             :value="category.id"
           >
             {{ category.name }}{{ category.enabled ? '' : '（历史停用）' }}
+          </option>
+        </select>
+      </label>
+
+      <label class="fld">
+        <span>标签（可多选）</span>
+        <select
+          multiple
+          :value="post.tag_ids"
+          aria-label="文章标签"
+          @change="emit('patch', { tag_ids: selectedValues($event) })"
+        >
+          <option
+            v-for="tag in relationOptions(tags, post.tag_ids)"
+            :key="tag.id"
+            :value="tag.id"
+          >
+            {{ tag.name }}{{ tag.aliases.length ? `（${tag.aliases.join('、')}）` : '' }}{{ tag.enabled ? '' : '（历史停用）' }}
+          </option>
+        </select>
+      </label>
+
+      <label class="fld">
+        <span>关键词（可多选）</span>
+        <select
+          multiple
+          :value="post.keyword_ids"
+          aria-label="文章关键词"
+          @change="emit('patch', { keyword_ids: selectedValues($event) })"
+        >
+          <option
+            v-for="keyword in relationOptions(keywords, post.keyword_ids)"
+            :key="keyword.id"
+            :value="keyword.id"
+          >
+            {{ keyword.name }}{{ keyword.aliases.length ? `（${keyword.aliases.join('、')}）` : '' }}{{ keyword.enabled ? '' : '（历史停用）' }}
           </option>
         </select>
       </label>
@@ -216,6 +266,9 @@ function categoryOptions(): TaxonomyItem[] {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font: inherit;
+}
+.fld select[multiple] {
+  min-height: 6rem;
 }
 .readonly h3 {
   font-size: 0.85rem;

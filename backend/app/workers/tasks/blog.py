@@ -1058,3 +1058,174 @@ def optimize(  # type: ignore[no-untyped-def]
     instruction: str | None = None,
 ) -> str:
     return optimize_run(uuid.UUID(run_id), scope, selected_fields or [], instruction)
+
+
+def run_taxonomy_merge(merge_id: uuid.UUID) -> str:
+    from app.models.blog import TaxonomyMerge
+    from app.models.foundation import AsyncJob
+    from app.modules.jobs import service as jobs_service
+    from app.modules.posts import taxonomy_service
+
+    try:
+        with session_scope() as session:
+            audit = session.get(TaxonomyMerge, merge_id)
+            if audit is None:
+                return "missing"
+            if audit.status == "completed":
+                return "completed"
+            job = session.get(AsyncJob, audit.async_job_id) if audit.async_job_id else None
+            audit.error_summary = None
+            if job:
+                job.error_code = None
+                job.error_message = None
+                job.error_retryable = False
+                jobs_service.transition(
+                    session,
+                    job,
+                    status="processing",
+                    progress=10,
+                    current_step="正在合并组织项",
+                )
+            taxonomy_service.merge_items(
+                session,
+                audit.user_id,
+                audit.kind,
+                audit.source_id,
+                audit.target_id,
+                merge_id=audit.id,
+            )
+            if job:
+                jobs_service.transition(
+                    session,
+                    job,
+                    status="completed",
+                    progress=100,
+                    current_step="组织项合并完成",
+                    result={"merge_id": str(audit.id)},
+                )
+    except Exception:
+        with session_scope() as session:
+            audit = session.get(TaxonomyMerge, merge_id)
+            if audit:
+                audit.status = "failed"
+                audit.error_summary = "组织项合并失败，可安全重试"
+                job = session.get(AsyncJob, audit.async_job_id) if audit.async_job_id else None
+                if job:
+                    jobs_service.transition(
+                        session,
+                        job,
+                        status="failed",
+                        error_code="taxonomy_merge_failed",
+                        error_message="组织项合并失败，可安全重试",
+                        error_retryable=True,
+                    )
+        raise
+    return "completed"
+
+
+@celery.task(name="app.workers.tasks.blog.taxonomy_merge", acks_late=True)
+def taxonomy_merge(merge_id: str) -> str:
+    return run_taxonomy_merge(uuid.UUID(merge_id))
+
+
+def run_keyword_recompute(job_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    from sqlalchemy import delete, select
+
+    from app.models.blog import PostKeyword, PostKeywordAlias, PostKeywordLink
+    from app.models.foundation import AsyncJob
+    from app.models.posts import Post
+    from app.modules.jobs import service as jobs_service
+
+    try:
+        with session_scope() as session:
+            job = session.get(AsyncJob, job_id)
+            if job is None or job.user_id != user_id:
+                return "missing"
+            if job.status == "completed":
+                return "completed"
+            job.error_code = None
+            job.error_message = None
+            job.error_retryable = False
+            jobs_service.transition(
+                session, job, status="processing", progress=10, current_step="正在重算关键词"
+            )
+            keywords = session.scalars(
+                select(PostKeyword).where(
+                    PostKeyword.user_id == user_id,
+                    PostKeyword.enabled.is_(True),
+                    PostKeyword.is_stop_word.is_(False),
+                )
+            ).all()
+            alias_rows = session.execute(
+                select(PostKeywordAlias.keyword_id, PostKeywordAlias.alias).where(
+                    PostKeywordAlias.user_id == user_id
+                )
+            ).all()
+            aliases_by_keyword: dict[uuid.UUID, list[str]] = {}
+            for keyword_id, alias in alias_rows:
+                aliases_by_keyword.setdefault(keyword_id, []).append(alias.casefold())
+            posts = session.scalars(
+                select(Post).where(Post.user_id == user_id, Post.deleted_at.is_(None))
+            ).all()
+            session.execute(
+                delete(PostKeywordLink).where(
+                    PostKeywordLink.user_id == user_id,
+                    PostKeywordLink.source == "recomputed",
+                )
+            )
+            existing = {
+                (post_id, keyword_id)
+                for post_id, keyword_id in session.execute(
+                    select(PostKeywordLink.post_id, PostKeywordLink.keyword_id).where(
+                        PostKeywordLink.user_id == user_id
+                    )
+                )
+            }
+            created = 0
+            for post in posts:
+                haystack = f"{post.title}\n{post.summary or ''}\n{post.markdown}".casefold()
+                for keyword in keywords:
+                    pair = (post.id, keyword.id)
+                    names = [
+                        keyword.canonical_text.casefold(),
+                        *aliases_by_keyword.get(keyword.id, []),
+                    ]
+                    if pair not in existing and any(name in haystack for name in names):
+                        session.add(
+                            PostKeywordLink(
+                                post_id=post.id,
+                                keyword_id=keyword.id,
+                                user_id=user_id,
+                                source="recomputed",
+                                weight=1,
+                            )
+                        )
+                        existing.add(pair)
+                        created += 1
+            jobs_service.transition(
+                session,
+                job,
+                status="completed",
+                progress=100,
+                current_step="关键词重算完成",
+                result={"created_links": created},
+            )
+        return "completed"
+    except Exception:
+        with session_scope() as session:
+            job = session.get(AsyncJob, job_id)
+            if job:
+                jobs_service.transition(
+                    session,
+                    job,
+                    status="failed",
+                    error_code="keyword_recompute_failed",
+                    error_message="关键词重算失败，可安全重试",
+                    error_retryable=True,
+                )
+        raise
+
+
+@celery.task(name="app.workers.tasks.blog.keyword_recompute", acks_late=True)
+def keyword_recompute(job_id: str, user_id: str) -> str:
+    return run_keyword_recompute(uuid.UUID(job_id), uuid.UUID(user_id))

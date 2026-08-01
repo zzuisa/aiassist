@@ -141,7 +141,9 @@ class PostTagAlias(Base):
         ForeignKey("tags.id", ondelete="CASCADE"), nullable=False
     )
     alias: Mapped[str] = mapped_column(String(64), nullable=False)
-    __table_args__ = (UniqueConstraint("user_id", "alias", name="uq_tag_alias_user_alias"),)
+    __table_args__ = (
+        Index("uq_tag_alias_user_alias_ci", "user_id", text("lower(alias)"), unique=True),
+    )
 
 
 class PostKeyword(Base, TimestampMixin):
@@ -163,7 +165,9 @@ class PostKeywordAlias(Base):
         ForeignKey("post_keywords.id", ondelete="CASCADE"), nullable=False
     )
     alias: Mapped[str] = mapped_column(String(120), nullable=False)
-    __table_args__ = (UniqueConstraint("user_id", "alias", name="uq_keyword_alias_user_alias"),)
+    __table_args__ = (
+        Index("uq_keyword_alias_user_alias_ci", "user_id", text("lower(alias)"), unique=True),
+    )
 
 
 class PostKeywordLink(Base):

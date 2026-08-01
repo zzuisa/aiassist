@@ -169,6 +169,23 @@ class TaxonomyItemOut(BaseModel):
     usage_count: int
 
 
+class TaxonomyPatch(BaseModel):
+    model_config = {"extra": "forbid"}
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    parent_id: uuid.UUID | None = None
+    aliases: list[str] | None = Field(default=None, max_length=50)
+    color: str | None = Field(default=None, max_length=32)
+    enabled: bool | None = None
+    stop_word: bool | None = None
+
+
+class TaxonomyMergeBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    source_id: uuid.UUID
+    target_id: uuid.UUID
+
+
 class GenerateBody(BaseModel):
     """Legacy AI generation request (pre-005 blog.generate job)."""
 

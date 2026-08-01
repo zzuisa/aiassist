@@ -40,6 +40,35 @@ def _assert_capture_shape(body, *, expect_job):
         assert body["job"] is None
 
 
+def test_taxonomy_crud_alias_merge_and_recompute_contract(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    source = client.post(
+        "/api/v1/blog/taxonomy/tag",
+        json={"name": "Kubernetes", "aliases": ["k8s"], "color": "blue"},
+        headers=h,
+    )
+    assert source.status_code == 201
+    source_body = source.json()
+    assert source_body["kind"] == "tag" and source_body["aliases"] == ["k8s"]
+    target = client.post("/api/v1/blog/taxonomy/tag", json={"name": "容器平台"}, headers=h).json()
+    patched = client.patch(
+        f"/api/v1/blog/taxonomy/tag/{source_body['id']}",
+        json={"description": "集群标签", "enabled": True},
+        headers=h,
+    )
+    assert patched.status_code == 200 and patched.json()["description"] == "集群标签"
+    merged = client.post(
+        "/api/v1/blog/taxonomy/tag/merge",
+        json={"source_id": source_body["id"], "target_id": target["id"]},
+        headers=h,
+    )
+    assert merged.status_code == 200 and merged.json()["id"] == target["id"]
+    recompute = client.post("/api/v1/blog/taxonomy/keyword/recompute", headers=h)
+    assert recompute.status_code == 202
+    assert recompute.json()["job_type"] == "blog.keyword_recompute"
+
+
 def test_blank_capture_creates_draft(client, make_user):
     user = make_user()
     h = _login(client, user.email)

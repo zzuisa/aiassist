@@ -150,6 +150,86 @@ def test_timeout_is_recorded_as_retryable_failure(db_session, user_id, monkeypat
     assert db_session.get(PostSource, src.id).status == "pending"
 
 
+@requires_db
+def test_taxonomy_merge_duplicate_delivery_is_idempotent(db_session, user_id):
+    from app.models.blog import TaxonomyMerge
+    from app.modules.posts import service, taxonomy_service
+    from app.workers.tasks import blog as blog_task
+
+    source = taxonomy_service.create_item(db_session, user_id, "category", name="源")
+    target = taxonomy_service.create_item(db_session, user_id, "category", name="目标")
+    post = service.create_post(db_session, user_id, title="文章", markdown="正文")
+    post.category_id = uuid.UUID(source["id"])
+    audit = TaxonomyMerge(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        kind="category",
+        source_id=uuid.UUID(source["id"]),
+        target_id=uuid.UUID(target["id"]),
+        status="pending",
+    )
+    db_session.add(audit)
+    db_session.commit()
+    assert blog_task.run_taxonomy_merge(audit.id) == "completed"
+    assert blog_task.run_taxonomy_merge(audit.id) == "completed"
+    db_session.expire_all()
+    assert db_session.get(TaxonomyMerge, audit.id).status == "completed"
+
+
+@requires_db
+def test_large_taxonomy_merge_request_is_durable_and_deduplicated(db_session, user_id, monkeypatch):
+    from app.models.blog import TaxonomyMerge
+    from app.models.foundation import OutboxEvent
+    from app.modules.posts import taxonomy_service
+
+    source = taxonomy_service.create_item(db_session, user_id, "tag", name="旧标签")
+    target = taxonomy_service.create_item(db_session, user_id, "tag", name="新标签")
+    monkeypatch.setattr(taxonomy_service, "BACKGROUND_MERGE_THRESHOLD", 0)
+
+    first_status, first_job = taxonomy_service.request_merge(
+        db_session,
+        user_id,
+        "tag",
+        uuid.UUID(source["id"]),
+        uuid.UUID(target["id"]),
+    )
+    second_status, second_job = taxonomy_service.request_merge(
+        db_session,
+        user_id,
+        "tag",
+        uuid.UUID(source["id"]),
+        uuid.UUID(target["id"]),
+    )
+    db_session.commit()
+
+    assert first_status == second_status == "queued"
+    assert first_job.id == second_job.id
+    assert db_session.query(TaxonomyMerge).count() == 1
+    assert db_session.query(OutboxEvent).filter_by(event_type="blog.taxonomy_merge").count() == 1
+
+
+@requires_db
+def test_keyword_recompute_redelivery_preserves_manual_links(db_session, user_id):
+    from app.models.blog import PostKeywordLink
+    from app.modules.posts import service, taxonomy_service
+    from app.workers.tasks import blog as blog_task
+
+    keyword = taxonomy_service.create_item(db_session, user_id, "keyword", name="数据库")
+    post = service.create_post(db_session, user_id, title="文章", markdown="数据库")
+    manual = PostKeywordLink(
+        post_id=post.id, keyword_id=uuid.UUID(keyword["id"]), user_id=user_id, source="user"
+    )
+    db_session.add(manual)
+    job = taxonomy_service.request_keyword_recompute(db_session, user_id)
+    db_session.commit()
+
+    assert blog_task.run_keyword_recompute(job.id, user_id) == "completed"
+    assert blog_task.run_keyword_recompute(job.id, user_id) == "completed"
+    db_session.expire_all()
+    # Recompute is idempotent and never replaces manually maintained links.
+    assert db_session.get(PostKeywordLink, (post.id, uuid.UUID(keyword["id"]))) is not None
+
+
 # ---------------------------------------------------------------------------
 # US3: AI pipeline failure matrix (T067)
 # ---------------------------------------------------------------------------

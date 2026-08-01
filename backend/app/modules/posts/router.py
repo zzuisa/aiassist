@@ -12,7 +12,7 @@ from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.db.session import get_db
-from app.modules.posts import rendering, service, taxonomy_service
+from app.modules.posts import rendering, service
 from app.modules.posts.schemas import (
     GenerateBody,
     PostCreate,
@@ -21,8 +21,6 @@ from app.modules.posts.schemas import (
     PublishBody,
     RestoreRevisionBody,
     RevisionOut,
-    TaxonomyItemOut,
-    TaxonomyWrite,
     post_detail_out,
     post_out,
     revision_out,
@@ -37,45 +35,8 @@ public_router = APIRouter(prefix="/public", tags=["public"])
 # stories; the routers are declared and registered here so the URL surface under
 # /api/v1 is stable and existing /posts routes stay untouched.
 capture_router = APIRouter(prefix="/blog/capture", tags=["blog-capture"])
-taxonomy_router = APIRouter(prefix="/blog/taxonomy", tags=["blog-taxonomy"])
 ai_router = APIRouter(prefix="/blog/ai", tags=["blog-ai"])
 query_router = APIRouter(prefix="/blog/query", tags=["blog-query"])
-
-
-@taxonomy_router.get("/{kind}")
-def list_taxonomy(
-    kind: str,
-    enabled: bool | None = None,
-    user: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> list[TaxonomyItemOut]:
-    return [
-        TaxonomyItemOut(**item)
-        for item in taxonomy_service.list_items(db, user.id, kind, enabled=enabled)
-    ]
-
-
-@taxonomy_router.post("/{kind}", status_code=201)
-def create_taxonomy(
-    kind: str,
-    body: TaxonomyWrite,
-    user: CurrentUser = Depends(require_csrf),
-    db: Session = Depends(get_db),
-) -> TaxonomyItemOut:
-    item = taxonomy_service.create_item(
-        db,
-        user.id,
-        kind,
-        name=body.name,
-        description=body.description,
-        parent_id=body.parent_id,
-        aliases=body.aliases,
-        color=body.color,
-        enabled=body.enabled,
-        stop_word=body.stop_word,
-    )
-    db.commit()
-    return TaxonomyItemOut(**item)
 
 
 @private_router.get("")

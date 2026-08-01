@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref, type Ref } from 'vue'
 
 // Mock the API modules the editor pieces depend on.
@@ -18,6 +18,18 @@ vi.mock('@/api/posts', async () => {
   const actual = (await vi.importActual('@/api/posts')) as Record<string, unknown>
   return { ...actual, postsApi: { patch: vi.fn(), get: vi.fn() } }
 })
+vi.mock('@/api/blogTaxonomy', () => ({
+  taxonomyApi: {
+    list: vi.fn().mockImplementation((kind: string) => Promise.resolve({
+      category: [],
+      tag: [
+        { id: 't-active', kind: 'tag', name: '后端', aliases: ['服务端'], enabled: true },
+        { id: 't-old', kind: 'tag', name: '旧标签', aliases: [], enabled: false },
+      ],
+      keyword: [],
+    }[kind] ?? [])),
+  },
+}))
 
 import { postsApi, type Post } from '@/api/posts'
 import { usePostAutosave } from '@/modules/posts/usePostAutosave'
@@ -71,7 +83,7 @@ describe('MarkdownSourceEditor', () => {
 describe('PostPropertySidebar', () => {
   it('emits a content_class patch and resets content_type', async () => {
     const w = mount(PostPropertySidebar, { props: { post: fakePost() } })
-    const select = w.findAll('select')[1]
+    const select = w.findAll('select')[3]
     await select.setValue('life')
     const patches = w.emitted('patch')! as Array<[Record<string, unknown>]>
     expect(patches.at(-1)![0]).toEqual({ content_class: 'life', content_type_id: null })
@@ -79,10 +91,24 @@ describe('PostPropertySidebar', () => {
 
   it('emits a status patch', async () => {
     const w = mount(PostPropertySidebar, { props: { post: fakePost() } })
-    const statusSelect = w.findAll('select')[3]
+    const statusSelect = w.findAll('select')[5]
     await statusSelect.setValue('completed')
     const patches = w.emitted('patch')! as Array<[Record<string, unknown>]>
     expect(patches.at(-1)![0]).toEqual({ content_status: 'completed' })
+  })
+
+  it('resolves aliases and keeps only attached disabled relations visible', async () => {
+    const w = mount(PostPropertySidebar, {
+      props: { post: fakePost({ tag_ids: ['t-old'] }) },
+    })
+    await flushPromises()
+
+    const tagSelect = w.get('select[aria-label="文章标签"]')
+    expect(tagSelect.text()).toContain('后端（服务端）')
+    expect(tagSelect.text()).toContain('旧标签（历史停用）')
+    await tagSelect.setValue(['t-active'])
+    const patches = w.emitted('patch')! as Array<[Record<string, unknown>]>
+    expect(patches.at(-1)![0]).toEqual({ tag_ids: ['t-active'] })
   })
 })
 

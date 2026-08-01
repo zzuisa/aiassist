@@ -43,14 +43,15 @@ describe('TaxonomyPage', () => {
     const w = mount(TaxonomyPage)
     await flushPromises()
 
+    await w.find('.card-head .primary').trigger('click')
     await w.find('input[aria-label="分类名称"]').setValue('移动端')
     await w.find('select[aria-label="父分类"]').setValue('root')
-    await w.find('.primary').trigger('click')
+    await w.find('.drawer .primary').trigger('click')
     await flushPromises()
 
     expect(taxonomyApi.create).toHaveBeenCalledWith('category', expect.objectContaining({
       name: '移动端', parent_id: 'root',
     }))
-    expect(w.find('.message--saved').text()).toContain('分类已创建')
+    expect(w.find('.message--saved').text()).toContain('分类已保存')
   })
 })

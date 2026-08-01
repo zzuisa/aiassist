@@ -494,6 +494,37 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TaxonomyItem' }
+  /blog/taxonomy/{kind}/{item_id}:
+    patch:
+      summary: Update a taxonomy item while preserving disabled historical values
+      parameters:
+        - { $ref: '#/components/parameters/TaxonomyKind' }
+        - in: path
+          name: item_id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaxonomyPatch' }
+      responses:
+        '200':
+          description: Updated item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaxonomyItem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /blog/taxonomy/keyword/recompute:
+    post:
+      summary: Recompute automatic keyword links without replacing manual links
+      responses:
+        '202':
+          description: Durable recomputation job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlogJob' }
   /blog/taxonomy/{kind}/merge:
     post:
       summary: Merge one taxonomy item into another and preserve an audit mapping
@@ -1071,6 +1102,18 @@ components:
         color: { type: [string, 'null'], maxLength: 32 }
         enabled: { type: boolean, default: true }
         stop_word: { type: boolean, default: false }
+    TaxonomyPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        parent_id: { type: [string, 'null'], format: uuid }
+        aliases: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, maxLength: 120 } }
+        color: { type: [string, 'null'], maxLength: 32 }
+        enabled: { type: boolean }
+        stop_word: { type: boolean }
     PostPage:
       type: object
       required: [items, next_cursor, applied_filters]

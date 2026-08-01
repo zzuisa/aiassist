@@ -131,6 +131,14 @@ Then verify existing Post publishing and RSS contract tests still pass. Downgrad
 
 **Pass**: three concepts remain distinct and merges preserve current relationships plus audit mapping.
 
+Validated locally for US8 on 2026-08-01:
+
+- PostgreSQL 18 migration from an empty database reached `0017_taxonomy_alias_governance`.
+- US8 contract, integration and reliability selection: 7 passed, including hierarchy/ownership, aliases, stop words, atomic/audited merge, durable deduplication and keyword recomputation redelivery.
+- Backend Ruff, format and mypy: passed (145 typed source files).
+- Frontend ESLint/typecheck, all 147 unit/component tests and production build: passed under Node 22.
+- Article property controls retain attached disabled values while excluding other disabled choices and expose governed aliases/synonyms.
+
 ### US9 — Word-cloud exploration
 
 1. Prepare posts across two years with tags/keywords and configured stop words.

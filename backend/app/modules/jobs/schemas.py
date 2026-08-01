@@ -67,6 +67,8 @@ _BLOG_STAGE_BY_TYPE = {
     "blog.generate": "optimizing",
     "blog.optimize": "optimizing",
     "blog.wordcloud": "aggregating",
+    "blog.taxonomy_merge": "merging",
+    "blog.keyword_recompute": "aggregating",
 }
 
 # (business_stage, generic status) → display status shown to the user.
@@ -82,6 +84,7 @@ _DISPLAY_STATUS = {
     ("optimizing", "waiting_user"): "ai_review",
     ("optimizing", "completed"): "ai_review",
     ("aggregating", "processing"): "aggregating",
+    ("merging", "processing"): "merging",
 }
 
 

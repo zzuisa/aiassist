@@ -300,23 +300,23 @@
 
 ### Tests for User Story 8 — write first ⚠️
 
-- [ ] T142 [P] [US8] Add category/tag/keyword CRUD, alias, merge and recompute contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T143 [P] [US8] Add cycle, uniqueness, ownership, disabled history and atomic merge integration tests in `backend/tests/integration/test_blog_taxonomy.py`
-- [ ] T144 [P] [US8] Add duplicate merge redelivery and large recompute recovery tests in `backend/tests/reliability/test_blog_failure_matrix.py`
-- [ ] T145 [P] [US8] Add three-tab taxonomy, merge-impact and disabled-state component tests in `frontend/tests/component/blog-management.spec.ts`
+- [x] T142 [P] [US8] Add category/tag/keyword CRUD, alias, merge and recompute contract tests in `backend/tests/contract/test_blog_content_api.py`
+- [x] T143 [P] [US8] Add cycle, uniqueness, ownership, disabled history and atomic merge integration tests in `backend/tests/integration/test_blog_taxonomy.py`
+- [x] T144 [P] [US8] Add duplicate merge redelivery and large recompute recovery tests in `backend/tests/reliability/test_blog_failure_matrix.py`
+- [x] T145 [P] [US8] Add three-tab taxonomy, merge-impact and disabled-state component tests in `frontend/tests/component/blog-management.spec.ts`
 
 ### Implementation for User Story 8
 
-- [ ] T146 [US8] Implement category tree validation, bounded depth, sorting, enable/disable and counts in `backend/app/modules/posts/taxonomy_service.py`
-- [ ] T147 [US8] Implement tag profile, alias resolution, collision checks, AI recommendation normalization and counts in `backend/app/modules/posts/taxonomy_service.py`
-- [ ] T148 [US8] Implement keyword, synonym, stop-word, manual/AI/recomputed link and count rules in `backend/app/modules/posts/taxonomy_service.py`
-- [ ] T149 [US8] Implement transactional small merge and idempotent background large merge with TaxonomyMerge audit in `backend/app/modules/posts/taxonomy_service.py` and `backend/app/workers/tasks/blog.py`
-- [ ] T150 [US8] Implement taxonomy list/create/update/merge and keyword recompute endpoints in `backend/app/modules/posts/taxonomy_router.py`
-- [ ] T151 [P] [US8] Implement typed taxonomy and merge API client in `frontend/src/api/blogTaxonomy.ts`
-- [ ] T152 [US8] Implement separate category tree, tag and keyword tabs with concept guidance in `frontend/src/modules/posts/TaxonomyPage.vue`
-- [ ] T153 [P] [US8] Implement taxonomy edit drawers for hierarchy, alias, color, description, stop-word and enabled fields in `frontend/src/modules/posts/TaxonomyEditDrawer.vue`
-- [ ] T154 [P] [US8] Implement merge impact preview, target selection and asynchronous result states in `frontend/src/modules/posts/TaxonomyMergeDialog.vue`
-- [ ] T155 [US8] Update article property controls to resolve aliases and exclude disabled choices without hiding history in `frontend/src/modules/posts/PostPropertySidebar.vue`
+- [x] T146 [US8] Implement category tree validation, bounded depth, sorting, enable/disable and counts in `backend/app/modules/posts/taxonomy_service.py`
+- [x] T147 [US8] Implement tag profile, alias resolution, collision checks, AI recommendation normalization and counts in `backend/app/modules/posts/taxonomy_service.py`
+- [x] T148 [US8] Implement keyword, synonym, stop-word, manual/AI/recomputed link and count rules in `backend/app/modules/posts/taxonomy_service.py`
+- [x] T149 [US8] Implement transactional small merge and idempotent background large merge with TaxonomyMerge audit in `backend/app/modules/posts/taxonomy_service.py` and `backend/app/workers/tasks/blog.py`
+- [x] T150 [US8] Implement taxonomy list/create/update/merge and keyword recompute endpoints in `backend/app/modules/posts/taxonomy_router.py`
+- [x] T151 [P] [US8] Implement typed taxonomy and merge API client in `frontend/src/api/blogTaxonomy.ts`
+- [x] T152 [US8] Implement separate category tree, tag and keyword tabs with concept guidance in `frontend/src/modules/posts/TaxonomyPage.vue`
+- [x] T153 [P] [US8] Implement taxonomy edit drawers for hierarchy, alias, color, description, stop-word and enabled fields in `frontend/src/modules/posts/TaxonomyEditDrawer.vue`
+- [x] T154 [P] [US8] Implement merge impact preview, target selection and asynchronous result states in `frontend/src/modules/posts/TaxonomyMergeDialog.vue`
+- [x] T155 [US8] Update article property controls to resolve aliases and exclude disabled choices without hiding history in `frontend/src/modules/posts/PostPropertySidebar.vue`
 
 **Checkpoint**: US8 keeps classification, browsing attributes and search terms distinct and maintainable.
 
