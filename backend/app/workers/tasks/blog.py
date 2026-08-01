@@ -905,6 +905,14 @@ def optimize_run(
                     result.optimized_article.content_markdown or post.markdown,
                     orchestration_plan,
                 )
+                if fallback is None and result.optimized_article.content_markdown != post.markdown:
+                    # A structure editor may turn Markdown headings/lists into
+                    # bold prose. Preserve the visual promise by extracting
+                    # source-backed nodes from the original article instead of
+                    # depending on the model's formatting choices.
+                    fallback = build_default_reader_visual(
+                        post.title, post.markdown, orchestration_plan
+                    )
                 if fallback is not None:
                     result.enhancements.append(BlogEnhancementV1(**fallback))
             visual_items = execute_enhancements(
