@@ -102,7 +102,7 @@ class Post(Base, TimestampMixin):
         Index(
             "ix_posts_user_timeline",
             "user_id",
-            text("(COALESCE(occurred_at, created_at)) DESC"),
+            text("COALESCE(occurred_at, created_at) DESC"),
             text("id DESC"),
         ),
         Index(
