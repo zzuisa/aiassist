@@ -335,6 +335,15 @@ operator emergency and must not be used for routine deployments.
 - Backend Ruff/format/mypy and frontend lint/typecheck passed; Node 24 passed all 7 Skill
   component tests. The test page polls the Job and presents candidate and validation data.
 
+### Blog observability validation evidence (2026-08-01)
+
+- Blog Worker logs correlate trace, Job, Post, source and immutable Skill-version IDs while
+  representing article inputs only as character counts and SHA-256 hashes.
+- Recursive structured-log redaction removes credentials, signed query values, prompts,
+  Markdown, provider diagnostics and nested request/response payloads.
+- Aggregate in-process counters use bounded event/outcome/error labels and explicitly drop
+  entity IDs. Eight focused security tests passed against PostgreSQL 18.4.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.

@@ -14,7 +14,7 @@ from typing import Any, cast
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.observability import get_logger, set_trace_id
+from app.core.observability import get_logger, safe_blog_context, set_trace_id
 from app.db.session import session_scope
 from app.models.blog import PostSource
 from app.services.llm.base import ChatRequest, LLMError
@@ -703,7 +703,16 @@ def run_skill_test(
                 error_message="技能测试失败：AI 返回内容未通过格式校验",
                 error_retryable=isinstance(exc, LLMError) and exc.retryable,
             )
-            log.warning("blog_skill_test_failed", job_id=str(job.id), code=code)
+            log.warning(
+                "blog_skill_test_failed",
+                code=code,
+                **safe_blog_context(
+                    job_id=job.id,
+                    skill_version_id=version.id,
+                    content=markdown,
+                    validation_codes=[code],
+                ),
+            )
             return "failed"
 
         jobs_service.transition(session, job, current_step="正在校验测试结果", progress=80)
@@ -739,7 +748,16 @@ def run_skill_test(
                 },
             },
         )
-        log.info("blog_skill_test_completed", job_id=str(job.id), outcome=outcome)
+        log.info(
+            "blog_skill_test_completed",
+            outcome=outcome,
+            **safe_blog_context(
+                job_id=job.id,
+                skill_version_id=version.id,
+                content=markdown,
+                validation_codes=["protected_change"] if blocking else [],
+            ),
+        )
         return outcome
 
 
@@ -1007,6 +1025,7 @@ def optimize_run(
                     markdown_chars=len(body),
                     max_output_tokens=settings.llm_max_output_tokens,
                     timeout_seconds=settings.llm_read_timeout_seconds,
+                    **safe_blog_context(skill_version_id=run.skill_version_id, content=body),
                 )
                 return "failed"
 
@@ -1148,6 +1167,7 @@ def optimize_run(
             job_id=str(job.id),
             provider_key=run.provider_key,
             outcome=outcome,
+            **safe_blog_context(skill_version_id=run.skill_version_id, content=body),
         )
         return outcome
 
