@@ -238,7 +238,7 @@ Validated for this priority increment on 2026-07-31:
 - Node 24 container: `app-shell.spec.ts`, `blog-mobile.spec.ts` and `blog-taxonomy.spec.ts`, 6 tests passed.
 - Node 24 container: `blog-discovery.spec.ts`, 5 search/timeline tests passed; the full focused set is 11 tests passed.
 - Production deployment: frontend `vue-tsc` + Vite build passed, migrations applied to head, and backend/frontend/workers/Beat/Outbox/Nginx health checks passed; gateway verification completed at `http://127.0.0.1:18080`.
-- 360px Playwright coverage is present in `frontend/tests/e2e/blog-content-management.spec.ts`; it remains account-gated by `E2E_EMAIL`/`E2E_PASSWORD` and was not executed in this environment.
+- 360px Playwright coverage in `frontend/tests/e2e/blog-content-management.spec.ts` was executed with the isolated CI account on 2026-08-01 and passed together with the authenticated desktop and accessibility paths.
 - Bottom-navigation production coverage is present in `frontend/src/app/AppShell.vue`; the deployed build includes fixed positioning, `z-index`, opaque background, safe-area padding and content clearance.
 - Backend category/list contract coverage is present in `backend/tests/contract/test_blog_content_api.py`; the runtime image intentionally excludes pytest, so that suite was not executed inside the deployed container.
 - Release popup/history component coverage is present in `frontend/tests/component/app-shell.spec.ts` and `frontend/tests/component/release-history.spec.ts`; release metadata is served without service-worker precache so every deployment is fetched fresh.
@@ -284,3 +284,11 @@ GitHub Actions run for that exact release commit, and waits for a successful res
 pulling middleware or building application images. A missing, timed-out or failed workflow
 stops deployment with a non-zero status. `DEPLOY_SKIP_CI_GATE=1` is reserved for an explicit
 operator emergency and must not be used for routine deployments.
+
+### 2026-08-01 execution evidence
+
+- Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.
+- Backend Ruff, format, mypy, unit/contract/integration/reliability/security tests and the real RabbitMQ round trip passed; aggregate line coverage was 76.17%, above the 70% gate.
+- Frontend lint, typecheck, all unit/component tests and production build passed. The isolated Compose E2E job applied migrations, verified gateway and Worker routing, then passed 11 authenticated blog/accessibility tests including the 360px mobile path; one external-AI test was intentionally skipped because CI does not inject a production model credential.
+- The same release commit was deployed through `deploy/scripts/deploy.sh up`. Migration exited successfully; gateway, backend, frontend, PostgreSQL, Redis, RabbitMQ, fast/heavy Workers, Beat and Outbox publisher all passed health checks, and both Worker ping checks returned `OK`.
+- Failed predecessor runs stopped before image build, confirming that an unsuccessful exact-commit CI result cannot be reported as a successful deployment.

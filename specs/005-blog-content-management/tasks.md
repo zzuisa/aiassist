@@ -339,7 +339,7 @@
 - [x] T185 Implement mobile single-column article rows with explicit left/right swipe actions, threshold cancel, accessible more menu and executable undo feedback in `frontend/src/modules/posts/PostListPage.vue`
 - [x] T186 Implement category-first filter, category picker and category display in `frontend/src/modules/posts/PostListPage.vue` and `frontend/src/modules/posts/PostPropertySidebar.vue`
 - [x] T187 Update blog navigation and shared mobile layout tokens for category-first use in `frontend/src/modules/posts/BlogModuleLayout.vue` and `frontend/src/styles/tokens.css`
-- [ ] T188 Validate mobile/category priority flow with typecheck, component tests, executed 360px E2E coverage and production build; record evidence in `specs/005-blog-content-management/quickstart.md`
+- [x] T188 Validate mobile/category priority flow with typecheck, component tests, executed 360px E2E coverage and production build; record evidence in `specs/005-blog-content-management/quickstart.md`
 
 **Checkpoint**: On a 360px viewport, a user can filter by primary category, swipe an article to categorize/archive, use the accessible fallback menu, and open the category tree without losing the current list state.
 
@@ -415,7 +415,7 @@
 - [x] T207 Add authenticated Playwright + Compose startup/migration/health smoke coverage and complete CI secret fixtures in `.github/workflows/ci.yml`
 - [x] T208 Add scheduled/manual 100,000-row performance CI and preserve performance reports in `.github/workflows/ci.yml`
 - [x] T209 Require the pushed release commit's GitHub Actions CI result before image build in `deploy/scripts/deploy.sh`
-- [ ] T210 Validate the workflow on `005-blog-content-management`, execute the 360px E2E path, and record run evidence in `specs/005-blog-content-management/quickstart.md`
+- [x] T210 Validate the workflow on `005-blog-content-management`, execute the 360px E2E path, and record run evidence in `specs/005-blog-content-management/quickstart.md`
 
 **Checkpoint**: A pushed feature commit has a successful CI run before deployment continues; failed CI cannot be reported as a successful deployment.
 
@@ -460,8 +460,8 @@
 - [ ] T174 Validate OpenAPI/AsyncAPI/AI/Skill schema drift against implementations in `backend/tests/contract/test_blog_content_contracts.py` and `backend/tests/contract/test_blog_ai_schema.py`
 - [ ] T175 Validate migration upgrade on existing Posts data, application rollback retention and public/RSS compatibility in `backend/tests/integration/test_blog_content_migration.py` and `backend/tests/contract/test_posts_api.py`
 - [ ] T176 Run 100,000-Post search, timeline and word-cloud budgets and document measured index decisions in `backend/tests/performance/test_blog_search_100k.py` and `specs/005-blog-content-management/quickstart.md`
-- [ ] T177 Run full backend lint/type/test suites and fix feature regressions in `backend/app/modules/posts/` and `backend/tests/`
-- [ ] T178 Run full frontend lint/type/component/E2E/build suites and fix feature regressions in `frontend/src/modules/posts/` and `frontend/tests/`
+- [x] T177 Run full backend lint/type/test suites and fix feature regressions in `backend/app/modules/posts/` and `backend/tests/`
+- [x] T178 Run full frontend lint/type/component/E2E/build suites and fix feature regressions in `frontend/src/modules/posts/` and `frontend/tests/`
 - [ ] T179 Verify Compose startup, migration, health, Outbox recovery, Worker routing and one capture-to-AI-to-apply happy path in `compose.yaml` and `specs/005-blog-content-management/quickstart.md`
 
 ---
