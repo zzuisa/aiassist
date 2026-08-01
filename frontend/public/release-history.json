@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.114902-80f25f2",
+      "version": "2026.08.01.114902",
+      "commit": "80f25f2134617e6d146c4489601e5ed9af147ce8",
+      "commit_short": "80f25f2",
+      "message": "deploy: update 2026.08.01.114902",
+      "changes": [
+        "deploy: update 2026.08.01.114902",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/tests/unit/test_blog_visuals.py"
+      ],
+      "deployed_at": "2026-08-01T11:49:02Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.114621-db10210",
       "version": "2026.08.01.114621",
       "commit": "db1021092b58e49569c82013e6d03565931c25e1",
