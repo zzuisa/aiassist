@@ -23,7 +23,7 @@ from argon2.exceptions import VerifyMismatchError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import AppEnv, get_settings
 from app.core.errors import AuthenticationError, RateLimitedError
 from app.models.foundation import RefreshSession, User
 
@@ -33,12 +33,27 @@ UNKNOWN_IP = "0.0.0.0"  # noqa: S104 - placeholder IP string, not a bind address
 
 ACCESS_COOKIE = "__Host-aiassist_access"
 REFRESH_COOKIE = "__Host-aiassist_refresh"
+DEVELOPMENT_ACCESS_COOKIE = "aiassist_access"
+DEVELOPMENT_REFRESH_COOKIE = "aiassist_refresh"
 CSRF_HEADER = "X-CSRF-Token"
 JWT_ALGORITHM = "HS256"
 
 # In-process login attempt counter. A single-process personal deployment does
 # not need a distributed limiter; Redis-backed limiting is a later hardening.
 _login_attempts: dict[str, list[float]] = {}
+
+
+def auth_cookie_names() -> tuple[str, str]:
+    """Return browser-valid cookie names for the configured transport.
+
+    ``__Host-`` cookies are intentionally retained in production, where HTTPS
+    is mandatory. Browsers reject that prefix on the plain HTTP origin used by
+    local development and isolated CI, so those environments use unprefixed
+    host-only cookies instead.
+    """
+    if get_settings().app_env == AppEnv.production:
+        return ACCESS_COOKIE, REFRESH_COOKIE
+    return DEVELOPMENT_ACCESS_COOKIE, DEVELOPMENT_REFRESH_COOKIE
 
 
 def hash_password(password: str) -> str:

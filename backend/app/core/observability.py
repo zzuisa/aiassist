@@ -126,6 +126,8 @@ def configure_logging(level: str = "INFO", service: str = "backend") -> None:
         logging.getLogger(name)
         for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "celery", "celery.task")
     ]
+    for logger in named_loggers:
+        logger.setLevel(numeric_level)
     closed: set[int] = set()
     for logger in [root, *named_loggers]:
         for handler in list(logger.handlers):

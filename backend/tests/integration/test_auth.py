@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from app.modules.auth import service as auth_service
-from app.modules.auth.service import ACCESS_COOKIE, REFRESH_COOKIE
 
 pytestmark = [pytest.mark.integration]
 
@@ -20,6 +19,10 @@ def _login(client, email: str, password: str = "correct horse battery staple"):
     return client.post("/api/v1/auth/login", json={"email": email, "password": password})
 
 
+def _cookie_names() -> tuple[str, str]:
+    return auth_service.auth_cookie_names()
+
+
 def test_login_sets_httponly_cookies_and_csrf(client, make_user):
     user = make_user()
     resp = _login(client, user.email)
@@ -29,9 +32,11 @@ def test_login_sets_httponly_cookies_and_csrf(client, make_user):
     assert body["csrf_token"]
     cookies = resp.headers.get_list("set-cookie")
     joined = " ".join(cookies)
-    assert ACCESS_COOKIE in joined
-    assert REFRESH_COOKIE in joined
+    access_cookie, refresh_cookie = _cookie_names()
+    assert access_cookie in joined
+    assert refresh_cookie in joined
     assert "HttpOnly" in joined
+    assert "__Host-" not in joined
 
 
 def test_login_wrong_password_generic_error(client, make_user):
@@ -64,22 +69,23 @@ def test_me_returns_current_user(client, make_user):
 def test_refresh_rotates_and_old_token_reuse_revokes_family(client, make_user):
     user = make_user()
     _login(client, user.email)
-    old_refresh = client.cookies.get(REFRESH_COOKIE)
+    _, refresh_cookie = _cookie_names()
+    old_refresh = client.cookies.get(refresh_cookie)
 
     # First refresh rotates successfully.
     r1 = client.post("/api/v1/auth/refresh")
     assert r1.status_code == 204
-    new_refresh = client.cookies.get(REFRESH_COOKIE)
+    new_refresh = client.cookies.get(refresh_cookie)
     assert new_refresh != old_refresh
 
     # Replaying the OLD refresh token must fail and revoke the family.
-    client.cookies.set(REFRESH_COOKIE, old_refresh)
+    client.cookies.set(refresh_cookie, old_refresh)
     reuse = client.post("/api/v1/auth/refresh")
     assert reuse.status_code == 401
     assert reuse.json()["code"] == "refresh_reused"
 
     # Even the previously-valid new token is now revoked.
-    client.cookies.set(REFRESH_COOKIE, new_refresh)
+    client.cookies.set(refresh_cookie, new_refresh)
     after = client.post("/api/v1/auth/refresh")
     assert after.status_code == 401
 

@@ -44,7 +44,8 @@ def test_jwt_tampering_rejected(client, make_user):
     user = make_user()
     _login(client, user.email)
     # Corrupt the access cookie.
-    client.cookies.set(auth_service.ACCESS_COOKIE, "not.a.valid.jwt")
+    access_cookie, _ = auth_service.auth_cookie_names()
+    client.cookies.set(access_cookie, "not.a.valid.jwt")
     assert client.get("/api/v1/auth/me").status_code == 401
 
 

@@ -76,7 +76,8 @@ def cancel_job(
 @router.get("/events/jobs")
 def stream_jobs(request: Request, db: Session = Depends(get_db)) -> StreamingResponse:
     # Validate the access session before opening the stream.
-    token = request.cookies.get(auth_service.ACCESS_COOKIE)
+    access_cookie, _ = auth_service.auth_cookie_names()
+    token = request.cookies.get(access_cookie)
     if not token:
         raise AuthenticationError("Authentication required")
     claims = auth_service.decode_access_token(token)
