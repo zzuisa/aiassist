@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.121621-19c2229",
+      "version": "2026.08.01.121621",
+      "commit": "19c2229e6060de8f02fab2724d9493a5bdb5609a",
+      "commit_short": "19c2229",
+      "message": "deploy: update 2026.08.01.121621",
+      "changes": [
+        "deploy: update 2026.08.01.121621",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T12:16:21Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.114926-cf8ef1d",
       "version": "2026.08.01.114926",
       "commit": "cf8ef1d0ee4911c4b86b04f5ff5275eb444f8969",
