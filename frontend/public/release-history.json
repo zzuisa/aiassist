@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.000755-0c57c4b",
+      "version": "2026.08.01.000755",
+      "commit": "0c57c4b73b964a36901b38097d6dbd6b9ccd45a6",
+      "commit_short": "0c57c4b",
+      "message": "feat: auto-detect reader-friendly blog enhancements",
+      "changes": [
+        "feat: auto-detect reader-friendly blog enhancements",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_orchestrator.py"
+      ],
+      "deployed_at": "2026-08-01T00:07:55Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.07.31.234900-2dbaf9d",
       "version": "2026.07.31.234900",
       "commit": "2dbaf9dc4bb25303bf7a78bdbe4946b27611bb78",
