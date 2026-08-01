@@ -99,6 +99,35 @@ class Post(Base, TimestampMixin):
         Index("ix_posts_user_id_status", "user_id", "status"),
         Index("ix_posts_user_content_status", "user_id", "content_status", "updated_at"),
         Index("ix_posts_user_content_class", "user_id", "content_class", "content_type_id"),
+        Index(
+            "ix_posts_user_timeline",
+            "user_id",
+            text("(COALESCE(occurred_at, created_at)) DESC"),
+            text("id DESC"),
+        ),
+        Index(
+            "ix_posts_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_posts_markdown_trgm",
+            "markdown",
+            postgresql_using="gin",
+            postgresql_ops={"markdown": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_posts_summary_trgm",
+            "summary",
+            postgresql_using="gin",
+            postgresql_ops={"summary": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_posts_structured_data_trgm",
+            text("(structured_data_json::text) gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
     )
 
 
