@@ -282,6 +282,9 @@ onBeforeRouteLeave(async () => {
         <span
           class="save-state"
           :data-state="autosave.state.value"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
         >{{ saveLabel }}</span>
         <button
           v-if="reviewPending"

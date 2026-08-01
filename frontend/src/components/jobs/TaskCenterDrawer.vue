@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { useJobsStore } from '@/stores/jobs'
 import { jobLabel, formatTime, formatDuration } from '@/api/jobs'
@@ -29,11 +29,20 @@ const completed = computed(() =>
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
 )
 const clearingCompleted = ref(false)
+const closeButton = ref<HTMLButtonElement | null>(null)
+let previousFocus: HTMLElement | null = null
 
 watch(
   () => props.open,
   (open) => {
-    if (open) void jobs.refreshFromRest().catch(() => undefined)
+    if (open) {
+      previousFocus = document.activeElement as HTMLElement | null
+      void jobs.refreshFromRest().catch(() => undefined)
+      void nextTick(() => closeButton.value?.focus())
+    } else {
+      previousFocus?.focus()
+      previousFocus = null
+    }
   },
   { immediate: true },
 )
@@ -99,6 +108,7 @@ async function skipPlan(job: AsyncJob): Promise<void> {
       <header>
         <h2>后台任务</h2>
         <button
+          ref="closeButton"
           class="close"
           aria-label="关闭"
           @click="$emit('close')"

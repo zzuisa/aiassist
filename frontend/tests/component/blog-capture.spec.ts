@@ -69,6 +69,17 @@ describe('PostCreateDialog', () => {
     await wrapper.findAll('.source')[3]!.trigger('click')
     expect(wrapper.emitted('select')![0]).toEqual(['quick'])
   })
+
+  it('names the dialog and moves focus inside on open', async () => {
+    const wrapper = mount(PostCreateDialog, { attachTo: document.body })
+    await Promise.resolve()
+    const dialog = wrapper.get('[role="dialog"]')
+    const headingId = dialog.attributes('aria-labelledby')
+    expect(headingId).toBeTruthy()
+    expect(wrapper.get(`#${headingId}`).text()).toBe('新建内容')
+    expect(document.activeElement).toBe(wrapper.get('button[aria-label="关闭"]').element)
+    wrapper.unmount()
+  })
 })
 
 describe('QuickCaptureDialog', () => {

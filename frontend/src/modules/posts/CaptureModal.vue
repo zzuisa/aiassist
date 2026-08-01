@@ -1,16 +1,46 @@
 <script setup lang="ts">
 // Minimal accessible modal shell shared by the capture dialogs (US1).
 // Renders an overlay + centered card; emits `close` on backdrop click or Esc.
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 defineProps<{ title: string; busy?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
+const dialog = ref<HTMLElement | null>(null)
+const closeButton = ref<HTMLButtonElement | null>(null)
+const titleId = `capture-dialog-${Math.random().toString(36).slice(2)}`
+let previousFocus: HTMLElement | null = null
+
+function focusableElements(): HTMLElement[] {
+  if (!dialog.value) return []
+  return [...dialog.value.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+  )]
+}
 
 function onKey(e: KeyboardEvent): void {
   if (e.key === 'Escape') emit('close')
+  if (e.key !== 'Tab') return
+  const items = focusableElements()
+  if (!items.length) return
+  const first = items[0]
+  const last = items.at(-1)!
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
 }
-onMounted(() => document.addEventListener('keydown', onKey))
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
+onMounted(() => {
+  previousFocus = document.activeElement as HTMLElement | null
+  document.addEventListener('keydown', onKey)
+  closeButton.value?.focus()
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKey)
+  previousFocus?.focus()
+})
 </script>
 
 <template>
@@ -19,13 +49,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
     @click.self="emit('close')"
   >
     <div
+      ref="dialog"
       class="capture-card"
       role="dialog"
       aria-modal="true"
+      :aria-labelledby="titleId"
     >
       <header class="capture-card__head">
-        <h2>{{ title }}</h2>
+        <h2 :id="titleId">
+          {{ title }}
+        </h2>
         <button
+          ref="closeButton"
           type="button"
           class="capture-card__close"
           :disabled="busy"

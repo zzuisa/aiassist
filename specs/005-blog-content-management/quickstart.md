@@ -344,6 +344,16 @@ operator emergency and must not be used for routine deployments.
 - Aggregate in-process counters use bounded event/outcome/error labels and explicitly drop
   entity IDs. Eight focused security tests passed against PostgreSQL 18.4.
 
+### Accessibility and narrow-screen evidence (2026-08-01)
+
+- Dialogs expose an accessible heading, move focus inside, trap keyboard navigation and
+  restore focus to the invoking control; global task and notification drawers do the same.
+- Editor save state is a polite textual live region, so saving and conflict states never
+  depend on color alone. Keyboard coverage reaches source/rich/split/preview controls and
+  the outline.
+- Playwright covers the authenticated blog editor at 360px and the fixed bottom navigation
+  at 360px, 375px and 390px, including horizontal overflow and final-content reachability.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.

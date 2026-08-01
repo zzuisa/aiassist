@@ -162,6 +162,21 @@ test('mobile blog list keeps category-first actions usable at 360px', async ({ p
   await expect(page).toHaveURL(/\/blog\/taxonomy$/)
 })
 
+test('mobile editor exposes non-color save status and keeps final controls reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 })
+  await login(page)
+  await newBlankPost(page)
+  await page.locator('textarea.md-source').fill('# 移动端\n\n可访问正文')
+
+  const saveStatus = page.locator('.save-state[role="status"]')
+  await expect(saveStatus).toHaveText(/保存中|已保存/)
+  await expect(saveStatus).toHaveAttribute('aria-live', 'polite')
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(360)
+  await page.getByRole('button', { name: '全屏' }).scrollIntoViewIfNeeded()
+  await expect(page.getByRole('button', { name: '全屏' })).toBeVisible()
+})
+
 // --- US4: review an AI candidate and apply only selected fields ---
 //
 // Requires a configured Skill + AI provider, so it self-skips unless the caller

@@ -1,12 +1,28 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { useJobsStore } from '@/stores/jobs'
 import type { NotificationItem } from '@/api/types'
 
-defineProps<{ open: boolean }>()
+const props = defineProps<{ open: boolean }>()
 defineEmits<{ (e: 'close'): void }>()
 
 const jobs = useJobsStore()
+const closeButton = ref<HTMLButtonElement | null>(null)
+let previousFocus: HTMLElement | null = null
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      previousFocus = document.activeElement as HTMLElement | null
+      void nextTick(() => closeButton.value?.focus())
+    } else {
+      previousFocus?.focus()
+      previousFocus = null
+    }
+  },
+)
 
 async function markRead(n: NotificationItem): Promise<void> {
   await api.post(`/notifications/${n.id}/read`)
@@ -24,6 +40,7 @@ async function markRead(n: NotificationItem): Promise<void> {
     <header>
       <h2>通知</h2>
       <button
+        ref="closeButton"
         class="close"
         aria-label="关闭"
         @click="$emit('close')"
