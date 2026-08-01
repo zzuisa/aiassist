@@ -457,8 +457,8 @@
 - [x] T171 Add safe trace/job/post/source/skill logging, metrics and content-redaction assertions in `backend/app/core/observability.py` and `backend/tests/security/test_blog_logging.py`
 - [x] T172 Add keyboard, focus, screen-reader, status-not-color-only and 360px acceptance coverage in `frontend/tests/e2e/accessibility.spec.ts` and `frontend/tests/e2e/blog-content-management.spec.ts`
 - [ ] T173 Execute all 26 required acceptance cases and fill evidence references in `specs/005-blog-content-management/quickstart.md`
-- [ ] T174 Validate OpenAPI/AsyncAPI/AI/Skill schema drift against implementations in `backend/tests/contract/test_blog_content_contracts.py` and `backend/tests/contract/test_blog_ai_schema.py`
-- [ ] T175 Validate migration upgrade on existing Posts data, application rollback retention and public/RSS compatibility in `backend/tests/integration/test_blog_content_migration.py` and `backend/tests/contract/test_posts_api.py`
+- [x] T174 Validate OpenAPI/AsyncAPI/AI/Skill schema drift against implementations in `backend/tests/contract/test_blog_content_contracts.py` and `backend/tests/contract/test_blog_ai_schema.py`
+- [x] T175 Validate migration upgrade on existing Posts data, application rollback retention and public/RSS compatibility in `backend/tests/integration/test_blog_content_migration.py` and `backend/tests/contract/test_posts_api.py`
 - [ ] T176 Run 100,000-Post search, timeline and word-cloud budgets and document measured index decisions in `backend/tests/performance/test_blog_search_100k.py` and `specs/005-blog-content-management/quickstart.md`
 - [x] T177 Run full backend lint/type/test suites and fix feature regressions in `backend/app/modules/posts/` and `backend/tests/`
 - [x] T178 Run full frontend lint/type/component/E2E/build suites and fix feature regressions in `frontend/src/modules/posts/` and `frontend/tests/`

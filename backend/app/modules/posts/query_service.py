@@ -591,8 +591,12 @@ def timeline_posts(
         else:
             end = datetime(year + 1, 1, 1, tzinfo=UTC)
         base = base.where(time_value >= start, time_value < end)
-    rows = list(session.scalars(base.order_by(time_value.desc(), Post.id.desc())).all())
-    page = rows[cursor : cursor + limit]
+    total = session.scalar(select(func.count()).select_from(base.order_by(None).subquery())) or 0
+    page = list(
+        session.scalars(
+            base.order_by(time_value.desc(), Post.id.desc()).offset(cursor).limit(limit)
+        ).all()
+    )
     items = [
         {
             "id": str(post.id),
@@ -609,7 +613,7 @@ def timeline_posts(
     ]
     return {
         "items": items,
-        "next_cursor": cursor + limit if cursor + limit < len(rows) else None,
-        "total": len(rows),
+        "next_cursor": cursor + limit if cursor + limit < total else None,
+        "total": int(total),
         "time_basis": "occurred_at_or_created_at",
     }

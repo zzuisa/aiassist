@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import cast
 
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
@@ -20,6 +21,7 @@ from app.modules.posts.schemas import (
     PostPatch,
     PublishBody,
     RestoreRevisionBody,
+    RevisionDetailOut,
     RevisionOut,
     post_detail_out,
     post_out,
@@ -166,6 +168,17 @@ def list_revisions(
     db: Session = Depends(get_db),
 ) -> list[RevisionOut]:
     return [revision_out(r) for r in service.list_revisions(db, user.id, post_id)]
+
+
+@private_router.get("/{post_id}/revisions/{revision_id}")
+def get_revision(
+    post_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RevisionDetailOut:
+    revision = service.get_revision(db, user.id, post_id, revision_id)
+    return cast(RevisionDetailOut, revision_out(revision, include_snapshot=True))
 
 
 @private_router.get("/{post_id}/revisions/compare")

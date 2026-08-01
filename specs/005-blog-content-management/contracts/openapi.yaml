@@ -206,7 +206,7 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/AiCandidate' }
-  /posts/{post_id}/candidates/{candidate_id}:
+  /blog/ai/candidates/{candidate_id}:
     get:
       summary: Get three-way candidate comparison data
       parameters:
@@ -219,7 +219,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CandidateComparison' }
         '404': { $ref: '#/components/responses/Problem' }
-  /posts/{post_id}/candidates/{candidate_id}/decide:
+  /blog/ai/candidates/{candidate_id}/decide:
     post:
       summary: Apply selected fields, reject, keep current or copy candidate
       parameters:
@@ -238,7 +238,7 @@ paths:
               schema: { $ref: '#/components/schemas/CandidateDecisionResult' }
         '409': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
-  /posts/{post_id}/versions:
+  /posts/{post_id}/revisions:
     get:
       summary: List immutable versions
       parameters:
@@ -250,7 +250,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RevisionPage' }
-  /posts/{post_id}/versions/{revision_id}:
+  /posts/{post_id}/revisions/{revision_id}:
     get:
       summary: Get one complete owned revision snapshot
       parameters:
@@ -263,7 +263,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PostRevision' }
         '404': { $ref: '#/components/responses/Problem' }
-  /posts/{post_id}/versions/compare:
+  /posts/{post_id}/revisions/compare:
     get:
       summary: Compare two owned revision snapshots
       parameters:
@@ -282,7 +282,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RevisionDiff' }
-  /posts/{post_id}/versions/{revision_id}/restore:
+  /posts/{post_id}/revisions/{revision_id}/restore:
     post:
       summary: Create a new current revision from a historical snapshot
       parameters:
@@ -319,7 +319,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PostPage' }
-  /blog/triage/merge:
+  /blog/articles/merge:
     post:
       summary: Merge ordered source Posts into a new draft without deleting sources
       requestBody:
@@ -427,7 +427,7 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/SkillVersion' }
-  /blog/skills/{skill_id}/versions/{skill_version_id}/restore:
+  /blog/skills/{skill_id}/versions/{version_id}/restore:
     post:
       summary: Copy a historical config into a new current version
       parameters:
@@ -439,7 +439,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SkillVersion' }
-  /blog/skill-defaults:
+  /blog/skills/defaults/list:
     get:
       summary: List current global, class and type Skill defaults
       responses:
@@ -450,6 +450,7 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/SkillDefault' }
+  /blog/skills/defaults:
     put:
       summary: Set or replace one unique Skill default scope
       requestBody:

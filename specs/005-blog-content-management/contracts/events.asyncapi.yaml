@@ -8,27 +8,27 @@ info:
     credentials, object bytes, or private storage paths.
 channels:
   blogSourceExtract:
-    address: content.blog.source.extract
+    address: blog.parse
     messages:
       extractBlogSource:
         $ref: '#/components/messages/ExtractBlogSource'
   blogOptimize:
-    address: llm.blog.optimize
+    address: blog.optimize
     messages:
       optimizeBlogPost:
         $ref: '#/components/messages/OptimizeBlogPost'
   blogSearchRefresh:
-    address: search.index.post.refresh
+    address: search.index.post.updated
     messages:
       refreshBlogSearch:
         $ref: '#/components/messages/RefreshBlogSearch'
   blogKeywordRebuild:
-    address: maintenance.blog.keywords.rebuild
+    address: blog.keyword.recompute
     messages:
       rebuildBlogKeywords:
         $ref: '#/components/messages/RebuildBlogKeywords'
   blogWordCloudRebuild:
-    address: maintenance.blog.wordcloud.rebuild
+    address: blog.wordcloud.rebuild
     messages:
       rebuildBlogWordCloud:
         $ref: '#/components/messages/RebuildBlogWordCloud'
@@ -66,31 +66,31 @@ operations:
 components:
   messages:
     ExtractBlogSource:
-      name: blog.source.extract.requested.v1
+      name: blog.parse
       title: Fetch and extract one durably saved URL source
       contentType: application/json
       payload:
         $ref: '#/components/schemas/SourceCommand'
     OptimizeBlogPost:
-      name: blog.optimize.requested.v1
+      name: blog.optimize
       title: Run one fixed blog optimization request
       contentType: application/json
       payload:
         $ref: '#/components/schemas/OptimizeCommand'
     RefreshBlogSearch:
-      name: blog.search.refresh.requested.v1
+      name: post.updated
       title: Refresh derived search data for one current Post revision
       contentType: application/json
       payload:
         $ref: '#/components/schemas/PostRevisionCommand'
     RebuildBlogKeywords:
-      name: blog.keywords.rebuild.requested.v1
+      name: blog.keyword_recompute
       title: Recompute keywords for one Post revision
       contentType: application/json
       payload:
         $ref: '#/components/schemas/PostRevisionJobCommand'
     RebuildBlogWordCloud:
-      name: blog.wordcloud.rebuild.requested.v1
+      name: blog.wordcloud
       title: Rebuild one saved word-cloud filter snapshot
       contentType: application/json
       payload:

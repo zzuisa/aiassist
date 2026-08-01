@@ -354,6 +354,16 @@ operator emergency and must not be used for routine deployments.
 - Playwright covers the authenticated blog editor at 360px and the fixed bottom navigation
   at 360px, 375px and 390px, including horizontal overflow and final-content reachability.
 
+### Contract and migration compatibility evidence (2026-08-01)
+
+- Runtime OpenAPI method/path guards corrected stale candidate, revision, Skill-default and
+  Skill-version paths; AsyncAPI event/address guards now match the atomic Outbox append sites.
+- All 25 focused OpenAPI, AsyncAPI, AI and Skill schema checks passed against PostgreSQL 18.4.
+- A disposable database was migrated to `0010`, seeded with a published Post and revision,
+  upgraded to head, and verified for data/default retention plus the legacy Post projection.
+- All 15 focused migration, private/public Post and RSS tests passed. Application rollback
+  keeps the additive head schema; destructive schema downgrade is not used for live data.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.
