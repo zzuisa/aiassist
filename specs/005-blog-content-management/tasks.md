@@ -339,7 +339,7 @@
 - [x] T185 Implement mobile single-column article rows with explicit left/right swipe actions, threshold cancel, accessible more menu and executable undo feedback in `frontend/src/modules/posts/PostListPage.vue`
 - [x] T186 Implement category-first filter, category picker and category display in `frontend/src/modules/posts/PostListPage.vue` and `frontend/src/modules/posts/PostPropertySidebar.vue`
 - [x] T187 Update blog navigation and shared mobile layout tokens for category-first use in `frontend/src/modules/posts/BlogModuleLayout.vue` and `frontend/src/styles/tokens.css`
-- [x] T188 Validate mobile/category priority flow with typecheck, component tests, 360px E2E coverage and production build; record evidence in `specs/005-blog-content-management/quickstart.md`
+- [ ] T188 Validate mobile/category priority flow with typecheck, component tests, executed 360px E2E coverage and production build; record evidence in `specs/005-blog-content-management/quickstart.md`
 
 **Checkpoint**: On a 360px viewport, a user can filter by primary category, swipe an article to categorize/archive, use the accessible fallback menu, and open the category tree without losing the current list state.
 
@@ -400,6 +400,24 @@
 - [x] T204 Add a guarded HTTP adapter for optional `imagegen`/`answers-images` capabilities and document secret-file configuration
 
 **Checkpoint**: A full AI Assist optimization performs value gating before model work, can safely skip low-value enhancements, and still produces the existing reviewable candidate without mutating the authored article.
+
+## Priority Increment — Spec Kit 持续集成闭环 (P1)
+
+**Goal**: Ensure every feature-branch push is continuously validated before deployment with security, coverage, frontend, E2E and Compose health gates.
+
+### Tests first
+
+- [x] T205 [P] Add CI trigger, required-job, security/coverage/E2E and deployment-gate contract checks in `backend/tests/contract/test_ci_workflow.py`
+
+### Implementation
+
+- [x] T206 Run CI for every branch push and PR; add explicit backend security, reliability and 70% coverage gates in `.github/workflows/ci.yml`
+- [x] T207 Add authenticated Playwright + Compose startup/migration/health smoke coverage and complete CI secret fixtures in `.github/workflows/ci.yml`
+- [x] T208 Add scheduled/manual 100,000-row performance CI and preserve performance reports in `.github/workflows/ci.yml`
+- [x] T209 Require the pushed release commit's GitHub Actions CI result before image build in `deploy/scripts/deploy.sh`
+- [ ] T210 Validate the workflow on `005-blog-content-management`, execute the 360px E2E path, and record run evidence in `specs/005-blog-content-management/quickstart.md`
+
+**Checkpoint**: A pushed feature commit has a successful CI run before deployment continues; failed CI cannot be reported as a successful deployment.
 
 ## Phase 11: User Story 9 — 用词云辅助发现内容 (Priority: P3)
 

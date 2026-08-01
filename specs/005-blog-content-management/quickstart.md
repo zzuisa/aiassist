@@ -262,3 +262,25 @@ npm run build
 ```
 
 Also run the existing Posts public/publish, search, Job SSE, uploads, notifications, captures and assistant suites. The feature is not releasable if existing published Posts or RSS behavior changes unintentionally.
+
+## 9. Continuous Integration Gate
+
+`.github/workflows/ci.yml` runs for every branch push and pull request. The required
+continuous checks are:
+
+1. Backend Ruff formatting/lint and mypy.
+2. Backend unit, contract, integration, security and reliability tests with at least 70%
+   application coverage, followed by the real-broker round trip.
+3. Frontend lint, typecheck, unit/component tests and production build.
+4. Compose configuration validation with every required secret-file placeholder.
+5. An isolated Compose startup, migration and health check followed by authenticated blog
+   and 360px Playwright smoke tests. Test credentials are CI-only constants and are never
+   production credentials.
+6. A scheduled or manually dispatched 100,000-row performance run with its JUnit report
+   retained as a workflow artifact.
+
+`deploy/scripts/deploy.sh up` pushes the source and release-history commits, discovers the
+GitHub Actions run for that exact release commit, and waits for a successful result before
+pulling middleware or building application images. A missing, timed-out or failed workflow
+stops deployment with a non-zero status. `DEPLOY_SKIP_CI_GATE=1` is reserved for an explicit
+operator emergency and must not be used for routine deployments.

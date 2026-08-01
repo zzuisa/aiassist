@@ -167,6 +167,52 @@ PY
   push_current_branch
 }
 
+wait_for_ci_gate() {
+  if [ "${DEPLOY_SKIP_CI_GATE:-0}" = "1" ]; then
+    log "CI gate explicitly skipped by DEPLOY_SKIP_CI_GATE=1."
+    return
+  fi
+  if ! command -v gh >/dev/null 2>&1; then
+    err "GitHub CLI is required to verify CI before deployment."
+    exit 1
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    err "GitHub CLI is not authenticated; refusing to deploy without a CI result."
+    exit 1
+  fi
+
+  local workflow head_sha run_id started_at now timeout_seconds
+  workflow="${DEPLOY_CI_WORKFLOW:-CI}"
+  timeout_seconds="${DEPLOY_CI_TIMEOUT_SECONDS:-1800}"
+  head_sha="$(git rev-parse HEAD)"
+  started_at="$(date +%s)"
+  run_id=""
+  log "Waiting for CI workflow '$workflow' on commit ${head_sha:0:7}..."
+  while [ -z "$run_id" ]; do
+    run_id="$(gh run list \
+      --workflow "$workflow" \
+      --commit "$head_sha" \
+      --event push \
+      --limit 1 \
+      --json databaseId \
+      --jq '.[0].databaseId // empty')"
+    if [ -n "$run_id" ]; then
+      break
+    fi
+    now="$(date +%s)"
+    if [ $((now - started_at)) -ge "$timeout_seconds" ]; then
+      err "Timed out waiting for CI to start for commit ${head_sha:0:7}."
+      exit 1
+    fi
+    sleep 5
+  done
+  if ! gh run watch "$run_id" --exit-status; then
+    err "CI failed for commit ${head_sha:0:7}; image build and deployment stopped."
+    exit 1
+  fi
+  log "CI passed for commit ${head_sha:0:7}."
+}
+
 cmd_up() {
   require_compose_v2
   check_capacity
@@ -176,6 +222,7 @@ cmd_up() {
   log "Validating compose configuration..."
   docker compose config --quiet
   prepare_release_commit
+  wait_for_ci_gate
   log "Pulling pinned middleware images..."
   docker compose pull postgres redis rabbitmq nginx
   log "Building application images..."
