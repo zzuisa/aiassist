@@ -100,9 +100,9 @@ prepare_release_commit() {
   git diff --check
   if [ -n "$(git status --porcelain)" ]; then
     git add --all
-    git commit -m "$commit_message"
+    git commit -m "$commit_message [skip ci]"
   else
-    git commit --allow-empty -m "$commit_message"
+    git commit --allow-empty -m "$commit_message [skip ci]"
   fi
   source_commit="$(git rev-parse HEAD)"
   source_short="$(git rev-parse --short HEAD)"

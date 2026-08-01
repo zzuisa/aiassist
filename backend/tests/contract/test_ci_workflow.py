@@ -68,5 +68,6 @@ def test_deployment_waits_for_the_pushed_commit_ci_result() -> None:
     deploy = DEPLOY_PATH.read_text(encoding="utf-8")
     assert "wait_for_ci_gate" in deploy
     assert "gh run watch" in deploy
+    assert "[skip ci]" in deploy
     assert deploy.index("prepare_release_commit") < deploy.index("wait_for_ci_gate")
     assert deploy.index("wait_for_ci_gate") < deploy.index('log "Building application images..."')
