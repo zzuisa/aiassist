@@ -149,7 +149,9 @@ async function retry(item: Batch): Promise<void> {
         class="x"
         aria-label="关闭"
         @click="emit('close')"
-      >✕</button>
+      >
+        ✕
+      </button>
     </header>
 
     <textarea
@@ -164,7 +166,9 @@ async function retry(item: Batch): Promise<void> {
         class="primary"
         :disabled="savingText"
         @click="saveText"
-      >{{ savingText ? '保存中…' : '保存备注' }}</button>
+      >
+        {{ savingText ? '保存中…' : '保存备注' }}
+      </button>
       <label class="file">
         + 添加图片
         <input
@@ -173,14 +177,16 @@ async function retry(item: Batch): Promise<void> {
           multiple
           hidden
           @change="onFiles"
-        />
+        >
       </label>
     </div>
     <p
       v-if="textError"
       class="err"
       role="alert"
-    >{{ textError }}</p>
+    >
+      {{ textError }}
+    </p>
 
     <ul
       v-if="batch.length"
@@ -201,7 +207,9 @@ async function retry(item: Batch): Promise<void> {
           v-if="b.status === 'failed'"
           class="retry"
           @click="retry(b)"
-        >重试</button>
+        >
+          重试
+        </button>
       </li>
     </ul>
 
@@ -222,7 +230,7 @@ async function retry(item: Batch): Promise<void> {
           v-if="isImage(a) && previews[a.id]"
           :src="previews[a.id]"
           :alt="a.filename"
-        />
+        >
         <template v-else>
           <span class="ph">{{ a.processing_status === 'failed' ? '⚠️' : fileIcon(a) }}</span>
           <span class="fname">{{ a.filename }}</span>

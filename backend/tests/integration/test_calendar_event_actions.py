@@ -91,7 +91,9 @@ def test_reschedule_recomputes_reminder_and_no_duplicate(make_user):
         )
     with session_scope() as s:
         rows = s.scalars(
-            select(Reminder).where(Reminder.task_id == task.id, Reminder.purpose == "important_start_4h")
+            select(Reminder).where(
+                Reminder.task_id == task.id, Reminder.purpose == "important_start_4h"
+            )
         ).all()
         assert len(rows) == 1  # never duplicated
         assert abs((rows[0].trigger_at - (new_start - timedelta(minutes=240))).total_seconds()) < 2
@@ -146,5 +148,5 @@ def test_completed_event_stays_on_calendar(make_user):
     with session_scope() as s:
         task = _make_task(s, user.id, start_at=start, status="completed")
         week_start = start - timedelta(days=1)
-        events, unscheduled, _ = calendar_service.get_week(s, user.id, week_start)
+        events, _unscheduled, _ = calendar_service.get_week(s, user.id, week_start)
         assert any(e.id == task.id for e in events)

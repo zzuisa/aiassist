@@ -35,7 +35,8 @@ def _valid_skill_config(field_policies: dict | None = None) -> dict:
         "taxonomy_rules": [],
         "keyword_rules": [],
         "prohibitions": ["do not invent facts"],
-        "field_policies": field_policies or {"title": "allow_overwrite", "summary": "allow_overwrite"},
+        "field_policies": field_policies
+        or {"title": "allow_overwrite", "summary": "allow_overwrite"},
         "output_fields": ["title", "summary", "markdown"],
         "output_schema": "blog-optimization.v1",
         "validation_rules": [],
@@ -52,16 +53,28 @@ def _make_skill(session, user_id, field_policies=None):
     session.add(skill)
     session.flush()
     version = BlogSkillVersion(
-        id=uuid.uuid4(), user_id=user_id, skill_id=skill.id, version_number=1,
-        config_json=_valid_skill_config(field_policies), schema_version="blog-skill-config.v1",
-        recommended_model="test-model", max_content_chars=200000, long_content_strategy="reject",
+        id=uuid.uuid4(),
+        user_id=user_id,
+        skill_id=skill.id,
+        version_number=1,
+        config_json=_valid_skill_config(field_policies),
+        schema_version="blog-skill-config.v1",
+        recommended_model="test-model",
+        max_content_chars=200000,
+        long_content_strategy="reject",
     )
     session.add(version)
     session.flush()
     skill.current_version_id = version.id
-    session.add(BlogSkillDefault(
-        id=uuid.uuid4(), user_id=user_id, scope_type="global", scope_key="*", skill_id=skill.id,
-    ))
+    session.add(
+        BlogSkillDefault(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            scope_type="global",
+            scope_key="*",
+            skill_id=skill.id,
+        )
+    )
     session.flush()
     return skill, version
 
@@ -71,11 +84,23 @@ def _opt(title="新标题", summary="新摘要", markdown="正文", **over):
 
     data = {
         "schema_version": "blog-optimization.v1",
-        "title": title, "subtitle": None, "summary": summary, "markdown": markdown,
-        "content_class_suggestion": None, "content_type_suggestion": None,
-        "category_suggestions": [], "tag_suggestions": [], "keyword_suggestions": [],
-        "occurred_at": None, "location": None, "project": None, "source_summary": None,
-        "structured_fields": {}, "related_post_suggestions": [], "claims": [], "warnings": [],
+        "title": title,
+        "subtitle": None,
+        "summary": summary,
+        "markdown": markdown,
+        "content_class_suggestion": None,
+        "content_type_suggestion": None,
+        "category_suggestions": [],
+        "tag_suggestions": [],
+        "keyword_suggestions": [],
+        "occurred_at": None,
+        "location": None,
+        "project": None,
+        "source_summary": None,
+        "structured_fields": {},
+        "related_post_suggestions": [],
+        "claims": [],
+        "warnings": [],
     }
     data.update(over)
     return BlogOptimizationV1.model_validate(data)
@@ -94,6 +119,7 @@ class _FakeGateway:
 
 def _inject_gateway(monkeypatch, gateway):
     import app.services.llm.gateway as gw
+
     monkeypatch.setattr(gw, "get_llm_gateway", lambda: gateway)
 
 
@@ -117,8 +143,12 @@ def test_submit_resolves_skill_and_queues(db_session, user_id):
     db_session.commit()
 
     job, run, dup = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
     assert dup is False
@@ -180,13 +210,21 @@ def test_duplicate_submission_reuses_job(db_session, user_id):
     db_session.commit()
 
     job1, run1, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
     job2, run2, dup = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
     assert dup is True
@@ -208,8 +246,12 @@ def test_valid_run_saves_candidate_without_touching_article(db_session, user_id,
     original_markdown = post.markdown
 
     _job, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
 
@@ -234,11 +276,15 @@ def test_valid_run_saves_candidate_without_touching_article(db_session, user_id,
     # These durable frames are committed as independent worker checkpoints,
     # allowing SSE clients to render progress before the model call completes.
     from app.models.foundation import AsyncJobEvent
-    events = list(db_session.scalars(
-        __import__("sqlalchemy").select(AsyncJobEvent)
-        .where(AsyncJobEvent.job_id == job.id)
-        .order_by(AsyncJobEvent.id)
-    ))
+
+    events = list(
+        db_session.scalars(
+            __import__("sqlalchemy")
+            .select(AsyncJobEvent)
+            .where(AsyncJobEvent.job_id == job.id)
+            .order_by(AsyncJobEvent.id)
+        )
+    )
     steps = [event.payload_json.get("current_step") for event in events]
     assert "正在准备文章" in steps
     assert "正在分析内容" in steps
@@ -302,8 +348,12 @@ def test_malformed_output_fails_without_candidate(db_session, user_id, monkeypat
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _job, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
 
@@ -312,9 +362,14 @@ def test_malformed_output_fails_without_candidate(db_session, user_id, monkeypat
 
     db_session.expire_all()
     assert db_session.get(PostAIRun, run.id).outcome == "failed"
-    assert db_session.scalar(
-        __import__("sqlalchemy").select(PostAICandidate).where(PostAICandidate.ai_run_id == run.id)
-    ) is None
+    assert (
+        db_session.scalar(
+            __import__("sqlalchemy")
+            .select(PostAICandidate)
+            .where(PostAICandidate.ai_run_id == run.id)
+        )
+        is None
+    )
 
 
 @requires_db
@@ -325,12 +380,19 @@ def test_protected_code_change_makes_partial_candidate(db_session, user_id, monk
 
     _make_skill(db_session, user_id)
     post = service.create_post(
-        db_session, user_id, title="t", markdown="讲解\n\n```\nprint(1)\n```",
+        db_session,
+        user_id,
+        title="t",
+        markdown="讲解\n\n```\nprint(1)\n```",
     )
     db_session.commit()
     _job, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
 
@@ -356,5 +418,9 @@ def test_no_skill_configured_is_rejected(db_session, user_id):
     db_session.commit()
     with pytest.raises(NotFoundError):
         ai_service.submit_optimization(
-            db_session, user_id, post.id, post_version=post.version, optimization_type="full",
+            db_session,
+            user_id,
+            post.id,
+            post_version=post.version,
+            optimization_type="full",
         )

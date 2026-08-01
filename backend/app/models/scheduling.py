@@ -16,7 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy import text as _sql_text  # noqa: E402
+from sqlalchemy import text as _sql_text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,12 +48,8 @@ class Reminder(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("channel in ('in_app','email')", name="reminder_channel"),
-        CheckConstraint(
-            "purpose in ('custom','important_start_4h')", name="reminder_purpose"
-        ),
-        CheckConstraint(
-            "anchor in ('absolute','due_at','start_at')", name="reminder_anchor"
-        ),
+        CheckConstraint("purpose in ('custom','important_start_4h')", name="reminder_purpose"),
+        CheckConstraint("anchor in ('absolute','due_at','start_at')", name="reminder_anchor"),
         Index(
             "uq_reminders_important_start_4h",
             "user_id",

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 
 import pytest
 from app.db.session import session_scope
@@ -18,10 +17,19 @@ pytestmark = [pytest.mark.integration]
 
 def _cand(title):
     return {
-        "title": title, "content_type": "task", "description": None,
-        "local_date": "2026-07-29", "local_time": "09:00:00", "timezone": "Europe/Berlin",
-        "duration_minutes": 30, "priority": 1, "important": False, "reminder": None,
-        "recurring": False, "recurrence_rule": None, "original_text": title,
+        "title": title,
+        "content_type": "task",
+        "description": None,
+        "local_date": "2026-07-29",
+        "local_time": "09:00:00",
+        "timezone": "Europe/Berlin",
+        "duration_minutes": 30,
+        "priority": 1,
+        "important": False,
+        "reminder": None,
+        "recurring": False,
+        "recurrence_rule": None,
+        "original_text": title,
     }
 
 
@@ -109,7 +117,9 @@ def test_memory_set_get_and_settings_preserves(make_user):
     # Updating notification preferences must NOT wipe the _profile memory.
     with session_scope() as s:
         settings_service.update_settings(
-            s, user.id, {"notification_preferences": {"in_app_enabled": True, "email_enabled": False}}
+            s,
+            user.id,
+            {"notification_preferences": {"in_app_enabled": True, "email_enabled": False}},
         )
     with session_scope() as s:
         u = s.get(User, user.id)
@@ -146,8 +156,8 @@ def test_answer_after_expire_removes_auto_created(make_user):
         assert "created_ids" not in job.result_json  # cleared for re-planning
     with session_scope() as s:  # the auto task was soft-deleted
         open_count = s.scalar(
-            select(func.count()).select_from(Task).where(
-                Task.user_id == user.id, Task.deleted_at.is_(None)
-            )
+            select(func.count())
+            .select_from(Task)
+            .where(Task.user_id == user.id, Task.deleted_at.is_(None))
         )
         assert open_count == 0

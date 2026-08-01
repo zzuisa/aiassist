@@ -32,9 +32,7 @@ def dependency_states() -> dict:
             "provider_key": s.llm_provider if s.llm_provider != "none" else None,
         },
         "radio": {
-            "configured": bool(
-                s.radio_service_base_url and s.resolved_radio_service_password
-            ),
+            "configured": bool(s.radio_service_base_url and s.resolved_radio_service_password),
             "state": (
                 "ready"
                 if s.radio_service_base_url and s.resolved_radio_service_password

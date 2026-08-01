@@ -47,9 +47,14 @@ onBeforeUnmount(() => {
     <header>
       <div>
         <strong>{{ runningCount ? `正在优化（${runningCount}）` : '最近的优化任务' }}</strong>
-        <span class="live" :data-live="store.connected">{{ store.connected ? '实时更新' : '连接中…' }}</span>
+        <span
+          class="live"
+          :data-live="store.connected"
+        >{{ store.connected ? '实时更新' : '连接中…' }}</span>
       </div>
-      <RouterLink :to="{ name: 'blog-jobs' }">查看全部任务</RouterLink>
+      <RouterLink :to="{ name: 'blog-jobs' }">
+        查看全部任务
+      </RouterLink>
     </header>
 
     <div class="task-grid">
@@ -61,7 +66,10 @@ onBeforeUnmount(() => {
       >
         <div class="task-head">
           <span class="provider">{{ providerLabel(job) ?? 'AI' }}</span>
-          <span class="status" :data-tone="jobDisplay(job).tone">{{ jobDisplay(job).label }}</span>
+          <span
+            class="status"
+            :data-tone="jobDisplay(job).tone"
+          >{{ jobDisplay(job).label }}</span>
           <b>{{ job.progress }}%</b>
         </div>
         <div
@@ -70,12 +78,19 @@ onBeforeUnmount(() => {
           :aria-valuenow="job.progress"
           aria-valuemin="0"
           aria-valuemax="100"
-        ><span :style="{ width: `${job.progress}%` }" /></div>
+        >
+          <span :style="{ width: `${job.progress}%` }" />
+        </div>
         <div class="task-foot">
           <span>{{ job.current_step ?? '等待处理' }}</span>
           <span>{{ formatDuration(job.started_at ?? job.created_at, job.finished_at) }}</span>
         </div>
-        <p v-if="job.error" class="error">{{ job.error.message }}</p>
+        <p
+          v-if="job.error"
+          class="error"
+        >
+          {{ job.error.message }}
+        </p>
       </RouterLink>
     </div>
   </section>

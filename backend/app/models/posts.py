@@ -77,8 +77,17 @@ class Post(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("status in ('draft','private','published')", name="post_status"),
-        CheckConstraint("content_status in ('pending_capture','pending_parse','triage','draft','ai_queued','ai_processing','ai_review','merge_required','completed','archived','discarded')", name="post_content_status"),
-        CheckConstraint("content_class in ('technical','project','learning','life','travel','diary','essay','bookmark','media','item','quick')", name="post_content_class"),
+        CheckConstraint(
+            "content_status in ('pending_capture','pending_parse','triage','draft',"
+            "'ai_queued','ai_processing','ai_review','merge_required','completed',"
+            "'archived','discarded')",
+            name="post_content_status",
+        ),
+        CheckConstraint(
+            "content_class in ('technical','project','learning','life','travel',"
+            "'diary','essay','bookmark','media','item','quick')",
+            name="post_content_class",
+        ),
         CheckConstraint("editor_mode in ('markdown','rich','split')", name="post_editor_mode"),
         CheckConstraint("ai_optimization_count >= 0", name="post_ai_count_nonneg"),
         Index(
@@ -113,7 +122,9 @@ class PostRevision(Base):
     llm_log_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     async_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     skill_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    schema_version: Mapped[str] = mapped_column(String(24), nullable=False, default="post-revision.v1")
+    schema_version: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="post-revision.v1"
+    )
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

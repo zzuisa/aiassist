@@ -22,9 +22,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, uuid_pk
@@ -154,9 +154,7 @@ class TaskNoteAsset(Base):
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    processing_status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="pending"
-    )
+    processing_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     processing_version: Mapped[str | None] = mapped_column(String(64))
     last_error: Mapped[str | None] = mapped_column(String(255))
     async_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

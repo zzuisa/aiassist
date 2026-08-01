@@ -15,10 +15,7 @@ import yaml
 
 pytestmark = [pytest.mark.contract]
 
-SPEC_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "specs/005-blog-content-management/contracts"
-)
+SPEC_DIR = Path(__file__).resolve().parents[3] / "specs/005-blog-content-management/contracts"
 SCHEMA_DIR = SPEC_DIR / "schemas"
 
 
@@ -32,9 +29,9 @@ def test_openapi_parses_and_declares_paths():
 def test_asyncapi_parses_and_declares_channels():
     doc = yaml.safe_load((SPEC_DIR / "events.asyncapi.yaml").read_text())
     assert isinstance(doc, dict)
-    assert str(doc.get("asyncapi", "")).startswith("2.") or str(
-        doc.get("asyncapi", "")
-    ).startswith("3."), "AsyncAPI 2.x/3.x required"
+    assert str(doc.get("asyncapi", "")).startswith("2.") or str(doc.get("asyncapi", "")).startswith(
+        "3."
+    ), "AsyncAPI 2.x/3.x required"
     assert doc.get("channels"), "asyncapi must declare channels"
 
 

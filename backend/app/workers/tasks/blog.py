@@ -660,8 +660,8 @@ def optimize_run(
     from app.services.llm.gateway import get_llm_gateway
     from app.services.llm.schemas import (
         BlogBodyOptimizationV1,
-        BlogEnhancementV1,
         BlogEnhancementResultV1,
+        BlogEnhancementV1,
         BlogOptimizationV1,
     )
 
@@ -902,9 +902,13 @@ def optimize_run(
             # remembering one optional field. Reuse only source-backed steps
             # when it omitted the visual; the normal visual validator and PNG
             # renderer remain the final safety gates.
-            if not existing_visual and orchestration_plan.reader_explainer and not any(
-                item.capability == "visualize" and item.status == "executed"
-                for item in result.enhancements
+            if (
+                not existing_visual
+                and orchestration_plan.reader_explainer
+                and not any(
+                    item.capability == "visualize" and item.status == "executed"
+                    for item in result.enhancements
+                )
             ):
                 fallback = build_default_reader_visual(
                     post.title,
@@ -935,7 +939,9 @@ def optimize_run(
             visual_source = getattr(result, "markdown", None) or post.markdown
             fallback = build_default_reader_visual(post.title, visual_source, orchestration_plan)
             if fallback is None and visual_source != post.markdown:
-                fallback = build_default_reader_visual(post.title, post.markdown, orchestration_plan)
+                fallback = build_default_reader_visual(
+                    post.title, post.markdown, orchestration_plan
+                )
             if fallback is not None:
                 visual_items = execute_enhancement_items(
                     [BlogEnhancementV1(**fallback)],
@@ -951,7 +957,9 @@ def optimize_run(
                     visual_items,
                 )
             else:
-                result.markdown = insert_enhancements(result.markdown or post.markdown, visual_items)
+                result.markdown = insert_enhancements(
+                    result.markdown or post.markdown, visual_items
+                )
         result, orchestration_result = _normalize_orchestration_result(result, post)
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)

@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import pytest
-
 from app.modules.posts import field_policy as fp
 
 pytestmark = [pytest.mark.unit]
 
 
 def test_unlisted_field_defaults_to_suggest_only_partial():
-    assert fp.effective_policy({}, "title") in ("suggest_only", "require_confirmation", "allow_overwrite")
+    assert fp.effective_policy({}, "title") in (
+        "suggest_only",
+        "require_confirmation",
+        "allow_overwrite",
+    )
     assert fp.classify_field({}, "summary") == "partial"
 
 

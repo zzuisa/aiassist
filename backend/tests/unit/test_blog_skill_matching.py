@@ -8,8 +8,6 @@ matching behaviour.
 
 from __future__ import annotations
 
-import uuid
-
 import pytest
 
 from tests.conftest import requires_db
@@ -20,12 +18,22 @@ pytestmark = [pytest.mark.unit, pytest.mark.integration]
 def _config():
     return {
         "schema_version": "blog-skill-config.v1",
-        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
-        "processing_goal": "g", "content_rules": [], "title_rules": [], "summary_rules": [],
-        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
-        "prohibitions": ["p"], "field_policies": {"title": "allow_overwrite"},
-        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
-        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "applicable_content_classes": ["essay"],
+        "applicable_content_type_ids": [],
+        "processing_goal": "g",
+        "content_rules": [],
+        "title_rules": [],
+        "summary_rules": [],
+        "body_structure": [],
+        "taxonomy_rules": [],
+        "keyword_rules": [],
+        "prohibitions": ["p"],
+        "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"],
+        "output_schema": "blog-optimization.v1",
+        "validation_rules": [],
+        "recommended_model": "m",
+        "max_content_chars": 200000,
         "long_content_strategy": "reject",
     }
 
@@ -34,7 +42,10 @@ def _skill(session, user_id, name, *, config=True, enabled=True):
     from app.modules.posts import skill_service
 
     s = skill_service.create_skill(
-        session, user_id, name=name, config=_config() if config else None,
+        session,
+        user_id,
+        name=name,
+        config=_config() if config else None,
     )
     if not enabled:
         s.enabled = False

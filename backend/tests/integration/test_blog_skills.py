@@ -20,12 +20,22 @@ pytestmark = [pytest.mark.integration]
 def _config(goal="v1"):
     return {
         "schema_version": "blog-skill-config.v1",
-        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
-        "processing_goal": goal, "content_rules": [], "title_rules": [], "summary_rules": [],
-        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
-        "prohibitions": ["p"], "field_policies": {"title": "allow_overwrite"},
-        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
-        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "applicable_content_classes": ["essay"],
+        "applicable_content_type_ids": [],
+        "processing_goal": goal,
+        "content_rules": [],
+        "title_rules": [],
+        "summary_rules": [],
+        "body_structure": [],
+        "taxonomy_rules": [],
+        "keyword_rules": [],
+        "prohibitions": ["p"],
+        "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"],
+        "output_schema": "blog-optimization.v1",
+        "validation_rules": [],
+        "recommended_model": "m",
+        "max_content_chars": 200000,
         "long_content_strategy": "reject",
     }
 
@@ -61,7 +71,11 @@ def test_run_keeps_old_version_after_edit_and_disable(db_session, make_user):
     db_session.commit()
 
     _job, run, _dup = ai_service.submit_optimization(
-        db_session, uid, post.id, post_version=post.version, optimization_type="full",
+        db_session,
+        uid,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
     )
     db_session.commit()
     assert run.skill_version_id == v1_id
@@ -80,10 +94,9 @@ def test_run_keeps_old_version_after_edit_and_disable(db_session, make_user):
 
 @requires_db
 def test_default_is_unique_per_scope(db_session, make_user):
-    from sqlalchemy import func, select
-
     from app.models.blog import BlogSkillDefault
     from app.modules.posts import skill_service
+    from sqlalchemy import func, select
 
     uid = make_user().id
     a = skill_service.create_skill(db_session, uid, name="a", config=_config())
@@ -93,15 +106,15 @@ def test_default_is_unique_per_scope(db_session, make_user):
     db_session.commit()
 
     count = db_session.scalar(
-        select(func.count()).select_from(BlogSkillDefault).where(
+        select(func.count())
+        .select_from(BlogSkillDefault)
+        .where(
             BlogSkillDefault.user_id == uid,
             BlogSkillDefault.scope_type == "global",
         )
     )
     assert count == 1
-    row = db_session.scalar(
-        select(BlogSkillDefault).where(BlogSkillDefault.user_id == uid)
-    )
+    row = db_session.scalar(select(BlogSkillDefault).where(BlogSkillDefault.user_id == uid))
     assert row.skill_id == b.id  # replaced, not duplicated
 
 

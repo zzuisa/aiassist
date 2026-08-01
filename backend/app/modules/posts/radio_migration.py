@@ -81,9 +81,7 @@ def _record_time(record: dict[str, Any]) -> datetime:
         return datetime.now(UTC)
 
 
-def find_migrated_source(
-    session: Session, user_id: uuid.UUID, record_id: str
-) -> PostSource | None:
+def find_migrated_source(session: Session, user_id: uuid.UUID, record_id: str) -> PostSource | None:
     return session.scalar(
         select(PostSource).where(
             PostSource.user_id == user_id,

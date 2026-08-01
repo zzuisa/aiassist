@@ -68,7 +68,16 @@ def canonicalize_url(raw: str) -> str:
     netloc = parsed.hostname
     if parsed.port:
         netloc = f"{netloc}:{parsed.port}"
-    return urlunparse((parsed.scheme.lower(), netloc, parsed.path or "/", parsed.params, parsed.query, ""))
+    return urlunparse(
+        (
+            parsed.scheme.lower(),
+            netloc,
+            parsed.path or "/",
+            parsed.params,
+            parsed.query,
+            "",
+        )
+    )
 
 
 def _ip_is_forbidden(ip: ipaddress._BaseAddress) -> bool:
@@ -79,8 +88,11 @@ def _ip_is_forbidden(ip: ipaddress._BaseAddress) -> bool:
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
-        or (isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None
-            and _ip_is_forbidden(ip.ipv4_mapped))
+        or (
+            isinstance(ip, ipaddress.IPv6Address)
+            and ip.ipv4_mapped is not None
+            and _ip_is_forbidden(ip.ipv4_mapped)
+        )
     )
 
 
@@ -137,7 +149,12 @@ def fetch_url(raw_url: str, *, max_bytes: int = MAX_BYTES) -> FetchResult:
             chain.append(current)
             try:
                 with client.stream(
-                    "GET", current, headers={"User-Agent": _USER_AGENT, "Accept": "text/html,*/*;q=0.1"}
+                    "GET",
+                    current,
+                    headers={
+                        "User-Agent": _USER_AGENT,
+                        "Accept": "text/html,*/*;q=0.1",
+                    },
                 ) as resp:
                     if resp.is_redirect:
                         location = resp.headers.get("location")
@@ -148,7 +165,8 @@ def fetch_url(raw_url: str, *, max_bytes: int = MAX_BYTES) -> FetchResult:
                     ctype = resp.headers.get("content-type", "").split(";")[0].strip().lower()
                     if ctype and not any(ctype == a for a in _ALLOWED_CONTENT_TYPES):
                         raise UrlSecurityError(
-                            f"content-type '{ctype}' not extractable", code="unsupported_content_type"
+                            f"content-type '{ctype}' not extractable",
+                            code="unsupported_content_type",
                         )
                     declared = resp.headers.get("content-length")
                     if declared and declared.isdigit() and int(declared) > max_bytes:
@@ -186,9 +204,19 @@ def extract_article(html: str, url: str) -> dict[str, str | None]:
     """Extract title/text/markdown from HTML via Trafilatura (best effort)."""
     import trafilatura
 
-    result: dict[str, str | None] = {"title": None, "text": None, "markdown": None, "author": None, "site": None}
+    result: dict[str, str | None] = {
+        "title": None,
+        "text": None,
+        "markdown": None,
+        "author": None,
+        "site": None,
+    }
     md = trafilatura.extract(
-        html, url=url, output_format="markdown", include_links=True, include_images=True,
+        html,
+        url=url,
+        output_format="markdown",
+        include_links=True,
+        include_images=True,
         favor_precision=True,
     )
     result["markdown"] = md

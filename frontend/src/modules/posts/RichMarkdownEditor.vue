@@ -73,7 +73,10 @@ defineExpose({ scrollToHeading })
 </script>
 
 <template>
-  <div ref="wrap" class="rich-wrap">
+  <div
+    ref="wrap"
+    class="rich-wrap"
+  >
     <div
       v-show="!failed"
       ref="root"

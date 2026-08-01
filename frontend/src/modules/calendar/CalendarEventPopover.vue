@@ -58,7 +58,9 @@ const reminderText = computed(() => {
         class="x"
         aria-label="关闭"
         @click="emit('close')"
-      >✕</button>
+      >
+        ✕
+      </button>
     </div>
 
     <div class="actions">

@@ -106,18 +106,15 @@ def submit_optimization(
 
     # Fixed binding: resolve the Skill version once, now.
     _skill, skill_version = skill_service.resolve_skill(
-        session, user_id,
+        session,
+        user_id,
         manual_skill_id=skill_id,
         content_type_id=post.content_type_id,
         content_class=post.content_class,
     )
-    resolved_provider = provider_key or settings_service.get_default_ai_provider(
-        session, user_id
-    )
+    resolved_provider = provider_key or settings_service.get_default_ai_provider(session, user_id)
     if resolved_provider not in AI_PROVIDERS:
-        raise ValidationError(
-            "invalid AI optimization provider", code="invalid_ai_provider"
-        )
+        raise ValidationError("invalid AI optimization provider", code="invalid_ai_provider")
     resolved_model = (
         "radio-gemini"
         if resolved_provider == "radio"
@@ -126,8 +123,11 @@ def submit_optimization(
     base_revision_id = post.current_revision_id
 
     input_hash = _compute_input_hash(
-        post_id=post.id, base_revision_id=base_revision_id,
-        optimization_type=optimization_type, scope=scope, selected_fields=selected_fields,
+        post_id=post.id,
+        base_revision_id=base_revision_id,
+        optimization_type=optimization_type,
+        scope=scope,
+        selected_fields=selected_fields,
         skill_version_id=skill_version.id,
         provider_key=resolved_provider,
         model_key=resolved_model,
@@ -151,8 +151,11 @@ def submit_optimization(
     protected = protected_content.extract_tokens(post.markdown)
 
     job = jobs_service.create_job(
-        session, user_id=user_id, job_type="blog.optimize",
-        entity_type="post", entity_id=post.id,
+        session,
+        user_id=user_id,
+        job_type="blog.optimize",
+        entity_type="post",
+        entity_id=post.id,
     )
     run = PostAIRun(
         id=uuid.uuid4(),
@@ -201,11 +204,20 @@ def submit_optimization(
         post.content_status = "ai_queued"
 
     append_event(
-        session, event_type="blog.optimize", aggregate_type="post_ai_run",
-        aggregate_id=run.id, routing_key="blog.optimize",
-        payload={"run_id": str(run.id), "post_id": str(post.id), "job_id": str(job.id),
-                 "scope": scope, "optimization_type": optimization_type,
-                 "selected_fields": selected_fields, "instruction": instruction},
+        session,
+        event_type="blog.optimize",
+        aggregate_type="post_ai_run",
+        aggregate_id=run.id,
+        routing_key="blog.optimize",
+        payload={
+            "run_id": str(run.id),
+            "post_id": str(post.id),
+            "job_id": str(job.id),
+            "scope": scope,
+            "optimization_type": optimization_type,
+            "selected_fields": selected_fields,
+            "instruction": instruction,
+        },
         user_id=user_id,
     )
     return job, run, False
@@ -253,7 +265,9 @@ def save_candidate(
         raise ConflictError("post gone", code="post_missing")
 
     revision = service.create_ai_revision(
-        session, post, candidate_markdown,
+        session,
+        post,
+        candidate_markdown,
         change_summary=f"AI {run.optimization_type} 优化建议",
     )
     revision.async_job_id = run.async_job_id

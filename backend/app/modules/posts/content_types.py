@@ -214,7 +214,9 @@ def _validate_field_schema(field_schema: dict[str, Any]) -> None:
     try:
         jsonschema.Draft202012Validator.check_schema(field_schema)
     except jsonschema.SchemaError as exc:
-        raise ValidationError(f"Invalid field_schema: {exc.message}", code="invalid_field_schema") from exc
+        raise ValidationError(
+            f"Invalid field_schema: {exc.message}", code="invalid_field_schema"
+        ) from exc
 
 
 def create_content_type(

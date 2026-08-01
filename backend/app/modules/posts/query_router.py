@@ -93,10 +93,18 @@ def list_articles(
     db: Session = Depends(get_db),
 ) -> dict:
     return query_service.list_posts(
-        db, user.id,
-        content_status=content_status, content_class=content_class, category_id=category_id, status=status,
-        ai_state=ai_state, search=search, include_inactive=include_inactive,
-        sort=sort, cursor=cursor, limit=min(limit, 100),
+        db,
+        user.id,
+        content_status=content_status,
+        content_class=content_class,
+        category_id=category_id,
+        status=status,
+        ai_state=ai_state,
+        search=search,
+        include_inactive=include_inactive,
+        sort=sort,
+        cursor=cursor,
+        limit=min(limit, 100),
     )
 
 
@@ -116,8 +124,13 @@ def merge_articles(
     db: Session = Depends(get_db),
 ) -> dict:
     post = service.merge_posts(
-        db, user.id, body.primary_id, body.secondary_id,
-        order=body.order, title=body.title, current_version=body.primary_version,
+        db,
+        user.id,
+        body.primary_id,
+        body.secondary_id,
+        order=body.order,
+        title=body.title,
+        current_version=body.primary_version,
     )
     db.commit()
     return post_out(post).model_dump(mode="json")
@@ -163,10 +176,15 @@ def create_content_type(
     db: Session = Depends(get_db),
 ) -> ContentTypeOut:
     ct = content_types.create_content_type(
-        db, user.id,
-        content_class=body.content_class, key=body.key, name=body.name,
-        field_schema=body.field_schema, description=body.description,
-        sort_order=body.sort_order, enabled=body.enabled,
+        db,
+        user.id,
+        content_class=body.content_class,
+        key=body.key,
+        name=body.name,
+        field_schema=body.field_schema,
+        description=body.description,
+        sort_order=body.sort_order,
+        enabled=body.enabled,
     )
     db.commit()
     return content_type_out(ct)
@@ -181,9 +199,14 @@ def update_content_type(
     db: Session = Depends(get_db),
 ) -> ContentTypeOut:
     ct, warnings = content_types.update_content_type(
-        db, user.id, content_type_id,
-        name=body.name, description=body.description, field_schema=body.field_schema,
-        sort_order=body.sort_order, enabled=body.enabled,
+        db,
+        user.id,
+        content_type_id,
+        name=body.name,
+        description=body.description,
+        field_schema=body.field_schema,
+        sort_order=body.sort_order,
+        enabled=body.enabled,
     )
     db.commit()
     if warnings:

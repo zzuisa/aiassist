@@ -290,8 +290,13 @@ class BatchBody(BaseModel):
 
 _DETECTED_FORMATS = ("plain", "markdown", "html", "rich", "url", "code", "image", "mixed")
 _URL_USAGES = (
-    "bookmark", "summary_note", "reading_note", "technical_material",
-    "travel_material", "personal_article", "triage",
+    "bookmark",
+    "summary_note",
+    "reading_note",
+    "technical_material",
+    "travel_material",
+    "personal_article",
+    "triage",
 )
 
 
@@ -319,7 +324,13 @@ class UrlCaptureBody(BaseModel):
     model_config = {"extra": "forbid"}
     url: str = Field(min_length=1, max_length=4096)
     note: str | None = Field(default=None, max_length=10000)
-    usage: str = Field(default="triage", pattern="^(bookmark|summary_note|reading_note|technical_material|travel_material|personal_article|triage)$")
+    usage: str = Field(
+        default="triage",
+        pattern=(
+            "^(bookmark|summary_note|reading_note|technical_material|"
+            "travel_material|personal_article|triage)$"
+        ),
+    )
     content_class: str = Field(default="bookmark", max_length=32)
     content_type_id: uuid.UUID | None = None
     ai_enabled: bool = False
@@ -501,9 +512,7 @@ def _ai_summary(p: Post) -> PostAiSummary:
             else None
         ),
         last_optimized_at=(
-            p.last_ai_optimized_at.isoformat()
-            if getattr(p, "last_ai_optimized_at", None)
-            else None
+            p.last_ai_optimized_at.isoformat() if getattr(p, "last_ai_optimized_at", None) else None
         ),
     )
 
@@ -539,19 +548,18 @@ def post_out(p: Post) -> PostOut:
 
 def post_detail_out(session: Any, p: Post) -> PostOut:
     """Full single-post projection: adds taxonomy relations and source summary."""
-    from app.models.blog import PostSource
-    from app.models.posts import PostTag
-    from app.models.blog import PostKeywordLink
     from sqlalchemy import select
+
+    from app.models.blog import PostKeywordLink, PostSource
+    from app.models.posts import PostTag
 
     out = post_out(p)
     out.tag_ids = [
-        str(t) for t in session.scalars(
-            select(PostTag.tag_id).where(PostTag.post_id == p.id)
-        ).all()
+        str(t) for t in session.scalars(select(PostTag.tag_id).where(PostTag.post_id == p.id)).all()
     ]
     out.keyword_ids = [
-        str(k) for k in session.scalars(
+        str(k)
+        for k in session.scalars(
             select(PostKeywordLink.keyword_id).where(PostKeywordLink.post_id == p.id)
         ).all()
     ]
@@ -618,16 +626,18 @@ def source_out(s: Any) -> PostSourceOut:
     )
 
 
-def revision_out(r: PostRevision, *, include_snapshot: bool = False) -> RevisionOut | RevisionDetailOut:
-    base = dict(
-        id=str(r.id),
-        post_id=str(r.post_id),
-        source=r.source,
-        version=getattr(r, "version", 0),
-        change_summary=getattr(r, "change_summary", None),
-        created_at=r.created_at.isoformat(),
-        applied_at=r.applied_at.isoformat() if r.applied_at else None,
-    )
+def revision_out(
+    r: PostRevision, *, include_snapshot: bool = False
+) -> RevisionOut | RevisionDetailOut:
+    base = {
+        "id": str(r.id),
+        "post_id": str(r.post_id),
+        "source": r.source,
+        "version": getattr(r, "version", 0),
+        "change_summary": getattr(r, "change_summary", None),
+        "created_at": r.created_at.isoformat(),
+        "applied_at": r.applied_at.isoformat() if r.applied_at else None,
+    }
     if include_snapshot:
         snap_data = getattr(r, "snapshot_json", None)
         snapshot = PostSnapshot.model_validate(snap_data) if snap_data else None

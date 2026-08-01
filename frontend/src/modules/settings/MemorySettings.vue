@@ -47,11 +47,15 @@ async function save(): Promise<void> {
     <p
       v-if="loading"
       class="muted"
-    >加载中…</p>
+    >
+      加载中…
+    </p>
     <p
       v-else-if="!items.length"
       class="muted"
-    >还没有记住的偏好。</p>
+    >
+      还没有记住的偏好。
+    </p>
 
     <ul
       v-else
@@ -61,7 +65,9 @@ async function save(): Promise<void> {
         v-for="(it, i) in items"
         :key="i"
       >
-        <div class="q">{{ it.question }}</div>
+        <div class="q">
+          {{ it.question }}
+        </div>
         <div class="row">
           <input
             v-model="it.answer"
@@ -72,7 +78,9 @@ async function save(): Promise<void> {
             class="del"
             :aria-label="`删除：${it.question}`"
             @click="remove(i)"
-          >✕</button>
+          >
+            ✕
+          </button>
         </div>
       </li>
     </ul>
@@ -89,7 +97,9 @@ async function save(): Promise<void> {
         class="primary"
         :disabled="saving"
         @click="save"
-      >{{ saving ? '保存中…' : '保存记忆' }}</button>
+      >
+        {{ saving ? '保存中…' : '保存记忆' }}
+      </button>
     </div>
   </section>
 </template>

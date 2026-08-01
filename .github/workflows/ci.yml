@@ -72,6 +72,7 @@ jobs:
           --health-interval 15s --health-timeout 10s --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://aiassist:testpass@localhost:5432/aiassist_test
+      TEST_DATABASE_URL: postgresql+psycopg://aiassist:testpass@localhost:5432/aiassist_test
       REDIS_URL: redis://localhost:6379/0
       AMQP_URL: amqp://aiassist:testpass@localhost:5672/aiassist
       JWT_SIGNING_KEY: ci-test-signing-key-not-a-secret-value-000000
@@ -168,6 +169,7 @@ jobs:
             printf 'ci-placeholder-value-not-a-secret-000000' > "deploy/secrets/${secret_name}"
           done
           chmod 600 deploy/secrets/*_password deploy/secrets/jwt_signing_key deploy/secrets/*_key
+          sudo chown 10001 deploy/secrets/*
           sudo mkdir -p /www/wwwlogs/aiassist/{backend,outbox-publisher,worker-fast,worker-heavy,celery-beat,nginx}
           sudo chmod -R 777 /www/wwwlogs/aiassist
       - name: Build and start application stack
@@ -231,6 +233,7 @@ jobs:
           --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://aiassist:testpass@localhost:5432/aiassist_test
+      TEST_DATABASE_URL: postgresql+psycopg://aiassist:testpass@localhost:5432/aiassist_test
       REDIS_URL: redis://localhost:6379/0
       JWT_SIGNING_KEY: ci-test-signing-key-not-a-secret-value-000000
       SEARCH_PERF_ROWS: "100000"

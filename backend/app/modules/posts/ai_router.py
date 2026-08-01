@@ -53,9 +53,13 @@ def optimize(
     db: Session = Depends(get_db),
 ) -> dict:
     job, _run, _dup = ai_service.submit_optimization(
-        db, user.id, post_id,
-        post_version=body.post_version, optimization_type=body.optimization_type,
-        scope=body.scope, selected_fields=body.selected_fields,
+        db,
+        user.id,
+        post_id,
+        post_version=body.post_version,
+        optimization_type=body.optimization_type,
+        scope=body.scope,
+        selected_fields=body.selected_fields,
         skill_id=body.skill_id,
         provider_key=body.provider_key,
         model_key=body.model_key,
@@ -97,8 +101,7 @@ def list_candidates(
     db: Session = Depends(get_db),
 ) -> list[dict]:
     return [
-        ai_service.serialize_candidate(c)
-        for c in ai_service.list_candidates(db, user.id, post_id)
+        ai_service.serialize_candidate(c) for c in ai_service.list_candidates(db, user.id, post_id)
     ]
 
 
@@ -120,8 +123,11 @@ def decide_candidate(
     db: Session = Depends(get_db),
 ) -> dict:
     result = ai_service.decide_candidate(
-        db, user.id, candidate_id,
-        action=body.action, selected_fields=body.selected_fields,
+        db,
+        user.id,
+        candidate_id,
+        action=body.action,
+        selected_fields=body.selected_fields,
         current_version=body.post_version,
     )
     db.commit()

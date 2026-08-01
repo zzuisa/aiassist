@@ -23,8 +23,13 @@ def _source(session, user_id, post_id, url):
     from app.models.blog import PostSource
 
     s = PostSource(
-        id=uuid.uuid4(), user_id=user_id, post_id=post_id, source_type="url",
-        status="completed", original_url=url, captured_at=datetime.now(UTC),
+        id=uuid.uuid4(),
+        user_id=user_id,
+        post_id=post_id,
+        source_type="url",
+        status="completed",
+        original_url=url,
+        captured_at=datetime.now(UTC),
     )
     session.add(s)
     session.flush()
@@ -47,9 +52,9 @@ def test_triage_reason_derivation(db_session, make_user):
 
     # Force the stale item's updated_at back beyond the threshold.
     db_session.execute(
-        update(Post).where(Post.id == stale.id).values(
-            updated_at=datetime.now(UTC) - timedelta(days=30)
-        )
+        update(Post)
+        .where(Post.id == stale.id)
+        .values(updated_at=datetime.now(UTC) - timedelta(days=30))
     )
     db_session.commit()
 
@@ -83,8 +88,12 @@ def test_ordered_merge_keeps_sources_and_retains_secondary(db_session, make_user
     pv = primary.version
 
     merged = service.merge_posts(
-        db_session, uid, primary.id, secondary.id,
-        order="primary_first", current_version=pv,
+        db_session,
+        uid,
+        primary.id,
+        secondary.id,
+        order="primary_first",
+        current_version=pv,
     )
     db_session.commit()
 

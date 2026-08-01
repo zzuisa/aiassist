@@ -102,9 +102,7 @@ def cmd_flush_voice_queue() -> int:
 
     with session_scope() as s:
         records = list(
-            s.scalars(
-                select(VoiceRecord).where(VoiceRecord.status == "waiting_user")
-            ).all()
+            s.scalars(select(VoiceRecord).where(VoiceRecord.status == "waiting_user")).all()
         )
         confirmed = 0
         skipped = 0

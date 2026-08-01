@@ -21,10 +21,38 @@ DETECTED_FORMATS = ("plain", "markdown", "html", "rich", "url", "code", "image",
 
 # nh3 allow-list for cleaning pasted HTML before markdown conversion.
 _HTML_TAGS = {
-    "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
-    "strong", "b", "em", "i", "del", "s", "u", "blockquote",
-    "code", "pre", "ul", "ol", "li", "a", "img",
-    "table", "thead", "tbody", "tr", "th", "td", "span", "div",
+    "p",
+    "br",
+    "hr",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "del",
+    "s",
+    "u",
+    "blockquote",
+    "code",
+    "pre",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "img",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "span",
+    "div",
 }
 _HTML_ATTRS = {
     "a": {"href", "title"},
@@ -74,21 +102,32 @@ def _html_to_markdown(clean: str) -> str:
     """
     s = clean
     # Block-level normalization
-    s = re.sub(r"(?is)<h([1-6])[^>]*>(.*?)</h\1>",
-               lambda m: "\n" + "#" * int(m.group(1)) + " " + m.group(2).strip() + "\n", s)
-    s = re.sub(r"(?is)<blockquote[^>]*>(.*?)</blockquote>",
-               lambda m: "\n> " + m.group(1).strip() + "\n", s)
-    s = re.sub(r"(?is)<pre[^>]*>(.*?)</pre>",
-               lambda m: "\n```\n" + m.group(1).strip() + "\n```\n", s)
+    s = re.sub(
+        r"(?is)<h([1-6])[^>]*>(.*?)</h\1>",
+        lambda m: "\n" + "#" * int(m.group(1)) + " " + m.group(2).strip() + "\n",
+        s,
+    )
+    s = re.sub(
+        r"(?is)<blockquote[^>]*>(.*?)</blockquote>", lambda m: "\n> " + m.group(1).strip() + "\n", s
+    )
+    s = re.sub(
+        r"(?is)<pre[^>]*>(.*?)</pre>", lambda m: "\n```\n" + m.group(1).strip() + "\n```\n", s
+    )
     s = re.sub(r"(?is)<li[^>]*>(.*?)</li>", lambda m: "- " + m.group(1).strip() + "\n", s)
     s = re.sub(r"(?is)</?(ul|ol)[^>]*>", "\n", s)
     s = re.sub(r"(?is)<(strong|b)[^>]*>(.*?)</\1>", lambda m: "**" + m.group(2) + "**", s)
     s = re.sub(r"(?is)<(em|i)[^>]*>(.*?)</\1>", lambda m: "*" + m.group(2) + "*", s)
     s = re.sub(r"(?is)<code[^>]*>(.*?)</code>", lambda m: "`" + m.group(1) + "`", s)
-    s = re.sub(r'(?is)<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
-               lambda m: f"[{m.group(2).strip()}]({m.group(1)})", s)
-    s = re.sub(r'(?is)<img[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*>',
-               lambda m: f"![{m.group(1)}]({m.group(2)})", s)
+    s = re.sub(
+        r'(?is)<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
+        lambda m: f"[{m.group(2).strip()}]({m.group(1)})",
+        s,
+    )
+    s = re.sub(
+        r'(?is)<img[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*>',
+        lambda m: f"![{m.group(1)}]({m.group(2)})",
+        s,
+    )
     s = re.sub(r'(?is)<img[^>]*src="([^"]*)"[^>]*>', lambda m: f"![]({m.group(1)})", s)
     s = re.sub(r"(?is)</p>", "\n\n", s)
     s = re.sub(r"(?is)<br[^>]*>", "\n", s)
@@ -125,9 +164,7 @@ def normalize_clipboard(
         # Visible-text preservation check.
         lost = _visible_words(raw_content) - _visible_words(markdown)
         if lost:
-            warnings.append(
-                f"{len(lost)} visible token(s) not represented after HTML cleaning"
-            )
+            warnings.append(f"{len(lost)} visible token(s) not represented after HTML cleaning")
     elif fmt == "code":
         original_text = raw_content
         markdown = "```\n" + raw_content.rstrip("\n") + "\n```"

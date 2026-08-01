@@ -13,8 +13,6 @@ from app.core.observability import get_logger
 from app.db.session import get_db
 from app.modules.jobs import service as jobs_service
 from app.modules.tasks import plan_service
-from app.modules.tasks import service as task_service
-from app.modules.tasks.schemas import TaskOut
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 

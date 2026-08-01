@@ -49,9 +49,9 @@ def test_patch_default_ai_provider_persists(client, make_user):
     )
     assert resp.status_code == 200
     assert resp.json()["ai_optimization"]["default_provider"] == "aiassist"
-    assert client.get("/api/v1/settings").json()["ai_optimization"][
-        "default_provider"
-    ] == "aiassist"
+    assert (
+        client.get("/api/v1/settings").json()["ai_optimization"]["default_provider"] == "aiassist"
+    )
 
 
 def test_patch_invalid_ai_provider_rejected(client, make_user):

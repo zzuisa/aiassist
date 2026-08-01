@@ -31,8 +31,8 @@ def user_id(make_user):
 @requires_db
 def test_url_capture_uses_outbox_only_after_commit(db_session, user_id, monkeypatch):
     """Capture never dispatches directly from inside the business transaction."""
-    from app.models.foundation import AsyncJob, OutboxEvent
     from app.models.blog import PostSource
+    from app.models.foundation import AsyncJob, OutboxEvent
     from app.modules.posts import capture_service
     from app.workers.tasks import blog as blog_task
 
@@ -41,7 +41,7 @@ def test_url_capture_uses_outbox_only_after_commit(db_session, user_id, monkeypa
 
     monkeypatch.setattr(blog_task.extract, "delay", _premature_dispatch)
 
-    post, src, job, _ = capture_service.capture_url(
+    _post, src, job, _ = capture_service.capture_url(
         db_session, user_id, url="https://example.com/a", note="n"
     )
     db_session.commit()
@@ -76,9 +76,15 @@ def test_extraction_is_idempotent_on_duplicate_delivery(db_session, user_id, mon
 
     monkeypatch.setattr(url_extractor, "fetch_url", _fetch)
     monkeypatch.setattr(
-        url_extractor, "extract_article",
-        lambda html, url: {"title": "T", "text": "body", "markdown": "body",
-                           "author": None, "site": None},
+        url_extractor,
+        "extract_article",
+        lambda html, url: {
+            "title": "T",
+            "text": "body",
+            "markdown": "body",
+            "author": None,
+            "site": None,
+        },
     )
 
     assert blog_task.extract_source(src.id) == "completed"
@@ -151,43 +157,80 @@ def test_timeout_is_recorded_as_retryable_failure(db_session, user_id, monkeypat
 
 def _seed_skill(session, user_id):
     import uuid as _u
+
     from app.models.blog import BlogSkill, BlogSkillDefault, BlogSkillVersion
 
     config = {
         "schema_version": "blog-skill-config.v1",
-        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
-        "processing_goal": "x", "content_rules": [], "title_rules": [], "summary_rules": [],
-        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [], "prohibitions": ["p"],
-        "field_policies": {"title": "allow_overwrite"}, "output_fields": ["title"],
-        "output_schema": "blog-optimization.v1", "validation_rules": [], "recommended_model": "m",
-        "max_content_chars": 200000, "long_content_strategy": "reject",
+        "applicable_content_classes": ["essay"],
+        "applicable_content_type_ids": [],
+        "processing_goal": "x",
+        "content_rules": [],
+        "title_rules": [],
+        "summary_rules": [],
+        "body_structure": [],
+        "taxonomy_rules": [],
+        "keyword_rules": [],
+        "prohibitions": ["p"],
+        "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"],
+        "output_schema": "blog-optimization.v1",
+        "validation_rules": [],
+        "recommended_model": "m",
+        "max_content_chars": 200000,
+        "long_content_strategy": "reject",
     }
     skill = BlogSkill(id=_u.uuid4(), user_id=user_id, name="s", enabled=True)
     session.add(skill)
     session.flush()
     v = BlogSkillVersion(
-        id=_u.uuid4(), user_id=user_id, skill_id=skill.id, version_number=1, config_json=config,
-        schema_version="blog-skill-config.v1", recommended_model="m",
-        max_content_chars=200000, long_content_strategy="reject",
+        id=_u.uuid4(),
+        user_id=user_id,
+        skill_id=skill.id,
+        version_number=1,
+        config_json=config,
+        schema_version="blog-skill-config.v1",
+        recommended_model="m",
+        max_content_chars=200000,
+        long_content_strategy="reject",
     )
     session.add(v)
     session.flush()
     skill.current_version_id = v.id
-    session.add(BlogSkillDefault(
-        id=_u.uuid4(), user_id=user_id, scope_type="global", scope_key="*", skill_id=skill.id,
-    ))
+    session.add(
+        BlogSkillDefault(
+            id=_u.uuid4(),
+            user_id=user_id,
+            scope_type="global",
+            scope_key="*",
+            skill_id=skill.id,
+        )
+    )
     session.flush()
 
 
 def _opt_result(**over):
     from app.services.llm.schemas import BlogOptimizationV1
+
     data = {
-        "schema_version": "blog-optimization.v1", "title": "T", "subtitle": None,
-        "summary": None, "markdown": "body", "content_class_suggestion": None,
-        "content_type_suggestion": None, "category_suggestions": [], "tag_suggestions": [],
-        "keyword_suggestions": [], "occurred_at": None, "location": None, "project": None,
-        "source_summary": None, "structured_fields": {}, "related_post_suggestions": [],
-        "claims": [], "warnings": [],
+        "schema_version": "blog-optimization.v1",
+        "title": "T",
+        "subtitle": None,
+        "summary": None,
+        "markdown": "body",
+        "content_class_suggestion": None,
+        "content_type_suggestion": None,
+        "category_suggestions": [],
+        "tag_suggestions": [],
+        "keyword_suggestions": [],
+        "occurred_at": None,
+        "location": None,
+        "project": None,
+        "source_summary": None,
+        "structured_fields": {},
+        "related_post_suggestions": [],
+        "claims": [],
+        "warnings": [],
     }
     data.update(over)
     return BlogOptimizationV1.model_validate(data)
@@ -205,18 +248,22 @@ class _GW:
 
 @requires_db
 def test_provider_timeout_fails_run_without_candidate(db_session, user_id, monkeypatch):
+    import app.services.llm.gateway as gw
     from app.models.blog import PostAICandidate, PostAIRun
     from app.modules.posts import ai_service, service
     from app.services.llm.base import LLMError
     from app.workers.tasks import blog as blog_task
-    import app.services.llm.gateway as gw
 
     _seed_skill(db_session, user_id)
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _j, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
 
@@ -225,25 +272,30 @@ def test_provider_timeout_fails_run_without_candidate(db_session, user_id, monke
     db_session.expire_all()
     assert db_session.get(PostAIRun, run.id).outcome == "failed"
     from sqlalchemy import select
-    assert db_session.scalar(
-        select(PostAICandidate).where(PostAICandidate.ai_run_id == run.id)
-    ) is None
+
+    assert (
+        db_session.scalar(select(PostAICandidate).where(PostAICandidate.ai_run_id == run.id))
+        is None
+    )
 
 
 @requires_db
 def test_cancellation_before_generation_is_honored(db_session, user_id, monkeypatch):
-    from app.models.blog import PostAICandidate, PostAIRun
-    from app.modules.jobs import service as jobs_service
+    import app.services.llm.gateway as gw
+    from app.models.blog import PostAICandidate
     from app.modules.posts import ai_service, service
     from app.workers.tasks import blog as blog_task
-    import app.services.llm.gateway as gw
 
     _seed_skill(db_session, user_id)
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _j, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     # User cancels before the worker runs.
     ai_service.cancel_run(db_session, user_id, run.id)
@@ -257,25 +309,31 @@ def test_cancellation_before_generation_is_honored(db_session, user_id, monkeypa
     assert blog_task.optimize_run(run.id, "all", [], None) == "cancelled"
     db_session.expire_all()
     from sqlalchemy import select
-    assert db_session.scalar(
-        select(PostAICandidate).where(PostAICandidate.ai_run_id == run.id)
-    ) is None
+
+    assert (
+        db_session.scalar(select(PostAICandidate).where(PostAICandidate.ai_run_id == run.id))
+        is None
+    )
 
 
 @requires_db
 def test_duplicate_worker_delivery_is_idempotent(db_session, user_id, monkeypatch):
-    from app.models.blog import PostAICandidate, PostAIRun
+    import app.services.llm.gateway as gw
+    from app.models.blog import PostAICandidate
     from app.modules.posts import ai_service, service
     from app.workers.tasks import blog as blog_task
-    import app.services.llm.gateway as gw
     from sqlalchemy import func, select
 
     _seed_skill(db_session, user_id)
     post = service.create_post(db_session, user_id, title="t", markdown="body")
     db_session.commit()
     _j, run, _ = ai_service.submit_optimization(
-        db_session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        db_session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     db_session.commit()
 
@@ -303,16 +361,23 @@ def _seed_candidate(session, user_id):
     post.summary = "V1摘要"
     session.flush()
     _j, run, _ = ai_service.submit_optimization(
-        session, user_id, post.id, post_version=post.version,
-        optimization_type="full", provider_key="aiassist",
+        session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
+        provider_key="aiassist",
     )
     candidate = ai_service.save_candidate(
-        session, run, candidate_markdown="AI正文",
+        session,
+        run,
+        candidate_markdown="AI正文",
         field_diff={
             "summary": {"from": "V1摘要", "to": "AI摘要", "classification": "allow_overwrite"},
             "markdown": {"from": "V1正文", "to": "AI正文", "classification": "allow_overwrite"},
         },
-        validation={"outcome": "complete"}, outcome="complete",
+        validation={"outcome": "complete"},
+        outcome="complete",
     )
     session.commit()
     return post, candidate
@@ -326,13 +391,21 @@ def test_duplicate_decision_is_rejected(db_session, user_id):
 
     post, candidate = _seed_candidate(db_session, user_id)
     ai_service.decide_candidate(
-        db_session, user_id, candidate.id, action="apply_all", current_version=post.version,
+        db_session,
+        user_id,
+        candidate.id,
+        action="apply_all",
+        current_version=post.version,
     )
     db_session.commit()
     p = db_session.get(Post, post.id)
     with pytest.raises(ConflictError):
         ai_service.decide_candidate(
-            db_session, user_id, candidate.id, action="reject", current_version=p.version,
+            db_session,
+            user_id,
+            candidate.id,
+            action="reject",
+            current_version=p.version,
         )
 
 
@@ -347,8 +420,12 @@ def test_apply_after_user_edit_never_clobbers_body(db_session, user_id):
     db_session.commit()
 
     ai_service.decide_candidate(
-        db_session, user_id, candidate.id,
-        action="apply_fields", selected_fields=["summary"], current_version=post.version,
+        db_session,
+        user_id,
+        candidate.id,
+        action="apply_fields",
+        selected_fields=["summary"],
+        current_version=post.version,
     )
     db_session.commit()
     p = db_session.get(Post, post.id)
@@ -363,8 +440,11 @@ def test_stale_version_blocks_decision(db_session, user_id):
     post, candidate = _seed_candidate(db_session, user_id)
     with pytest.raises(VersionConflictError):
         ai_service.decide_candidate(
-            db_session, user_id, candidate.id,
-            action="apply_all", current_version=post.version - 1,
+            db_session,
+            user_id,
+            candidate.id,
+            action="apply_all",
+            current_version=post.version - 1,
         )
 
 
@@ -375,7 +455,6 @@ def test_stale_version_blocks_decision(db_session, user_id):
 
 def test_batch_partial_failure_does_not_roll_back_successes(db_session, user_id):
     """One bad item must not undo the others (per-item SAVEPOINT isolation)."""
-    import uuid
 
     from app.models.posts import Post
     from app.modules.posts import service

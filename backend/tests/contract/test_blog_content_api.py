@@ -173,9 +173,7 @@ def test_article_list_exposes_and_filters_primary_category(client, make_user):
     )
     assert assigned.status_code == 200
 
-    result = client.get(
-        f"/api/v1/blog/articles?category_id={category['id']}", headers=h
-    )
+    result = client.get(f"/api/v1/blog/articles?category_id={category['id']}", headers=h)
     assert result.status_code == 200
     assert result.json()["items"][0]["category_id"] == category["id"]
 
@@ -223,9 +221,7 @@ def test_blog_search_and_timeline_return_deep_fields_and_time_basis(client, make
 def test_source_detail_readable_by_owner(client, make_user):
     user = make_user()
     h = _login(client, user.email)
-    cap = client.post(
-        "/api/v1/posts/captures/quick", json={"content": "细节"}, headers=h
-    ).json()
+    cap = client.post("/api/v1/posts/captures/quick", json={"content": "细节"}, headers=h).json()
     sid = cap["source"]["id"]
     r = client.get(f"/api/v1/post-sources/{sid}", headers=h)
     assert r.status_code == 200
@@ -238,9 +234,9 @@ def test_source_detail_readable_by_owner(client, make_user):
 
 
 def _blank_post(client, h):
-    return client.post(
-        "/api/v1/posts/captures/blank", json={"title": "草稿"}, headers=h
-    ).json()["post"]
+    return client.post("/api/v1/posts/captures/blank", json={"title": "草稿"}, headers=h).json()[
+        "post"
+    ]
 
 
 def test_new_post_defaults_to_rich_editor(client, make_user):
@@ -302,9 +298,7 @@ def test_get_post_includes_source_summary(client, make_user):
     user = make_user()
     h = _login(client, user.email)
     # A quick capture creates a post with one source.
-    cap = client.post(
-        "/api/v1/posts/captures/quick", json={"content": "来源"}, headers=h
-    ).json()
+    cap = client.post("/api/v1/posts/captures/quick", json={"content": "来源"}, headers=h).json()
     r = client.get(f"/api/v1/posts/{cap['post']['id']}", headers=h)
     assert r.status_code == 200
     body = r.json()
@@ -342,7 +336,10 @@ def test_content_type_create_list_and_update(client, make_user):
             "content_class": "technical",
             "key": "my-tutorial",
             "name": "我的教程 v2",
-            "field_schema": {"type": "object", "properties": {"lang": {"type": "string"}, "level": {"type": "string"}}},
+            "field_schema": {
+                "type": "object",
+                "properties": {"lang": {"type": "string"}, "level": {"type": "string"}},
+            },
             "enabled": True,
         },
         headers=h,
@@ -383,11 +380,19 @@ def _seed_global_skill(user_id):
         "applicable_content_classes": ["essay"],
         "applicable_content_type_ids": [],
         "processing_goal": "improve",
-        "content_rules": [], "title_rules": [], "summary_rules": [], "body_structure": [],
-        "taxonomy_rules": [], "keyword_rules": [], "prohibitions": ["no invention"],
+        "content_rules": [],
+        "title_rules": [],
+        "summary_rules": [],
+        "body_structure": [],
+        "taxonomy_rules": [],
+        "keyword_rules": [],
+        "prohibitions": ["no invention"],
         "field_policies": {"title": "allow_overwrite"},
-        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
-        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "output_fields": ["title"],
+        "output_schema": "blog-optimization.v1",
+        "validation_rules": [],
+        "recommended_model": "m",
+        "max_content_chars": 200000,
         "long_content_strategy": "reject",
     }
     with session_scope() as s:
@@ -395,16 +400,28 @@ def _seed_global_skill(user_id):
         s.add(skill)
         s.flush()
         v = BlogSkillVersion(
-            id=_uuid.uuid4(), user_id=user_id, skill_id=skill.id, version_number=1,
-            config_json=config, schema_version="blog-skill-config.v1",
-            recommended_model="m", max_content_chars=200000, long_content_strategy="reject",
+            id=_uuid.uuid4(),
+            user_id=user_id,
+            skill_id=skill.id,
+            version_number=1,
+            config_json=config,
+            schema_version="blog-skill-config.v1",
+            recommended_model="m",
+            max_content_chars=200000,
+            long_content_strategy="reject",
         )
         s.add(v)
         s.flush()
         skill.current_version_id = v.id
-        s.add(BlogSkillDefault(
-            id=_uuid.uuid4(), user_id=user_id, scope_type="global", scope_key="*", skill_id=skill.id,
-        ))
+        s.add(
+            BlogSkillDefault(
+                id=_uuid.uuid4(),
+                user_id=user_id,
+                scope_type="global",
+                scope_key="*",
+                skill_id=skill.id,
+            )
+        )
 
 
 def test_optimize_returns_blog_job_202(client, make_user):
@@ -465,7 +482,11 @@ def _seed_candidate(user_id, *, base_md="V1正文", cand_md="AI正文"):
         post.summary = "V1摘要"
         s.flush()
         _job, run, _dup = ai_service.submit_optimization(
-            s, user_id, post.id, post_version=post.version, optimization_type="full",
+            s,
+            user_id,
+            post.id,
+            post_version=post.version,
+            optimization_type="full",
         )
         field_diff = {
             "title": {"from": "V1标题", "to": "AI标题", "classification": "allow_overwrite"},
@@ -473,8 +494,12 @@ def _seed_candidate(user_id, *, base_md="V1正文", cand_md="AI正文"):
             "markdown": {"from": base_md, "to": cand_md, "classification": "allow_overwrite"},
         }
         candidate = ai_service.save_candidate(
-            s, run, candidate_markdown=cand_md, field_diff=field_diff,
-            validation={"outcome": "complete"}, outcome="complete",
+            s,
+            run,
+            candidate_markdown=cand_md,
+            field_diff=field_diff,
+            validation={"outcome": "complete"},
+            outcome="complete",
         )
         return str(post.id), str(candidate.id)
 
@@ -565,12 +590,22 @@ def test_version_list_and_compare_shape(client, make_user):
 def _skill_config(goal="v1"):
     return {
         "schema_version": "blog-skill-config.v1",
-        "applicable_content_classes": ["essay"], "applicable_content_type_ids": [],
-        "processing_goal": goal, "content_rules": [], "title_rules": [], "summary_rules": [],
-        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
-        "prohibitions": ["p"], "field_policies": {"title": "allow_overwrite"},
-        "output_fields": ["title"], "output_schema": "blog-optimization.v1",
-        "validation_rules": [], "recommended_model": "m", "max_content_chars": 200000,
+        "applicable_content_classes": ["essay"],
+        "applicable_content_type_ids": [],
+        "processing_goal": goal,
+        "content_rules": [],
+        "title_rules": [],
+        "summary_rules": [],
+        "body_structure": [],
+        "taxonomy_rules": [],
+        "keyword_rules": [],
+        "prohibitions": ["p"],
+        "field_policies": {"title": "allow_overwrite"},
+        "output_fields": ["title"],
+        "output_schema": "blog-optimization.v1",
+        "validation_rules": [],
+        "recommended_model": "m",
+        "max_content_chars": 200000,
         "long_content_strategy": "reject",
     }
 
@@ -615,9 +650,7 @@ def test_skill_crud_version_and_restore(client, make_user):
     v1_id = versions[1]["id"]
 
     # Restore v1 → appends v3.
-    restored = client.post(
-        f"/api/v1/blog/skills/{sid}/versions/{v1_id}/restore", headers=h
-    )
+    restored = client.post(f"/api/v1/blog/skills/{sid}/versions/{v1_id}/restore", headers=h)
     assert restored.status_code == 201
     assert restored.json()["version_number"] == 3
     assert restored.json()["config"]["processing_goal"] == "v1"
@@ -628,9 +661,7 @@ def test_skill_invalid_config_is_422(client, make_user):
     h = _login(client, user.email)
     bad = dict(_skill_config())
     del bad["prohibitions"]  # required, min_length 1
-    r = client.post(
-        "/api/v1/blog/skills", json={"name": "坏技能", "config": bad}, headers=h
-    )
+    r = client.post("/api/v1/blog/skills", json={"name": "坏技能", "config": bad}, headers=h)
     assert r.status_code in (400, 422)
 
 
@@ -648,7 +679,9 @@ def test_skill_default_set_and_list(client, make_user):
     assert put.status_code == 200
     lst = client.get("/api/v1/blog/skills/defaults/list", headers=h).json()
     assert any(
-        d["scope_type"] == "content_class" and d["scope_key"] == "technical" and d["skill_id"] == sid
+        d["scope_type"] == "content_class"
+        and d["scope_key"] == "technical"
+        and d["skill_id"] == sid
         for d in lst
     )
 
@@ -721,17 +754,25 @@ def test_merge_endpoint_orders_and_discards_secondary(client, make_user):
     primary = _blank_post(client, h)
     secondary = _blank_post(client, h)
     # Give each a distinct body.
-    client.patch(f"/api/v1/posts/{primary['id']}",
-                 json={"version": primary["version"], "markdown": "正文甲"}, headers=h)
-    client.patch(f"/api/v1/posts/{secondary['id']}",
-                 json={"version": secondary["version"], "markdown": "正文乙"}, headers=h)
+    client.patch(
+        f"/api/v1/posts/{primary['id']}",
+        json={"version": primary["version"], "markdown": "正文甲"},
+        headers=h,
+    )
+    client.patch(
+        f"/api/v1/posts/{secondary['id']}",
+        json={"version": secondary["version"], "markdown": "正文乙"},
+        headers=h,
+    )
     got = client.get(f"/api/v1/posts/{primary['id']}", headers=h).json()
 
     r = client.post(
         "/api/v1/blog/articles/merge",
         json={
-            "primary_id": primary["id"], "secondary_id": secondary["id"],
-            "primary_version": got["version"], "order": "primary_first",
+            "primary_id": primary["id"],
+            "secondary_id": secondary["id"],
+            "primary_version": got["version"],
+            "order": "primary_first",
         },
         headers=h,
     )
@@ -747,8 +788,11 @@ def test_article_export_returns_markdown(client, make_user):
     user = make_user()
     h = _login(client, user.email)
     p = _blank_post(client, h)
-    client.patch(f"/api/v1/posts/{p['id']}",
-                 json={"version": p["version"], "markdown": "# 导出内容"}, headers=h)
+    client.patch(
+        f"/api/v1/posts/{p['id']}",
+        json={"version": p["version"], "markdown": "# 导出内容"},
+        headers=h,
+    )
     r = client.get(f"/api/v1/blog/articles/{p['id']}/export", headers=h)
     assert r.status_code == 200
     body = r.json()

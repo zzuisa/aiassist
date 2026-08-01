@@ -13,10 +13,9 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect, text
-
 from app.db.session import get_session_factory, session_scope
 from app.models.posts import Post
+from sqlalchemy import inspect, text
 
 pytestmark = [pytest.mark.integration]
 
@@ -63,7 +62,9 @@ def test_post_gets_additive_columns():
 def test_new_post_backfills_safe_defaults(make_user):
     user = make_user()
     with session_scope() as s:
-        post = Post(id=uuid.uuid4(), user_id=user.id, title="默认值", markdown="正文", status="draft")
+        post = Post(
+            id=uuid.uuid4(), user_id=user.id, title="默认值", markdown="正文", status="draft"
+        )
         s.add(post)
         s.flush()
         pid = post.id
@@ -93,17 +94,12 @@ def test_publication_semantics_untouched(make_user):
         slug = post.slug
 
     with session_scope() as s:
-        row = s.execute(
-            text("SELECT status FROM posts WHERE slug = :slug"), {"slug": slug}
-        ).one()
+        row = s.execute(text("SELECT status FROM posts WHERE slug = :slug"), {"slug": slug}).one()
         assert row.status == "published"
 
 
 def test_migration_declares_reversible_downgrade():
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "alembic/versions/0011_blog_content_management.py"
-    )
+    path = Path(__file__).resolve().parents[2] / "alembic/versions/0011_blog_content_management.py"
     spec = importlib.util.spec_from_file_location("_mig_0011", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)

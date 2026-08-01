@@ -35,9 +35,7 @@ class PostSource(Base, TimestampMixin):
     __tablename__ = "post_sources"
     id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = _fk_user()
-    post_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("posts.id", ondelete="CASCADE")
-    )
+    post_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"))
     source_type: Mapped[str] = mapped_column(String(12), nullable=False)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="saved")
     detected_format: Mapped[str | None] = mapped_column(String(12))
@@ -109,9 +107,7 @@ class PostContentType(Base, TimestampMixin):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_system_seed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    __table_args__ = (
-        UniqueConstraint("user_id", "key", name="uq_content_type_user_key"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_content_type_user_key"),)
 
 
 class PostCategoryProfile(Base):
@@ -145,9 +141,7 @@ class PostTagAlias(Base):
         ForeignKey("tags.id", ondelete="CASCADE"), nullable=False
     )
     alias: Mapped[str] = mapped_column(String(64), nullable=False)
-    __table_args__ = (
-        UniqueConstraint("user_id", "alias", name="uq_tag_alias_user_alias"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "alias", name="uq_tag_alias_user_alias"),)
 
 
 class PostKeyword(Base, TimestampMixin):
@@ -158,9 +152,7 @@ class PostKeyword(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(String(500))
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_stop_word: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    __table_args__ = (
-        UniqueConstraint("user_id", "canonical_text", name="uq_keyword_user_text"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "canonical_text", name="uq_keyword_user_text"),)
 
 
 class PostKeywordAlias(Base):
@@ -171,9 +163,7 @@ class PostKeywordAlias(Base):
         ForeignKey("post_keywords.id", ondelete="CASCADE"), nullable=False
     )
     alias: Mapped[str] = mapped_column(String(120), nullable=False)
-    __table_args__ = (
-        UniqueConstraint("user_id", "alias", name="uq_keyword_alias_user_alias"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "alias", name="uq_keyword_alias_user_alias"),)
 
 
 class PostKeywordLink(Base):
@@ -191,7 +181,10 @@ class PostKeywordLink(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     __table_args__ = (
-        CheckConstraint("source in ('user','ai','recomputed','import')", name="keyword_link_source"),
+        CheckConstraint(
+            "source in ('user','ai','recomputed','import')",
+            name="keyword_link_source",
+        ),
     )
 
 
@@ -354,7 +347,9 @@ class PostCandidateDecision(Base):
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     selected_fields_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     rejected_fields_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    current_revision_before_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    current_revision_before_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False
+    )
     result_revision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -398,8 +393,6 @@ class PostWordCloudSnapshot(Base):
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(String(64))
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "source_kind", "filter_hash", name="uq_wordcloud_scope"
-        ),
+        UniqueConstraint("user_id", "source_kind", "filter_hash", name="uq_wordcloud_scope"),
         CheckConstraint("source_kind in ('tag','keyword')", name="wordcloud_source_kind"),
     )

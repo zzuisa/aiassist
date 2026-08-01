@@ -43,9 +43,12 @@ def _derived_ai_state(post: Post) -> str:
 
 
 def _source_count(session: Session, post_id: uuid.UUID) -> int:
-    return session.scalar(
-        select(func.count()).select_from(PostSource).where(PostSource.post_id == post_id)
-    ) or 0
+    return (
+        session.scalar(
+            select(func.count()).select_from(PostSource).where(PostSource.post_id == post_id)
+        )
+        or 0
+    )
 
 
 def list_row(session: Session, post: Post) -> dict[str, Any]:

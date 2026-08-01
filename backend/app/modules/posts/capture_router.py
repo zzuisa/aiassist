@@ -48,8 +48,12 @@ def capture_blank(
     db: Session = Depends(get_db),
 ) -> CaptureResultOut:
     post, src, job, warnings = capture_service.capture_blank(
-        db, user.id, title=body.title, content_class=body.content_class,
-        language=body.language, content_type_id=body.content_type_id,
+        db,
+        user.id,
+        title=body.title,
+        content_class=body.content_class,
+        language=body.language,
+        content_type_id=body.content_type_id,
     )
     db.commit()
     out = _result(post, src, job)
@@ -64,8 +68,12 @@ def capture_clipboard(
     db: Session = Depends(get_db),
 ) -> CaptureResultOut:
     post, src, job, warnings = capture_service.capture_clipboard(
-        db, user.id, raw_content=body.raw_content, detected_format=body.detected_format,
-        normalized_markdown=body.normalized_markdown, content_class=body.content_class,
+        db,
+        user.id,
+        raw_content=body.raw_content,
+        detected_format=body.detected_format,
+        normalized_markdown=body.normalized_markdown,
+        content_class=body.content_class,
         content_type_id=body.content_type_id,
     )
     db.commit()
@@ -81,8 +89,13 @@ def capture_url(
     db: Session = Depends(get_db),
 ) -> CaptureResultOut:
     post, src, job, warnings = capture_service.capture_url(
-        db, user.id, url=body.url, note=body.note, usage=body.usage,
-        content_class=body.content_class, content_type_id=body.content_type_id,
+        db,
+        user.id,
+        url=body.url,
+        note=body.note,
+        usage=body.usage,
+        content_class=body.content_class,
+        content_type_id=body.content_type_id,
     )
     db.commit()
     out = _result(post, src, job)
@@ -97,7 +110,10 @@ def capture_quick(
     db: Session = Depends(get_db),
 ) -> CaptureResultOut:
     post, src, job, warnings = capture_service.capture_quick(
-        db, user.id, content=body.content, content_class=body.content_class,
+        db,
+        user.id,
+        content=body.content,
+        content_class=body.content_class,
     )
     db.commit()
     out = _result(post, src, job)
@@ -147,5 +163,7 @@ def snapshot_access(
     try:
         access = get_storage().access_url(src.snapshot_object_key, expires_in_seconds=300)
     except Exception as exc:  # storage unavailable — never expose the raw key
-        raise ConflictError("Snapshot access temporarily unavailable", code="storage_unavailable") from exc
+        raise ConflictError(
+            "Snapshot access temporarily unavailable", code="storage_unavailable"
+        ) from exc
     return {"url": access.url, "expires_at": None}

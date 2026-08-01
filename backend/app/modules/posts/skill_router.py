@@ -51,8 +51,13 @@ def create_skill(
     db: Session = Depends(get_db),
 ) -> dict:
     skill = skill_service.create_skill(
-        db, user.id, name=body.name, description=body.description, config=body.config,
-        recommended_model=body.recommended_model, max_content_chars=body.max_content_chars,
+        db,
+        user.id,
+        name=body.name,
+        description=body.description,
+        config=body.config,
+        recommended_model=body.recommended_model,
+        max_content_chars=body.max_content_chars,
         long_content_strategy=body.long_content_strategy,
     )
     db.commit()
@@ -71,9 +76,7 @@ def list_defaults(
 
     from app.models.blog import BlogSkillDefault
 
-    rows = db.scalars(
-        select(BlogSkillDefault).where(BlogSkillDefault.user_id == user.id)
-    ).all()
+    rows = db.scalars(select(BlogSkillDefault).where(BlogSkillDefault.user_id == user.id)).all()
     return [
         {
             "scope_type": d.scope_type,
@@ -194,8 +197,13 @@ def add_version(
     """Edit-as-new-version: append an immutable version and make it current."""
     skill = skill_service.get_skill(db, user.id, skill_id)
     version = skill_service.save_skill_version(
-        db, user.id, skill, config=body.config, recommended_model=body.recommended_model,
-        max_content_chars=body.max_content_chars, long_content_strategy=body.long_content_strategy,
+        db,
+        user.id,
+        skill,
+        config=body.config,
+        recommended_model=body.recommended_model,
+        max_content_chars=body.max_content_chars,
+        long_content_strategy=body.long_content_strategy,
         change_summary=body.change_summary,
     )
     db.commit()

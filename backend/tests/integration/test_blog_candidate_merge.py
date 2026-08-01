@@ -24,14 +24,20 @@ def _valid_skill_config() -> dict:
         "applicable_content_classes": ["technical", "essay"],
         "applicable_content_type_ids": [],
         "processing_goal": "improve clarity",
-        "content_rules": [], "title_rules": [], "summary_rules": [],
-        "body_structure": [], "taxonomy_rules": [], "keyword_rules": [],
+        "content_rules": [],
+        "title_rules": [],
+        "summary_rules": [],
+        "body_structure": [],
+        "taxonomy_rules": [],
+        "keyword_rules": [],
         "prohibitions": ["do not invent facts"],
         "field_policies": {"title": "allow_overwrite", "summary": "allow_overwrite"},
         "output_fields": ["title", "summary", "markdown"],
         "output_schema": "blog-optimization.v1",
-        "validation_rules": [], "recommended_model": "test-model",
-        "max_content_chars": 200000, "long_content_strategy": "reject",
+        "validation_rules": [],
+        "recommended_model": "test-model",
+        "max_content_chars": 200000,
+        "long_content_strategy": "reject",
     }
 
 
@@ -42,23 +48,44 @@ def _make_skill(session, user_id):
     session.add(skill)
     session.flush()
     version = BlogSkillVersion(
-        id=uuid.uuid4(), user_id=user_id, skill_id=skill.id, version_number=1,
-        config_json=_valid_skill_config(), schema_version="blog-skill-config.v1",
-        recommended_model="test-model", max_content_chars=200000, long_content_strategy="reject",
+        id=uuid.uuid4(),
+        user_id=user_id,
+        skill_id=skill.id,
+        version_number=1,
+        config_json=_valid_skill_config(),
+        schema_version="blog-skill-config.v1",
+        recommended_model="test-model",
+        max_content_chars=200000,
+        long_content_strategy="reject",
     )
     session.add(version)
     session.flush()
     skill.current_version_id = version.id
-    session.add(BlogSkillDefault(
-        id=uuid.uuid4(), user_id=user_id, scope_type="global", scope_key="*", skill_id=skill.id,
-    ))
+    session.add(
+        BlogSkillDefault(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            scope_type="global",
+            scope_key="*",
+            skill_id=skill.id,
+        )
+    )
     session.flush()
     return skill
 
 
-def _make_candidate(session, user_id, *, base_title="V1标题", base_summary="V1摘要",
-                    base_md="V1正文", cand_title="AI标题", cand_summary="AI摘要",
-                    cand_md="AI正文", outcome="complete"):
+def _make_candidate(
+    session,
+    user_id,
+    *,
+    base_title="V1标题",
+    base_summary="V1摘要",
+    base_md="V1正文",
+    cand_title="AI标题",
+    cand_summary="AI摘要",
+    cand_md="AI正文",
+    outcome="complete",
+):
     """Create a post + AI run + saved candidate proposing title/summary/markdown."""
     from app.modules.posts import ai_service, service
 
@@ -67,7 +94,11 @@ def _make_candidate(session, user_id, *, base_title="V1标题", base_summary="V1
     post.summary = base_summary
     session.flush()
     _job, run, _dup = ai_service.submit_optimization(
-        session, user_id, post.id, post_version=post.version, optimization_type="full",
+        session,
+        user_id,
+        post.id,
+        post_version=post.version,
+        optimization_type="full",
     )
     field_diff = {
         "title": {"from": base_title, "to": cand_title, "classification": "allow_overwrite"},
@@ -75,8 +106,12 @@ def _make_candidate(session, user_id, *, base_title="V1标题", base_summary="V1
         "markdown": {"from": base_md, "to": cand_md, "classification": "allow_overwrite"},
     }
     candidate = ai_service.save_candidate(
-        session, run, candidate_markdown=cand_md, field_diff=field_diff,
-        validation={"outcome": outcome}, outcome=outcome,
+        session,
+        run,
+        candidate_markdown=cand_md,
+        field_diff=field_diff,
+        validation={"outcome": outcome},
+        outcome=outcome,
     )
     session.commit()
     return post, candidate
@@ -98,15 +133,19 @@ def test_apply_selected_field_preserves_user_body(db_session, make_user):
     version_before = post.version
 
     result = ai_service.decide_candidate(
-        db_session, user_id, candidate.id,
-        action="apply_fields", selected_fields=["summary"], current_version=version_before,
+        db_session,
+        user_id,
+        candidate.id,
+        action="apply_fields",
+        selected_fields=["summary"],
+        current_version=version_before,
     )
     db_session.commit()
 
     p = db_session.get(Post, post.id)
-    assert p.summary == "AI摘要"          # selected field applied
+    assert p.summary == "AI摘要"  # selected field applied
     assert p.markdown == "用户手改的正文V2"  # untouched body preserved
-    assert p.title == "V1标题"             # unselected metadata preserved
+    assert p.title == "V1标题"  # unselected metadata preserved
     assert p.version == version_before + 1
     assert result["candidate"]["status"] == "applied"
     assert result["result_revision_id"]
@@ -121,7 +160,11 @@ def test_apply_all_uses_candidate_body(db_session, make_user):
     post, candidate = _make_candidate(db_session, user_id)
 
     ai_service.decide_candidate(
-        db_session, user_id, candidate.id, action="apply_all", current_version=post.version,
+        db_session,
+        user_id,
+        candidate.id,
+        action="apply_all",
+        current_version=post.version,
     )
     db_session.commit()
 
@@ -141,7 +184,11 @@ def test_reject_leaves_article_unchanged(db_session, make_user):
     version_before = post.version
 
     ai_service.decide_candidate(
-        db_session, user_id, candidate.id, action="reject", current_version=version_before,
+        db_session,
+        user_id,
+        candidate.id,
+        action="reject",
+        current_version=version_before,
     )
     db_session.commit()
 
@@ -150,6 +197,7 @@ def test_reject_leaves_article_unchanged(db_session, make_user):
     assert p.summary == "V1摘要"
     assert p.version == version_before  # rejecting never bumps the article
     from app.models.blog import PostAICandidate
+
     assert db_session.get(PostAICandidate, candidate.id).status == "rejected"
 
 
@@ -163,7 +211,11 @@ def test_copy_forks_new_draft_without_touching_source(db_session, make_user):
     post, candidate = _make_candidate(db_session, user_id)
 
     result = ai_service.decide_candidate(
-        db_session, user_id, candidate.id, action="copy", current_version=post.version,
+        db_session,
+        user_id,
+        candidate.id,
+        action="copy",
+        current_version=post.version,
     )
     db_session.commit()
 
@@ -172,8 +224,7 @@ def test_copy_forks_new_draft_without_touching_source(db_session, make_user):
     assert db_session.get(PostAICandidate, candidate.id).status == "copied"
     # A new draft post now exists carrying the AI content.
     forks = [
-        p for p in db_session.query(Post).filter(Post.user_id == user_id).all()
-        if p.id != post.id
+        p for p in db_session.query(Post).filter(Post.user_id == user_id).all() if p.id != post.id
     ]
     assert len(forks) == 1
     assert forks[0].markdown == "AI正文"
@@ -190,8 +241,11 @@ def test_version_conflict_blocks_apply(db_session, make_user):
 
     with pytest.raises(VersionConflictError):
         ai_service.decide_candidate(
-            db_session, user_id, candidate.id,
-            action="apply_all", current_version=post.version + 5,
+            db_session,
+            user_id,
+            candidate.id,
+            action="apply_all",
+            current_version=post.version + 5,
         )
 
 
@@ -206,8 +260,12 @@ def test_terminal_decision_is_immutable_and_recorded(db_session, make_user):
     post, candidate = _make_candidate(db_session, user_id)
 
     ai_service.decide_candidate(
-        db_session, user_id, candidate.id,
-        action="apply_fields", selected_fields=["summary"], current_version=post.version,
+        db_session,
+        user_id,
+        candidate.id,
+        action="apply_fields",
+        selected_fields=["summary"],
+        current_version=post.version,
     )
     db_session.commit()
 
@@ -223,9 +281,13 @@ def test_terminal_decision_is_immutable_and_recorded(db_session, make_user):
 
     # A second decision on the same candidate is rejected.
     from app.models.posts import Post
+
     p = db_session.get(Post, post.id)
     with pytest.raises(ConflictError):
         ai_service.decide_candidate(
-            db_session, user_id, candidate.id,
-            action="reject", current_version=p.version,
+            db_session,
+            user_id,
+            candidate.id,
+            action="reject",
+            current_version=p.version,
         )

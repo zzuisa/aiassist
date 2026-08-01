@@ -17,10 +17,10 @@ from app.modules.captures.router import router as captures_router
 from app.modules.habits.router import router as habits_router
 from app.modules.jobs.router import router as jobs_router
 from app.modules.notifications.router import router as notifications_router
-from app.modules.posts.capture_router import captures_router as blog_captures_router
-from app.modules.posts.capture_router import sources_router as blog_sources_router
 from app.modules.posts.ai_router import ai_router as blog_ai_router
 from app.modules.posts.ai_router import optimize_router as blog_optimize_router
+from app.modules.posts.capture_router import captures_router as blog_captures_router
+from app.modules.posts.capture_router import sources_router as blog_sources_router
 from app.modules.posts.query_router import query_router as blog_query_router
 from app.modules.posts.router import private_router as posts_router
 from app.modules.posts.router import public_router as public_router

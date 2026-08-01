@@ -70,14 +70,12 @@ def extract_tokens(markdown: str) -> dict[str, list[str]]:
 def token_hash(markdown: str) -> str:
     """A stable hash of the protected-token multiset (order-independent)."""
     tokens = extract_tokens(markdown)
-    payload = "|".join(
-        f"{cat}:" + ",".join(sorted(tokens[cat])) for cat in CATEGORY_ORDER
-    )
+    payload = "|".join(f"{cat}:" + ",".join(sorted(tokens[cat])) for cat in CATEGORY_ORDER)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class ProtectedChange:
-    __slots__ = ("category", "removed", "added", "severity")
+    __slots__ = ("added", "category", "removed", "severity")
 
     def __init__(self, category: str, removed: list[str], added: list[str]) -> None:
         self.category = category

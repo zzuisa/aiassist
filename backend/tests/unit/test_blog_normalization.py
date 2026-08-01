@@ -7,7 +7,6 @@ Markdown output across the supported ``detected_format`` values.
 from __future__ import annotations
 
 import pytest
-
 from app.modules.posts import normalization as nz
 
 pytestmark = [pytest.mark.unit]

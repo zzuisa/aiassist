@@ -131,16 +131,9 @@ def registered_capabilities() -> list[dict[str, Any]]:
             if name not in by_name:
                 by_name[name] = {"name": name, "type": "skill", "description": "已注册能力"}
             by_name[name].update(
-                {
-                    key: item[key]
-                    for key in ("type", "description", "enabled")
-                    if key in item
-                }
+                {key: item[key] for key in ("type", "description", "enabled") if key in item}
             )
-    return [
-        {**item, "enabled": bool(item.get("enabled", False))}
-        for item in by_name.values()
-    ]
+    return [{**item, "enabled": bool(item.get("enabled", False))} for item in by_name.values()]
 
 
 def _score(value: int) -> int:
@@ -191,9 +184,7 @@ def _reader_node_candidates(content: str) -> list[str]:
     # relationship, so the fallback visual remains source-backed rather than
     # inventing a summary from arbitrary prose.
     paragraphs = [
-        re.sub(r"\s+", " ", part).strip()
-        for part in re.split(r"\n\s*\n", content)
-        if part.strip()
+        re.sub(r"\s+", " ", part).strip() for part in re.split(r"\n\s*\n", content) if part.strip()
     ]
     paragraph_nodes = [
         paragraph
@@ -249,10 +240,11 @@ def assess_article(title: str, content: str) -> Assessment:
         + (1 if len(paragraphs) >= 4 else 0)
     )
     data_richness = _score((1 if len(numbers) >= 3 else 0) + (1 if len(numbers) >= 6 else 0))
-    scene_relevance = _score((2 if len(scene_words) >= 2 else 1 if scene_words else 0) + (1 if "http" not in text else 0))
+    scene_relevance = _score(
+        (2 if len(scene_words) >= 2 else 1 if scene_words else 0) + (1 if "http" not in text else 0)
+    )
     visual_potential = _score(
-        (2 if logical_complexity >= 2 else 0)
-        + (1 if data_richness >= 2 else 0)
+        (2 if logical_complexity >= 2 else 0) + (1 if data_richness >= 2 else 0)
     )
     rewrite_value = _score(
         (1 if len(text) >= 120 else 0)
@@ -305,52 +297,78 @@ def build_plan(
     if assessment.rewrite_value >= 1:
         selected.append("editor-agent")
     else:
-        skipped.append({"agent": "editor-agent", "reason_code": "LOW_REWRITE_VALUE", "reason": "原文已经足够短或清晰"})
+        skipped.append(
+            {
+                "agent": "editor-agent",
+                "reason_code": "LOW_REWRITE_VALUE",
+                "reason": "原文已经足够短或清晰",
+            }
+        )
 
-    def consider_visual(agent: str, capability: str, condition: bool, reason: str, option: str) -> None:
+    def consider_visual(
+        agent: str, capability: str, condition: bool, reason: str, option: str
+    ) -> None:
         if not condition:
             skipped.append({"agent": agent, "reason_code": "INSUFFICIENT_VALUE", "reason": reason})
             return
         if not bool(options.get(option, False)):
-            skipped.append({"agent": agent, "reason_code": "DISABLED_BY_OPTION", "reason": f"{option}=false"})
+            skipped.append(
+                {"agent": agent, "reason_code": "DISABLED_BY_OPTION", "reason": f"{option}=false"}
+            )
             return
         if not capabilities.get(capability, {}).get("enabled", False):
-            skipped.append({"agent": agent, "reason_code": "CAPABILITY_UNAVAILABLE", "reason": f"{capability} 未注册或未启用"})
+            skipped.append(
+                {
+                    "agent": agent,
+                    "reason_code": "CAPABILITY_UNAVAILABLE",
+                    "reason": f"{capability} 未注册或未启用",
+                }
+            )
             return
         if len(selected) >= max_calls:
-            skipped.append({"agent": agent, "reason_code": "AGENT_BUDGET_EXCEEDED", "reason": "超过 max_agent_calls"})
+            skipped.append(
+                {
+                    "agent": agent,
+                    "reason_code": "AGENT_BUDGET_EXCEEDED",
+                    "reason": "超过 max_agent_calls",
+                }
+            )
             return
         selected.append(agent)
 
     consider_visual(
-        "logic-agent", "visualize",
-        (
-            assessment.logical_complexity >= 2 and assessment.visual_potential >= 2
-        ) or (
+        "logic-agent",
+        "visualize",
+        (assessment.logical_complexity >= 2 and assessment.visual_potential >= 2)
+        or (
             explicit_visual_request
             and assessment.information_density >= 1
             and len(text_lines(content)) >= 3
-        ) or (
-            reader_explainer
-            and candidate_node_count >= 1
-            and assessment.information_density >= 1
-        ),
-        "逻辑节点不足，或正文信息量不足以支撑普通读者步骤图", "allow_visualize",
+        )
+        or (reader_explainer and candidate_node_count >= 1 and assessment.information_density >= 1),
+        "逻辑节点不足，或正文信息量不足以支撑普通读者步骤图",
+        "allow_visualize",
     )
     consider_visual(
-        "data-agent", "answers-charts",
+        "data-agent",
+        "answers-charts",
         assessment.data_richness >= 2 and assessment.evidence_quality >= 2,
-        "没有足够的统一口径可靠数据", "allow_charts",
+        "没有足够的统一口径可靠数据",
+        "allow_charts",
     )
     consider_visual(
-        "scene-image-agent", "answers-images",
+        "scene-image-agent",
+        "answers-images",
         assessment.scene_relevance >= 2,
-        "没有明确且有真实图片价值的场景", "allow_retrieved_images",
+        "没有明确且有真实图片价值的场景",
+        "allow_retrieved_images",
     )
     consider_visual(
-        "illustration-agent", "imagegen",
+        "illustration-agent",
+        "imagegen",
         assessment.visual_potential >= 2,
-        "概念插画不能提供高于文字或精确图示的理解价值", "allow_generated_images",
+        "概念插画不能提供高于文字或精确图示的理解价值",
+        "allow_generated_images",
     )
 
     if not selected and assessment.rewrite_value == 0:
@@ -363,12 +381,20 @@ def build_plan(
             recommended.append("按用户要求将观点、因果或判断路径整理为板书式图示")
 
     key_points = [line.strip(" -*") for line in text_lines(content)[:8]]
-    summary = (content.strip().replace("\n", " ")[:240] or title.strip())
+    summary = content.strip().replace("\n", " ")[:240] or title.strip()
     return OrchestrationPlan(
         assessment=assessment,
         article_summary=summary,
         key_points=key_points,
-        logical_relations=["正文包含明确关系" for _ in range(min(3, len(re.findall(r"因为|因此|所以|如果|然后|首先|其次|最后|相比|从而", content))))],
+        logical_relations=[
+            "正文包含明确关系"
+            for _ in range(
+                min(
+                    3,
+                    len(re.findall(r"因为|因此|所以|如果|然后|首先|其次|最后|相比|从而", content)),
+                )
+            )
+        ],
         verified_data_points=re.findall(r"(?<![A-Za-z])\d+(?:[.,]\d+)?%?", content)[:12],
         weak_sections=[],
         unsupported_claims=[],
@@ -382,7 +408,11 @@ def build_plan(
 
 
 def text_lines(content: str) -> list[str]:
-    return [line.strip() for line in content.splitlines() if line.strip() and not line.lstrip().startswith("```")]
+    return [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.lstrip().startswith("```")
+    ]
 
 
 def build_default_reader_visual(
@@ -450,9 +480,16 @@ def has_embedded_visual(markdown: str) -> bool:
 
 
 def build_user_payload(
-    *, title: str, content: str, language: str, category: str | None,
-    target_audience: str | None, author_intent: str | None,
-    options: dict[str, Any], skill_config: dict[str, Any], plan: OrchestrationPlan,
+    *,
+    title: str,
+    content: str,
+    language: str,
+    category: str | None,
+    target_audience: str | None,
+    author_intent: str | None,
+    options: dict[str, Any],
+    skill_config: dict[str, Any],
+    plan: OrchestrationPlan,
 ) -> str:
     payload = {
         "article": {
@@ -486,14 +523,22 @@ def build_user_payload(
     return json.dumps(payload, ensure_ascii=False)
 
 
-def build_system_prompt(config: dict[str, Any], plan: OrchestrationPlan, instruction: str | None) -> str:
+def build_system_prompt(
+    config: dict[str, Any], plan: OrchestrationPlan, instruction: str | None
+) -> str:
     rules: list[str] = []
     for key in ("content_rules", "title_rules", "summary_rules", "body_structure", "prohibitions"):
         rules.extend(str(item) for item in config.get(key, []) or [])
     parts = [BLOG_ENHANCEMENT_SYSTEM_PROMPT]
     if rules:
-        parts.append("当前 Skill 的附加规则（不得违反总控安全规则）：\n" + "\n".join(f"- {rule}" for rule in rules))
-    parts.append("本次共享诊断已由总控生成，请直接复用，不要再次摘要：\n" + json.dumps(plan.as_dict(), ensure_ascii=False))
+        parts.append(
+            "当前 Skill 的附加规则（不得违反总控安全规则）：\n"
+            + "\n".join(f"- {rule}" for rule in rules)
+        )
+    parts.append(
+        "本次共享诊断已由总控生成，请直接复用，不要再次摘要：\n"
+        + json.dumps(plan.as_dict(), ensure_ascii=False)
+    )
     if plan.reader_explainer:
         parts.append(
             "本次已自动启用 reader-explainer 模式：请把正文整理成普通读者能快速理解的短段落、步骤和实际意义；"

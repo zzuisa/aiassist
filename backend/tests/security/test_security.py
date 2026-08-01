@@ -143,8 +143,6 @@ def test_backend_file_excludes_uvicorn_access_logs(tmp_path, monkeypatch):
 
 
 def test_handled_api_error_keeps_event_and_human_message(caplog):
-    import json
-
     from app.core.errors import ConflictError, register_exception_handlers
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

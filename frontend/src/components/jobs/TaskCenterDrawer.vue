@@ -133,8 +133,14 @@ async function skipPlan(job: AsyncJob): Promise<void> {
               <span class="name">{{ jobLabel(job) }}</span>
               <span class="pct">{{ job.progress }}%</span>
             </div>
-            <strong v-if="jobContext(job).post_title" class="entity-title">{{ jobContext(job).post_title }}</strong>
-            <span v-if="providerLabel(job)" class="provider">使用 {{ providerLabel(job) }}</span>
+            <strong
+              v-if="jobContext(job).post_title"
+              class="entity-title"
+            >{{ jobContext(job).post_title }}</strong>
+            <span
+              v-if="providerLabel(job)"
+              class="provider"
+            >使用 {{ providerLabel(job) }}</span>
             <span class="step">{{ job.current_step ?? '处理中' }}</span>
             <div
               class="bar"
@@ -166,8 +172,14 @@ async function skipPlan(job: AsyncJob): Promise<void> {
           <div class="job-head">
             <span class="name">{{ jobLabel(job) }}</span>
           </div>
-          <strong v-if="jobContext(job).post_title" class="entity-title">{{ jobContext(job).post_title }}</strong>
-          <span v-if="providerLabel(job)" class="provider">使用 {{ providerLabel(job) }}</span>
+          <strong
+            v-if="jobContext(job).post_title"
+            class="entity-title"
+          >{{ jobContext(job).post_title }}</strong>
+          <span
+            v-if="providerLabel(job)"
+            class="provider"
+          >使用 {{ providerLabel(job) }}</span>
           <span class="step">{{ job.current_step ?? '请确认' }}</span>
 
           <!-- Quick-add planner: answer here, or skip to save what it planned. -->
@@ -190,12 +202,16 @@ async function skipPlan(job: AsyncJob): Promise<void> {
                 type="button"
                 :disabled="planBusy[job.id]"
                 @click="submitAnswers(job)"
-              >提交回答</button>
+              >
+                提交回答
+              </button>
               <button
                 type="button"
                 :disabled="planBusy[job.id]"
                 @click="skipPlan(job)"
-              >跳过并保存</button>
+              >
+                跳过并保存
+              </button>
             </div>
           </template>
         </div>

@@ -102,7 +102,9 @@ const stageStyle = computed(() =>
       class="close"
       aria-label="关闭"
       @click="emit('close')"
-    >✕</button>
+    >
+      ✕
+    </button>
     <span
       v-if="assets.length > 1"
       class="counter"
@@ -113,7 +115,9 @@ const stageStyle = computed(() =>
       class="nav prev"
       aria-label="上一个"
       @click.stop="go(-1)"
-    >‹</button>
+    >
+      ‹
+    </button>
 
     <div
       class="stage"
@@ -159,9 +163,13 @@ const stageStyle = computed(() =>
       class="nav next"
       aria-label="下一个"
       @click.stop="go(1)"
-    >›</button>
+    >
+      ›
+    </button>
 
-    <p class="hint">下滑关闭 · 左右滑动切换</p>
+    <p class="hint">
+      下滑关闭 · 左右滑动切换
+    </p>
   </div>
 </template>
 

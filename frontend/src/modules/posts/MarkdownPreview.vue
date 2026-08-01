@@ -168,7 +168,10 @@ async function copy(text: string, i: number): Promise<void> {
 </script>
 
 <template>
-  <div ref="preview" class="md-preview">
+  <div
+    ref="preview"
+    class="md-preview"
+  >
     <template
       v-for="(b, i) in blocks"
       :key="i"

@@ -87,13 +87,9 @@ def settings_to_dict(row: BlogSettings) -> dict[str, Any]:
             "create_defaults", dict(row.create_defaults_json or {}), {}
         ),
         "clipboard": _merge_section("clipboard", dict(row.clipboard_json or {}), {}),
-        "url_capture": _merge_section(
-            "url_capture", dict(row.url_capture_json or {}), {}
-        ),
+        "url_capture": _merge_section("url_capture", dict(row.url_capture_json or {}), {}),
         "ai_apply": _merge_section("ai_apply", dict(row.ai_apply_json or {}), {}),
-        "word_cloud": _merge_section(
-            "word_cloud", dict(row.word_cloud_json or {}), {}
-        ),
+        "word_cloud": _merge_section("word_cloud", dict(row.word_cloud_json or {}), {}),
         "version": row.version,
         "schema_version": row.schema_version,
     }
@@ -206,9 +202,7 @@ def _validate_section_refs(
     return warnings
 
 
-def validate_references(
-    session: Session, user_id: uuid.UUID, row: BlogSettings
-) -> list[str]:
+def validate_references(session: Session, user_id: uuid.UUID, row: BlogSettings) -> list[str]:
     """Scan all sections for stale references and return warning strings."""
     warnings: list[str] = []
     section_map = {
@@ -239,7 +233,5 @@ def validate_references(
                     f"create_defaults.default_skill_id {skill_id!r} not found, disabled, or deleted"
                 )
         except (ValueError, AttributeError):
-            warnings.append(
-                f"create_defaults.default_skill_id {skill_id!r} is not a valid UUID"
-            )
+            warnings.append(f"create_defaults.default_skill_id {skill_id!r} is not a valid UUID")
     return warnings

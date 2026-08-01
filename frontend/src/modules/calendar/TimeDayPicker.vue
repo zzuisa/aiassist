@@ -73,7 +73,9 @@ function confirm(): void {
         <button
           class="link"
           @click="emit('cancel')"
-        >取消</button>
+        >
+          取消
+        </button>
         <div class="ttl">
           <strong>{{ title }}</strong>
           <span class="pv">{{ previewLabel }}</span>
@@ -81,7 +83,9 @@ function confirm(): void {
         <button
           class="link done"
           @click="confirm"
-        >确定</button>
+        >
+          确定
+        </button>
       </header>
 
       <div class="wheels">

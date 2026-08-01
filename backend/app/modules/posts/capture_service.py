@@ -120,8 +120,14 @@ def capture_blank(
     content_type_id: uuid.UUID | None = None,
 ) -> tuple[Post, PostSource, None, list[str]]:
     post = _create_post(
-        session, user_id, title=title, markdown="", content_status="draft",
-        content_class=content_class, language=language, content_type_id=content_type_id,
+        session,
+        user_id,
+        title=title,
+        markdown="",
+        content_status="draft",
+        content_class=content_class,
+        language=language,
+        content_type_id=content_type_id,
     )
     src = _add_source(session, user_id, post, source_type="blank", status="saved")
     return post, src, None, []
@@ -146,14 +152,25 @@ def capture_clipboard(
 
     title = _title_from_text(norm.original_text, fallback="剪贴内容")
     post = _create_post(
-        session, user_id, title=title, markdown=norm.normalized_markdown,
-        content_status="triage", content_class=content_class, language="zh-CN",
+        session,
+        user_id,
+        title=title,
+        markdown=norm.normalized_markdown,
+        content_status="triage",
+        content_class=content_class,
+        language="zh-CN",
         content_type_id=content_type_id,
     )
     src = _add_source(
-        session, user_id, post, source_type="clipboard", status="completed",
-        detected_format=norm.detected_format, original_text=norm.original_text,
-        normalized_markdown=norm.normalized_markdown, extracted_at=_now(),
+        session,
+        user_id,
+        post,
+        source_type="clipboard",
+        status="completed",
+        detected_format=norm.detected_format,
+        original_text=norm.original_text,
+        normalized_markdown=norm.normalized_markdown,
+        extracted_at=_now(),
     )
     return post, src, None, norm.warnings
 
@@ -167,12 +184,24 @@ def capture_quick(
 ) -> tuple[Post, PostSource, None, list[str]]:
     title = _title_from_text(content, fallback="快速记录")
     post = _create_post(
-        session, user_id, title=title, markdown=content, content_status="triage",
-        content_class=content_class, language="zh-CN", content_type_id=None,
+        session,
+        user_id,
+        title=title,
+        markdown=content,
+        content_status="triage",
+        content_class=content_class,
+        language="zh-CN",
+        content_type_id=None,
     )
     src = _add_source(
-        session, user_id, post, source_type="quick", status="completed",
-        detected_format="plain", original_text=content, normalized_markdown=content,
+        session,
+        user_id,
+        post,
+        source_type="quick",
+        status="completed",
+        detected_format="plain",
+        original_text=content,
+        normalized_markdown=content,
         extracted_at=_now(),
     )
     return post, src, None, []
@@ -217,9 +246,7 @@ def capture_url(
         session,
         user_id,
         title=(
-            canonical[:240]
-            if is_bilibili
-            else (note.strip()[:240] if note else canonical[:240])
+            canonical[:240] if is_bilibili else (note.strip()[:240] if note else canonical[:240])
         ),
         markdown=initial_md,
         content_status="pending_parse",
@@ -228,8 +255,13 @@ def capture_url(
         content_type_id=content_type_id,
     )
     src = _add_source(
-        session, user_id, post, source_type="url", status="pending",
-        original_url=canonical, user_note=note,
+        session,
+        user_id,
+        post,
+        source_type="url",
+        status="pending",
+        original_url=canonical,
+        user_note=note,
         metadata_json={"usage": usage, "url_type": url_type.value},
         external_system="radio" if is_bilibili else None,
     )
@@ -238,7 +270,8 @@ def capture_url(
         session,
         user_id=user_id,
         job_type="blog.bilibili_import" if is_bilibili else "blog.parse",
-        entity_type="post", entity_id=post.id,
+        entity_type="post",
+        entity_id=post.id,
     )
     src.async_job_id = job.id
 
@@ -307,7 +340,8 @@ def retry_source(session: Session, user_id: uuid.UUID, source_id: uuid.UUID) -> 
         session,
         user_id=user_id,
         job_type="blog.bilibili_import" if is_bilibili else "blog.parse",
-        entity_type="post", entity_id=src.post_id,
+        entity_type="post",
+        entity_id=src.post_id,
     )
     src.async_job_id = job.id
     append_event(
@@ -316,8 +350,12 @@ def retry_source(session: Session, user_id: uuid.UUID, source_id: uuid.UUID) -> 
         aggregate_type="post_source",
         aggregate_id=src.id,
         routing_key="blog.bilibili_import" if is_bilibili else "blog.parse",
-        payload={"source_id": str(src.id), "post_id": str(src.post_id), "job_id": str(job.id),
-                 "retry": True},
+        payload={
+            "source_id": str(src.id),
+            "post_id": str(src.post_id),
+            "job_id": str(job.id),
+            "retry": True,
+        },
         user_id=user_id,
     )
     return job

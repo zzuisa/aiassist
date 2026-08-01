@@ -62,14 +62,17 @@ def _line_hunks(a: str, b: str) -> list[dict[str, Any]]:
     return hunks
 
 
-def body_diff(old_markdown: str, new_markdown: str, *, from_label: str = "current",
-              to_label: str = "candidate") -> dict[str, Any]:
+def body_diff(
+    old_markdown: str,
+    new_markdown: str,
+    *,
+    from_label: str = "current",
+    to_label: str = "candidate",
+) -> dict[str, Any]:
     """Deterministic body diff as a unified string plus structured hunks."""
     old = (old_markdown or "").splitlines(keepends=True)
     new = (new_markdown or "").splitlines(keepends=True)
-    unified = "".join(
-        difflib.unified_diff(old, new, fromfile=from_label, tofile=to_label)
-    )
+    unified = "".join(difflib.unified_diff(old, new, fromfile=from_label, tofile=to_label))
     hunks = _line_hunks(old_markdown or "", new_markdown or "")
     return {
         "from_label": from_label,

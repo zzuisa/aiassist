@@ -30,8 +30,12 @@ def _make_task(s, user_id) -> Task:
 
 def _upload_file(s, user_id, data: bytes, media_type: str, name: str):
     up = upload_service.create_session(
-        s, user_id, purpose='task_note_image', filename=name,
-        media_type=media_type, byte_size=len(data),
+        s,
+        user_id,
+        purpose="task_note_image",
+        filename=name,
+        media_type=media_type,
+        byte_size=len(data),
     )
     upload_service.store_bytes(s, up, io.BytesIO(data))
     upload_service.complete(s, user_id, up.id)
@@ -40,8 +44,12 @@ def _upload_file(s, user_id, data: bytes, media_type: str, name: str):
 
 def _upload(s, user_id, data: bytes):
     up = upload_service.create_session(
-        s, user_id, purpose="task_note_image", filename="a.jpg",
-        media_type="image/jpeg", byte_size=len(data),
+        s,
+        user_id,
+        purpose="task_note_image",
+        filename="a.jpg",
+        media_type="image/jpeg",
+        byte_size=len(data),
     )
     upload_service.store_bytes(s, up, io.BytesIO(data))
     upload_service.complete(s, user_id, up.id)

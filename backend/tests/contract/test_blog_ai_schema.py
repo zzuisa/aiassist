@@ -14,19 +14,17 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from app.services.llm.schemas import (
     BlogEnhancementResultV1,
     BlogOptimizationV1,
     BlogSkillConfigV1,
 )
+from pydantic import ValidationError
 
 pytestmark = [pytest.mark.contract]
 
 CONTRACTS = (
-    Path(__file__).resolve().parents[3]
-    / "specs/005-blog-content-management/contracts/schemas"
+    Path(__file__).resolve().parents[3] / "specs/005-blog-content-management/contracts/schemas"
 )
 
 BLOG_SCHEMAS = [
@@ -161,42 +159,44 @@ def test_non_list_collection_is_rejected():
 
 
 def test_orchestrator_envelope_is_strict_and_versioned():
-    result = BlogEnhancementResultV1.model_validate({
-        "status": "optimized",
-        "article_assessment": {
-            "information_density": 2,
-            "logical_complexity": 1,
-            "data_richness": 0,
-            "scene_relevance": 0,
-            "visual_potential": 0,
-            "rewrite_value": 2,
-            "evidence_quality": 2,
-        },
-        "decision": {
-            "should_optimize": True,
-            "reason": "保留作者意图并进行局部润色",
-            "selected_agents": ["editor-agent"],
-            "skipped_agents": [],
-        },
-        "optimized_article": {
-            "title": "标题",
-            "summary": "摘要",
-            "content_markdown": "正文",
-        },
-        "enhancements": [],
-        "quality_report": {
-            "author_intent_preserved": True,
-            "unsupported_claims": [],
-            "removed_low_value_enhancements": [],
-            "warnings": [],
-        },
-        "usage": {
-            "agents_called": 1,
-            "skills_called": [],
-            "visual_items_created": 0,
-            "estimated_input_tokens": 10,
-            "estimated_output_tokens": 10,
-            "estimated_cost": 0,
-        },
-    })
+    result = BlogEnhancementResultV1.model_validate(
+        {
+            "status": "optimized",
+            "article_assessment": {
+                "information_density": 2,
+                "logical_complexity": 1,
+                "data_richness": 0,
+                "scene_relevance": 0,
+                "visual_potential": 0,
+                "rewrite_value": 2,
+                "evidence_quality": 2,
+            },
+            "decision": {
+                "should_optimize": True,
+                "reason": "保留作者意图并进行局部润色",
+                "selected_agents": ["editor-agent"],
+                "skipped_agents": [],
+            },
+            "optimized_article": {
+                "title": "标题",
+                "summary": "摘要",
+                "content_markdown": "正文",
+            },
+            "enhancements": [],
+            "quality_report": {
+                "author_intent_preserved": True,
+                "unsupported_claims": [],
+                "removed_low_value_enhancements": [],
+                "warnings": [],
+            },
+            "usage": {
+                "agents_called": 1,
+                "skills_called": [],
+                "visual_items_created": 0,
+                "estimated_input_tokens": 10,
+                "estimated_output_tokens": 10,
+                "estimated_cost": 0,
+            },
+        }
+    )
     assert result.optimized_article.content_markdown == "正文"

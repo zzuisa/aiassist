@@ -1,8 +1,8 @@
 import io
 
 from app.modules.posts.visuals import (
-    execute_enhancement_items,
     enhancements_markdown,
+    execute_enhancement_items,
     execute_enhancements,
     render_visual_plan_png,
 )

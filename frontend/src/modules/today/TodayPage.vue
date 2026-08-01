@@ -146,7 +146,9 @@ async function onAddToCalendar(task: Task): Promise<void> {
       v-if="planNote"
       class="plan-note"
       role="status"
-    >🧠 {{ planNote }}</p>
+    >
+      🧠 {{ planNote }}
+    </p>
 
     <div class="voice-row">
       <VoiceRecorder @created="onVoiceCreated" />
@@ -213,7 +215,9 @@ async function onAddToCalendar(task: Task): Promise<void> {
         aria-label="待安排"
       >
         <h2>待安排 ({{ unscheduled.length }})</h2>
-        <p class="muted small">左滑任务可加入日历</p>
+        <p class="muted small">
+          左滑任务可加入日历
+        </p>
         <transition-group
           name="list"
           tag="div"
@@ -248,7 +252,7 @@ async function onAddToCalendar(task: Task): Promise<void> {
             :task="t"
             @complete="onComplete"
             @open="() => {}"
-          @add-to-calendar="onAddToCalendar"
+            @add-to-calendar="onAddToCalendar"
           />
         </transition-group>
       </section>
@@ -265,7 +269,6 @@ async function onAddToCalendar(task: Task): Promise<void> {
         @discard="confirmCandidate = null"
       />
     </div>
-
   </main>
 </template>
 

@@ -2,7 +2,8 @@
 
 Resolution order (first match wins):
   1. manual      — caller specifies skill_id directly
-  2. content_type — BlogSkillDefault where scope_type='content_type' and scope_key=str(content_type_id)
+  2. content_type — BlogSkillDefault where scope_type='content_type' and
+     scope_key=str(content_type_id)
   3. content_class — BlogSkillDefault where scope_type='content_class' and scope_key=content_class
   4. global       — BlogSkillDefault where scope_type='global' and scope_key='*'
 
@@ -14,14 +15,12 @@ must be complete (config_json is not empty).  Resolution always returns the
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from pydantic import ValidationError as PydanticValidationError
-
-from datetime import UTC, datetime
 
 from app.core.errors import NotFoundError, ValidationError
 from app.models.blog import (
@@ -48,9 +47,7 @@ def validate_skill_version_config(config: dict[str, Any]) -> list[str]:
     try:
         BlogSkillConfigV1.model_validate(config)
     except PydanticValidationError as exc:
-        return [
-            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
-        ]
+        return [f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()]
     return []
 
 
@@ -310,15 +307,23 @@ def create_skill(
     if not name or not name.strip():
         raise ValidationError("Skill name is required", code="invalid_name")
     skill = BlogSkill(
-        id=uuid.uuid4(), user_id=user_id, name=name.strip(),
-        description=description, enabled=True,
+        id=uuid.uuid4(),
+        user_id=user_id,
+        name=name.strip(),
+        description=description,
+        enabled=True,
     )
     session.add(skill)
     session.flush()
     if config is not None:
         save_skill_version(
-            session, user_id, skill, config=config, recommended_model=recommended_model,
-            max_content_chars=max_content_chars, long_content_strategy=long_content_strategy,
+            session,
+            user_id,
+            skill,
+            config=config,
+            recommended_model=recommended_model,
+            max_content_chars=max_content_chars,
+            long_content_strategy=long_content_strategy,
             change_summary="初始版本",
         )
     return skill
@@ -369,8 +374,11 @@ def copy_skill(session: Session, user_id: uuid.UUID, skill_id: uuid.UUID) -> Blo
     version = current_skill_version(session, user_id, src)
     config = dict(version.config_json) if version else None
     return create_skill(
-        session, user_id,
-        name=f"{src.name}（副本）", description=src.description, config=config,
+        session,
+        user_id,
+        name=f"{src.name}（副本）",
+        description=src.description,
+        config=config,
         recommended_model=version.recommended_model if version else None,
         max_content_chars=version.max_content_chars if version else 200_000,
         long_content_strategy=version.long_content_strategy if version else "reject",
@@ -386,7 +394,10 @@ def restore_version(
     if target.skill_id != skill.id:
         raise ValidationError("Version does not belong to skill", code="version_mismatch")
     return save_skill_version(
-        session, user_id, skill, config=dict(target.config_json),
+        session,
+        user_id,
+        skill,
+        config=dict(target.config_json),
         recommended_model=target.recommended_model,
         max_content_chars=target.max_content_chars,
         long_content_strategy=target.long_content_strategy,
@@ -414,9 +425,7 @@ def recent_runs(
     session: Session, user_id: uuid.UUID, skill_id: uuid.UUID, limit: int = 20
 ) -> list[PostAIRun]:
     """Recent AI runs bound to any version of this skill (reproducibility view)."""
-    version_ids = [
-        v.id for v in list_skill_versions(session, user_id, skill_id)
-    ]
+    version_ids = [v.id for v in list_skill_versions(session, user_id, skill_id)]
     if not version_ids:
         return []
     return list(
@@ -476,7 +485,8 @@ def serialize_skill(
         "description": skill.description,
         "enabled": skill.enabled,
         "current_version": serialize_version(version, include_config=include_config)
-        if version else None,
+        if version
+        else None,
         "current_version_complete": bool(version and is_version_complete(version)),
         "default_scopes": impacted_scopes(session, user_id, skill.id),
         "created_at": skill.created_at.isoformat(),
@@ -521,14 +531,16 @@ def seed_default_skills(session: Session, user_id: uuid.UUID) -> BlogSkill | Non
     no skills at all, and only sets the global default when none exists.
     """
     has_any = session.scalar(
-        select(BlogSkill.id).where(
-            BlogSkill.user_id == user_id, BlogSkill.deleted_at.is_(None)
-        ).limit(1)
+        select(BlogSkill.id)
+        .where(BlogSkill.user_id == user_id, BlogSkill.deleted_at.is_(None))
+        .limit(1)
     )
     if has_any:
         return None
     skill = create_skill(
-        session, user_id, name="默认优化",
+        session,
+        user_id,
+        name="默认优化",
         description="安全的通用优化技能（可复制后自定义）",
         config=dict(_SEED_SKILL_CONFIG),
     )

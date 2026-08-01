@@ -133,9 +133,7 @@ class RadioClient:
         return data
 
     def submit_bilibili_transcription(self, url: str) -> str:
-        response = self._request(
-            "POST", "/api/tasks/speech2text/bilibili", json={"url": url}
-        )
+        response = self._request("POST", "/api/tasks/speech2text/bilibili", json={"url": url})
         if response.status_code in {400, 404, 422}:
             raise RadioServiceError(
                 "BILIBILI_LINK_UNAVAILABLE",
@@ -229,9 +227,7 @@ class RadioClient:
                 limit=int(data["limit"]),
                 offset=int(data["offset"]),
                 has_more=bool(data["has_more"]),
-                next_offset=int(data["next_offset"])
-                if data["next_offset"] is not None
-                else None,
+                next_offset=int(data["next_offset"]) if data["next_offset"] is not None else None,
             )
         except (TypeError, ValueError) as exc:
             raise self._unavailable("records_invalid_pagination") from exc

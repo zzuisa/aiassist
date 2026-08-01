@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.models.tasks import Task, TaskNote, TaskNoteAsset
+from app.models.tasks import TaskNote, TaskNoteAsset
 from app.models.voice import UploadSession
 from app.modules.captures.upload_service import make_sanitized_derivative, validate_image
 from app.modules.tasks import service as task_service
@@ -41,9 +41,7 @@ def get_note(session: Session, user_id: uuid.UUID, task_id: uuid.UUID) -> TaskNo
 def get_or_create_note(session: Session, user_id: uuid.UUID, task_id: uuid.UUID) -> TaskNote:
     note = get_note(session, user_id, task_id)
     if note is None:
-        note = TaskNote(
-            id=uuid.uuid4(), user_id=user_id, task_id=task_id, content="", version=1
-        )
+        note = TaskNote(id=uuid.uuid4(), user_id=user_id, task_id=task_id, content="", version=1)
         session.add(note)
         session.flush()
     return note
@@ -76,7 +74,9 @@ def save_note_text(
         return TaskNote(id=uuid.uuid4(), user_id=user_id, task_id=task_id, content="", version=0)
     note = get_or_create_note(session, user_id, task_id)
     if version is not None and note.version != version:
-        raise ConflictError("Note was modified elsewhere. Refresh and retry.", code="version_conflict")
+        raise ConflictError(
+            "Note was modified elsewhere. Refresh and retry.", code="version_conflict"
+        )
     note.content = content
     note.version += 1
     return note
@@ -149,7 +149,9 @@ def attach_images(
                         preview = make_sanitized_derivative(data, max_size=_PREVIEW_MAX)
                         preview_key = f"assets/{user_id}/{asset.id.hex}-preview.webp"
                         storage.put_stream(
-                            preview_key, io.BytesIO(preview), media_type="image/webp",
+                            preview_key,
+                            io.BytesIO(preview),
+                            media_type="image/webp",
                             max_bytes=len(preview) + 1,
                         )
                         asset.preview_storage_key = preview_key
@@ -158,7 +160,13 @@ def attach_images(
                         asset.processing_status = "failed"
                         asset.last_error = str(exc)[:255]
 
-            results.append({"upload_id": str(upload_id), "status": "attached", "asset_id": str(asset.id)})
+            results.append(
+                {
+                    "upload_id": str(upload_id),
+                    "status": "attached",
+                    "asset_id": str(asset.id),
+                }
+            )
         except (ValidationError, ConflictError, NotFoundError) as exc:
             results.append({"upload_id": str(upload_id), "status": "failed", "error": exc.code})
     return note, results

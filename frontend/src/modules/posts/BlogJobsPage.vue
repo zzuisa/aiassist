@@ -66,11 +66,25 @@ onMounted(() => {
           <div class="job-main">
             <div class="job-title">
               <span class="job-type">{{ jobTypeLabel(job.job_type) }}</span>
-              <span v-if="providerLabel(job)" class="provider">{{ providerLabel(job) }}</span>
-              <span class="badge" :data-tone="jobDisplay(job).tone">{{ jobDisplay(job).label }}</span>
+              <span
+                v-if="providerLabel(job)"
+                class="provider"
+              >{{ providerLabel(job) }}</span>
+              <span
+                class="badge"
+                :data-tone="jobDisplay(job).tone"
+              >{{ jobDisplay(job).label }}</span>
             </div>
-            <strong v-if="jobContext(job).post_title" class="post-title">{{ jobContext(job).post_title }}</strong>
-            <div v-if="['pending', 'queued', 'processing'].includes(job.status)" class="bar" role="progressbar" :aria-valuenow="job.progress">
+            <strong
+              v-if="jobContext(job).post_title"
+              class="post-title"
+            >{{ jobContext(job).post_title }}</strong>
+            <div
+              v-if="['pending', 'queued', 'processing'].includes(job.status)"
+              class="bar"
+              role="progressbar"
+              :aria-valuenow="job.progress"
+            >
               <span :style="{ width: `${job.progress}%` }" />
             </div>
             <div class="meta">

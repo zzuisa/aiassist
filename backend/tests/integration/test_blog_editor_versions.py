@@ -8,7 +8,6 @@ without mutating history, and stale-version restores/saves are rejected.
 from __future__ import annotations
 
 import pytest
-
 from app.core.errors import VersionConflictError
 from app.db.session import session_scope
 from app.models.posts import Post, PostRevision
@@ -59,9 +58,7 @@ def test_restore_creates_new_revision_without_mutating_history(make_user):
     # Restore the first revision.
     with session_scope() as s:
         post = s.get(Post, pid)
-        post_service.restore_revision(
-            s, user.id, pid, first_rev_id, current_version=post.version
-        )
+        post_service.restore_revision(s, user.id, pid, first_rev_id, current_version=post.version)
 
     with session_scope() as s:
         post = s.get(Post, pid)
@@ -89,11 +86,8 @@ def test_restore_with_stale_version_is_rejected(make_user):
             s, user.id, pid, title="标题+", markdown="正文+", version=post.version
         )
 
-    with session_scope() as s:
-        with pytest.raises(VersionConflictError):
-            post_service.restore_revision(
-                s, user.id, pid, rev_id, current_version=stale_version
-            )
+    with session_scope() as s, pytest.raises(VersionConflictError):
+        post_service.restore_revision(s, user.id, pid, rev_id, current_version=stale_version)
 
 
 def test_save_with_stale_version_is_rejected(make_user):
@@ -109,11 +103,10 @@ def test_save_with_stale_version_is_rejected(make_user):
             s, user.id, pid, title="v2", markdown="v2", version=post.version
         )
 
-    with session_scope() as s:
-        with pytest.raises(VersionConflictError):
-            post_service.save_user_revision(
-                s, user.id, pid, title="v3", markdown="v3", version=stale_version
-            )
+    with session_scope() as s, pytest.raises(VersionConflictError):
+        post_service.save_user_revision(
+            s, user.id, pid, title="v3", markdown="v3", version=stale_version
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -142,11 +135,19 @@ def test_patch_persists_all_common_and_dynamic_fields(make_user):
 
     with session_scope() as s:
         post_service.patch_post(
-            s, user.id, pid,
+            s,
+            user.id,
+            pid,
             _Patch(
-                ver, title="新标题", subtitle="副标题", summary="摘要",
-                content_class="technical", language="en-US", editor_mode="rich",
-                location="Shanghai", project="AIAssist",
+                ver,
+                title="新标题",
+                subtitle="副标题",
+                summary="摘要",
+                content_class="technical",
+                language="en-US",
+                editor_mode="rich",
+                location="Shanghai",
+                project="AIAssist",
                 structured_data={"difficulty": "advanced"},
             ),
         )
@@ -171,7 +172,9 @@ def test_changing_content_type_keeps_hidden_structured_data(make_user):
         post = post_service.create_post(s, user.id, title="t", markdown="b")
         pid = post.id
         post_service.patch_post(
-            s, user.id, pid,
+            s,
+            user.id,
+            pid,
             _Patch(post.version, structured_data={"language": "python", "extra": "keep-me"}),
         )
 
@@ -198,9 +201,8 @@ def test_concurrent_autosave_conflict_is_rejected(make_user):
     with session_scope() as s:
         post_service.patch_post(s, user.id, pid, _Patch(base, markdown="edit-A"))
 
-    with session_scope() as s:
-        with pytest.raises(VersionConflictError):
-            post_service.patch_post(s, user.id, pid, _Patch(base, markdown="edit-B"))
+    with session_scope() as s, pytest.raises(VersionConflictError):
+        post_service.patch_post(s, user.id, pid, _Patch(base, markdown="edit-B"))
 
 
 def test_patch_creates_user_edit_revision_on_content_change(make_user):

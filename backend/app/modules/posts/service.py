@@ -28,7 +28,6 @@ from app.models.posts import Post, PostRevision
 from app.models.relations import EntityRelation
 from app.services.outbox.publisher import append_event
 
-
 # ---------------------------------------------------------------------------
 # Allow-list of top-level fields that a candidate application may write.
 # Structured-data subkeys are also allowed as "structured_data.<defined-key>".
@@ -98,7 +97,9 @@ def _apply_snapshot(
     If *selected_fields* is given only those paths are applied; otherwise all
     top-level fields in the snapshot are applied (restore semantics).
     """
-    fields_to_apply = selected_fields if selected_fields is not None else list(_APPLYABLE_TOP_FIELDS)
+    fields_to_apply = (
+        selected_fields if selected_fields is not None else list(_APPLYABLE_TOP_FIELDS)
+    )
 
     for path in fields_to_apply:
         parts = path.split(".", 1)
@@ -252,8 +253,17 @@ def save_user_revision(
 
 _CONTENT_STATUSES = frozenset(
     {
-        "pending_capture", "pending_parse", "triage", "draft", "ai_queued",
-        "ai_processing", "ai_review", "merge_required", "completed", "archived", "discarded",
+        "pending_capture",
+        "pending_parse",
+        "triage",
+        "draft",
+        "ai_queued",
+        "ai_processing",
+        "ai_review",
+        "merge_required",
+        "completed",
+        "archived",
+        "discarded",
     }
 )
 # Status transitions the *user* may drive directly from the editor. AI-only
@@ -319,10 +329,9 @@ def patch_post(
     if "project" in provided:
         post.project_text = patch.project
 
-    if "markdown" in provided and patch.markdown is not None:
-        if patch.markdown != post.markdown:
-            post.markdown = patch.markdown
-            content_changed = True
+    if "markdown" in provided and patch.markdown is not None and patch.markdown != post.markdown:
+        post.markdown = patch.markdown
+        content_changed = True
 
     if "structured_data" in provided and patch.structured_data is not None:
         if post.content_type_id:
@@ -354,9 +363,7 @@ def patch_post(
 
     # Tags (replace set; each must be owned).
     if "tag_ids" in provided and patch.tag_ids is not None:
-        _replace_links(
-            session, user_id, post, patch.tag_ids, Tag, PostTag, "tag_id", "invalid_tag"
-        )
+        _replace_links(session, user_id, post, patch.tag_ids, Tag, PostTag, "tag_id", "invalid_tag")
 
     # Keywords (replace set; each must be owned).
     if "keyword_ids" in provided and patch.keyword_ids is not None:
@@ -411,9 +418,7 @@ def _replace_links(
         owner = session.get(owner_model, oid)
         if owner is None or owner.user_id != user_id:
             raise ValidationError(f"{link_attr} {oid} not found", code=err_code)
-    for existing in session.scalars(
-        select(link_model).where(link_model.post_id == post.id)
-    ).all():
+    for existing in session.scalars(select(link_model).where(link_model.post_id == post.id)).all():
         session.delete(existing)
     session.flush()
     for oid in unique:
@@ -433,9 +438,7 @@ def _replace_keyword_links(
         kw = session.get(keyword_model, kid)
         if kw is None or kw.user_id != user_id:
             raise ValidationError(f"keyword {kid} not found", code="invalid_keyword")
-    for existing in session.scalars(
-        select(link_model).where(link_model.post_id == post.id)
-    ).all():
+    for existing in session.scalars(select(link_model).where(link_model.post_id == post.id)).all():
         session.delete(existing)
     session.flush()
     for kid in unique:
@@ -652,8 +655,13 @@ def new_revision(
 ) -> PostRevision:
     """Public wrapper around ``_new_revision`` for cross-module callers."""
     return _new_revision(
-        session, post, markdown, source, parent_id,
-        change_summary=change_summary, snapshot=snapshot,
+        session,
+        post,
+        markdown,
+        source,
+        parent_id,
+        change_summary=change_summary,
+        snapshot=snapshot,
     )
 
 
@@ -750,13 +758,15 @@ def merge_posts(
     primary.version += 1
 
     # Re-parent the secondary's sources so the merged article keeps them all.
-    for src in session.scalars(
-        select(PostSource).where(PostSource.post_id == secondary_id)
-    ).all():
+    for src in session.scalars(select(PostSource).where(PostSource.post_id == secondary_id)).all():
         src.post_id = primary_id
 
     rev = _new_revision(
-        session, primary, merged, "merge", primary.current_revision_id,
+        session,
+        primary,
+        merged,
+        "merge",
+        primary.current_revision_id,
         change_summary=f"合并自 {secondary_id}",
     )
     rev.applied_at = datetime.now(UTC)
@@ -764,9 +774,12 @@ def merge_posts(
 
     session.add(
         EntityRelation(
-            id=uuid.uuid4(), user_id=user_id,
-            source_type="post", source_id=primary_id,
-            target_type="post", target_id=secondary_id,
+            id=uuid.uuid4(),
+            user_id=user_id,
+            source_type="post",
+            source_id=primary_id,
+            target_type="post",
+            target_id=secondary_id,
             relation_type="derived_from",
             metadata_json={"merge": True, "order": order},
         )
@@ -775,8 +788,11 @@ def merge_posts(
     secondary.content_status = "discarded"
     session.add(
         ActivityLog(
-            user_id=user_id, actor_type="user", action="post.merged",
-            entity_type="post", entity_id=primary_id,
+            user_id=user_id,
+            actor_type="user",
+            action="post.merged",
+            entity_type="post",
+            entity_id=primary_id,
             after_summary_json={"merged_from": str(secondary_id), "order": order},
         )
     )
@@ -812,7 +828,7 @@ def batch_operation(
                 post = get_post(session, user_id, pid)
                 _apply_batch_op(session, user_id, post, op, params)
             results.append({"id": str(pid), "ok": True})
-        except Exception as exc:  # noqa: BLE001 — itemized isolation is the point
+        except Exception as exc:
             code = getattr(exc, "code", None) or exc.__class__.__name__
             results.append({"id": str(pid), "ok": False, "error": code})
     return results
@@ -856,11 +872,9 @@ def _apply_batch_op(
     elif op == "add_tags":
         from app.models.posts import PostTag
 
-        existing = {
-            t for t in session.scalars(
-                select(PostTag.tag_id).where(PostTag.post_id == post.id)
-            ).all()
-        }
+        existing = set(
+            session.scalars(select(PostTag.tag_id).where(PostTag.post_id == post.id)).all()
+        )
         for tid in params.get("tag_ids", []):
             tid_u = uuid.UUID(tid) if isinstance(tid, str) else tid
             if tid_u not in existing:

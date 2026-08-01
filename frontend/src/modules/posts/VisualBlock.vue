@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/* eslint-disable no-undef -- browser globals are provided by the PWA runtime. */
+
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ECharts, EChartsOption } from 'echarts'
 

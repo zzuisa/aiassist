@@ -102,11 +102,7 @@ def patch_settings(
     ai_preferences = data.pop("ai_optimization", None)
     if body.notification_preferences is not None:
         data["notification_preferences"] = body.notification_preferences.model_dump()
-    db_user = (
-        service.update_settings(db, user.id, data)
-        if data
-        else service.get_user(db, user.id)
-    )
+    db_user = service.update_settings(db, user.id, data) if data else service.get_user(db, user.id)
     blog_settings = blog_settings_service.get_settings(db, user.id)
     if ai_preferences is not None:
         blog_settings = blog_settings_service.set_default_ai_provider(
@@ -154,9 +150,7 @@ def put_memory(
     db: Session = Depends(get_db),
 ) -> dict:
     db_user = service.get_user(db, user.id)
-    plan_service.set_user_facts(
-        db_user, [{"q": i.question, "a": i.answer} for i in body.items]
-    )
+    plan_service.set_user_facts(db_user, [{"q": i.question, "a": i.answer} for i in body.items])
     db.commit()
     facts = plan_service.get_user_facts(db_user)
     return {"items": [{"question": f["q"], "answer": f["a"]} for f in facts]}

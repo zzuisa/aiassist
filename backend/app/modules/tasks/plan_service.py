@@ -10,6 +10,7 @@ plan, optionally answers, or saves as-is. `commit` then creates the tasks.
 from __future__ import annotations
 
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -80,9 +81,7 @@ def analyze(
     answer_text = ""
     if answers:
         answer_text = "\n补充回答：" + "；".join(f"{q} → {a}" for q, a in answers)
-    user_prompt = (
-        f"{_now_context(tz_name)}\n已有日程：{schedule}\n用户输入：{text}{answer_text}"
-    )
+    user_prompt = f"{_now_context(tz_name)}\n已有日程：{schedule}\n用户输入：{text}{answer_text}"
     return llm.structured(
         StructuredRequest(
             scenario="quick_plan",
@@ -178,7 +177,11 @@ def create_plan_job(session: Session, user_id: uuid.UUID, text: str) -> AsyncJob
         session, user_id=user_id, job_type="plan.analyze", entity_type="plan"
     )
     jobs_service.transition(
-        session, job, status="queued", progress=10, current_step="正在后台分析安排",
+        session,
+        job,
+        status="queued",
+        progress=10,
+        current_step="正在后台分析安排",
         result={"text": text, "answers": [], "rounds": 0},
     )
     return job
@@ -203,10 +206,8 @@ def _delete_recorded(session: Session, user_id: uuid.UUID, data: dict) -> None:
     from app.modules.tasks import service as task_service
 
     for tid in data.get("created_ids", []) or []:
-        try:
+        with suppress(Exception):
             task_service.delete_task(session, user_id, uuid.UUID(tid))
-        except Exception:  # noqa: BLE001 — already gone is fine
-            pass
     data.pop("created_ids", None)
     data.pop("auto_committed", None)
 
@@ -225,10 +226,14 @@ def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = N
     jobs_service.transition(session, job, status="processing", progress=50, current_step="正在分析")
     try:
         plan = analyze(session, job.user_id, text, answers, llm=llm)
-    except Exception as exc:  # noqa: BLE001 — surface as a retryable failure
+    except Exception as exc:
         jobs_service.transition(
-            session, job, status="failed", error_code="analyze_failed",
-            error_message="分析失败，可稍后重试或直接保存", error_retryable=True,
+            session,
+            job,
+            status="failed",
+            error_code="analyze_failed",
+            error_message="分析失败，可稍后重试或直接保存",
+            error_retryable=True,
         )
         raise exc
 
@@ -244,8 +249,12 @@ def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = N
             }
         )
         jobs_service.transition(
-            session, job, status="waiting_user", progress=70,
-            current_step="需要你回答几个问题（3 分钟后按默认录入）", result=data,
+            session,
+            job,
+            status="waiting_user",
+            progress=70,
+            current_step="需要你回答几个问题（3 分钟后按默认录入）",
+            result=data,
         )
         return job
 
@@ -255,8 +264,12 @@ def run_plan(session: Session, job_id: uuid.UUID, llm: LLMGatewayImpl | None = N
     data["summary"] = plan.summary
     data.pop("questions", None)
     jobs_service.transition(
-        session, job, status="completed", progress=100,
-        current_step=f"已创建 {len(created)} 项", result=data,
+        session,
+        job,
+        status="completed",
+        progress=100,
+        current_step=f"已创建 {len(created)} 项",
+        result=data,
     )
     return job
 
@@ -273,8 +286,12 @@ def expire_plan(session: Session, job_id: uuid.UUID) -> AsyncJob | None:
     created, data = _commit_and_record(session, job.user_id, data.get("tasks", []), data)
     data["auto_committed"] = True
     jobs_service.transition(
-        session, job, status="waiting_user", progress=90,
-        current_step=f"已按默认录入 {len(created)} 项，可补充回答后更新", result=data,
+        session,
+        job,
+        status="waiting_user",
+        progress=90,
+        current_step=f"已按默认录入 {len(created)} 项，可补充回答后更新",
+        result=data,
     )
     return job
 
@@ -311,13 +328,21 @@ def skip_plan(session: Session, user_id: uuid.UUID, job_id: uuid.UUID) -> AsyncJ
     data = dict(job.result_json or {})
     if data.get("auto_committed"):  # already saved by the timeout; just finalize
         jobs_service.transition(
-            session, job, status="completed", progress=100,
-            current_step=f"已保存 {data.get('created', 0)} 项", result=data,
+            session,
+            job,
+            status="completed",
+            progress=100,
+            current_step=f"已保存 {data.get('created', 0)} 项",
+            result=data,
         )
         return job
     created, data = _commit_and_record(session, user_id, data.get("tasks", []), data)
     jobs_service.transition(
-        session, job, status="completed", progress=100,
-        current_step=f"已创建 {len(created)} 项", result=data,
+        session,
+        job,
+        status="completed",
+        progress=100,
+        current_step=f"已创建 {len(created)} 项",
+        result=data,
     )
     return job
