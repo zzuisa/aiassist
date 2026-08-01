@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.140350-88ba2bf",
+      "version": "2026.08.01.140350",
+      "commit": "88ba2bfc729bedb83a4a92d553acb56a37488b82",
+      "commit_short": "88ba2bf",
+      "message": "deploy: update 2026.08.01.140350",
+      "changes": [
+        "deploy: update 2026.08.01.140350",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T14:03:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.135815-333a054",
       "version": "2026.08.01.135815",
       "commit": "333a054562edb99ffe322fd15432f01e8e33ab8b",
