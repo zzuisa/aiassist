@@ -1,6 +1,50 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.173431-294f4a3",
+      "version": "2026.08.01.173431",
+      "commit": "294f4a3711b87773a07bc947f245025eff962fe6",
+      "commit_short": "294f4a3",
+      "message": "deploy: update 2026.08.01.173431",
+      "changes": [
+        "deploy: update 2026.08.01.173431",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/alembic/versions/0017_taxonomy_alias_governance.py",
+        "backend/app/main.py",
+        "backend/app/models/blog.py",
+        "backend/app/modules/jobs/schemas.py",
+        "backend/app/modules/posts/router.py",
+        "backend/app/modules/posts/schemas.py",
+        "backend/app/modules/posts/taxonomy_router.py",
+        "backend/app/modules/posts/taxonomy_service.py",
+        "backend/app/services/outbox/publisher.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "backend/tests/integration/test_blog_taxonomy.py",
+        "backend/tests/reliability/test_blog_failure_matrix.py",
+        "frontend/src/api/blogTaxonomy.ts",
+        "frontend/src/modules/posts/PostPropertySidebar.vue",
+        "frontend/src/modules/posts/TaxonomyEditDrawer.vue",
+        "frontend/src/modules/posts/TaxonomyMergeDialog.vue",
+        "frontend/src/modules/posts/TaxonomyPage.vue",
+        "frontend/tests/component/blog-editor.spec.ts",
+        "frontend/tests/component/blog-management.spec.ts",
+        "frontend/tests/component/blog-taxonomy.spec.ts",
+        "specs/005-blog-content-management/contracts/openapi.yaml",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T17:34:31Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.165714-262b854",
       "version": "2026.08.01.165714",
       "commit": "262b85447c87f243bf50d81b4b7ca83a3d1517dd",
