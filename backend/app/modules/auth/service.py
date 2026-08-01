@@ -136,6 +136,11 @@ def _check_login_rate(email: str, ip: str) -> None:
     _login_attempts[key] = attempts
 
 
+def _clear_login_rate(email: str, ip: str) -> None:
+    """Do not let successful sign-ins consume the failed-attempt budget."""
+    _login_attempts.pop(f"{email.lower()}|{ip}", None)
+
+
 def reset_login_throttle() -> None:
     _login_attempts.clear()
 
@@ -178,6 +183,8 @@ def login(
         raise AuthenticationError("Invalid email or password", code="invalid_credentials")
     if user.status != "active":
         raise AuthenticationError("Invalid email or password", code="invalid_credentials")
+
+    _clear_login_rate(email, ip)
 
     family_id = uuid.uuid4()
     ua_hash = _hash_token(user_agent)[:64] if user_agent else None

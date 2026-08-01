@@ -58,7 +58,10 @@ test('url capture rejects an unsafe address (failure path)', async ({ page }) =>
   await page.getByPlaceholder('https://…').fill('http://169.254.169.254/latest/meta-data')
   await page.getByRole('button', { name: '保存并抓取' }).click()
 
-  await expect(page.getByText('该链接不被允许（可能是内网地址或非法协议）。')).toBeVisible()
+  // The source remains durable, while the asynchronous per-hop SSRF guard
+  // rejects the fetch without importing remote content.
+  await expect(page).toHaveURL(/\/blog\/[0-9a-f-]+$/)
+  await expect(page.getByText('url failed')).toBeVisible({ timeout: 15_000 })
 })
 
 // --- US2: editing an article ---
@@ -68,13 +71,14 @@ async function newBlankPost(page: Page): Promise<void> {
   await page.getByRole('button', { name: '新建内容' }).click()
   await page.getByText('空白文章', { exact: true }).click()
   await expect(page).toHaveURL(/\/blog\/[0-9a-f-]+$/)
+  await page.getByRole('button', { name: '源码' }).click()
+  await expect(page.locator('textarea.md-source')).toBeVisible()
 }
 
 test('edit an article in source mode and see it autosave', async ({ page }) => {
   await login(page)
   await newBlankPost(page)
 
-  await page.getByRole('button', { name: '源码' }).click()
   await page.locator('textarea.md-source').fill(
     '# 标题\n\n> 引用\n\n- 一\n- 二\n\n```js\nconst x = 1\n```',
   )

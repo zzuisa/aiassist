@@ -108,6 +108,12 @@ def test_login_rate_limited(client, make_user):
     assert resp.status_code == 429
 
 
+def test_successful_logins_do_not_consume_failed_attempt_budget(client, make_user):
+    user = make_user()
+    for _ in range(11):
+        assert _login(client, user.email).status_code == 200
+
+
 def test_cross_user_isolation_current_user(client, make_user):
     a = make_user()
     b = make_user()
