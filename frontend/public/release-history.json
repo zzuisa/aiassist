@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.134630-67a2385",
+      "version": "2026.08.01.134630",
+      "commit": "67a2385c36f52fb905e74fd2a7b6e1b198ca2492",
+      "commit_short": "67a2385",
+      "message": "deploy: update 2026.08.01.134630",
+      "changes": [
+        "deploy: update 2026.08.01.134630",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/auth/service.py",
+        "backend/tests/integration/test_auth.py",
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:46:30Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.133832-3176cc6",
       "version": "2026.08.01.133832",
       "commit": "3176cc65d7795eba9b38634e5fea68ddc4a60336",
