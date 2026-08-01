@@ -56,24 +56,17 @@ test('url capture rejects an unsafe address (failure path)', async ({ page }) =>
   await page.getByText('从网址', { exact: true }).click()
 
   await page.getByPlaceholder('https://…').fill('http://169.254.169.254/latest/meta-data')
-  const [captureResponse] = await Promise.all([
-    page.waitForResponse((response) =>
-      response.url().includes('/api/v1/posts/captures/url') && response.request().method() === 'POST',
-    ),
-    page.getByRole('button', { name: '保存并抓取' }).click(),
-  ])
-  const capture = await captureResponse.json() as { source: { id: string } }
+  await page.getByRole('button', { name: '保存并抓取' }).click()
 
   // The source remains durable, while the asynchronous per-hop SSRF guard
-  // rejects the fetch without importing remote content.
+  // rejects the fetch without importing remote content. The editor does not
+  // subscribe to source updates, so reload while observing the durable state.
   await expect(page).toHaveURL(/\/blog\/[0-9a-f-]+$/)
   await expect.poll(async () => {
-    const response = await page.request.get(`/api/v1/post-sources/${capture.source.id}`)
-    const source = await response.json() as { status: string }
-    return source.status
-  }, { timeout: 30_000 }).toBe('failed')
-  await page.reload()
-  await expect(page.getByText('url failed')).toBeVisible({ timeout: 15_000 })
+    await page.reload()
+    return page.getByText('url failed').count()
+  }, { intervals: [500, 1_000, 2_000], timeout: 30_000 }).toBe(1)
+  await expect(page.getByText('url failed')).toBeVisible()
 })
 
 // --- US2: editing an article ---
