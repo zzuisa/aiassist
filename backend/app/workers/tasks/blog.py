@@ -637,6 +637,131 @@ def _normalize_orchestration_result(result, post):  # type: ignore[no-untyped-de
     )
 
 
+def run_skill_test(
+    job_id: uuid.UUID,
+    skill_version_id: uuid.UUID,
+    title: str,
+    markdown: str,
+    instruction: str | None,
+) -> str:
+    """Run one Skill against ephemeral text and persist only a validated Job result."""
+    from app.models.blog import BlogSkillVersion
+    from app.models.foundation import AsyncJob
+    from app.modules.jobs import service as jobs_service
+    from app.modules.posts import field_policy, protected_content
+    from app.services.llm.base import LLMError, StructuredRequest
+    from app.services.llm.gateway import get_llm_gateway
+    from app.services.llm.schemas import BlogOptimizationV1
+
+    with session_scope() as session:
+        job = session.get(AsyncJob, job_id)
+        version = session.get(BlogSkillVersion, skill_version_id)
+        if job is None or job.job_type != "blog.skill_test":
+            return "missing"
+        set_trace_id(job.trace_id)
+        if job.status in ("completed", "cancelled"):
+            return "skipped"
+        if version is None or version.user_id != job.user_id:
+            jobs_service.transition(
+                session,
+                job,
+                status="failed",
+                error_code="skill_version_missing",
+                error_message="技能版本不存在或不可用",
+                error_retryable=False,
+            )
+            return "failed"
+
+        config = version.config_json or {}
+        jobs_service.transition(
+            session, job, status="processing", current_step="正在执行技能测试", progress=20
+        )
+        session.commit()
+        system = _build_system(config, "skill_test", instruction)
+        user_payload = f"标题：{title}\n\n正文：\n{markdown}"
+        try:
+            result = get_llm_gateway().structured(
+                StructuredRequest(
+                    scenario="test_blog_skill",
+                    system=system,
+                    user=user_payload,
+                    schema=BlogOptimizationV1,
+                    max_tokens=get_settings().llm_max_output_tokens,
+                )
+            )
+            # Test doubles and future providers still have to honor the declared
+            # contract before their payload can become a user-visible result.
+            if not isinstance(result, BlogOptimizationV1):
+                result = BlogOptimizationV1.model_validate(result)
+        except (LLMError, ValueError, TypeError) as exc:
+            code = exc.code if isinstance(exc, LLMError) else "invalid_structured_output"
+            jobs_service.transition(
+                session,
+                job,
+                status="failed",
+                error_code=code,
+                error_message="技能测试失败：AI 返回内容未通过格式校验",
+                error_retryable=isinstance(exc, LLMError) and exc.retryable,
+            )
+            log.warning("blog_skill_test_failed", job_id=str(job.id), code=code)
+            return "failed"
+
+        jobs_service.transition(session, job, current_step="正在校验测试结果", progress=80)
+        session.commit()
+        candidate_markdown = result.markdown if result.markdown is not None else markdown
+        protected_changes = protected_content.compare(markdown, candidate_markdown)
+        blocking = protected_content.has_blocking_change(protected_changes)
+        proposed = _proposed_fields(result)
+        classified = field_policy.classify_candidate(
+            config.get("field_policies", {}), proposed, blocking_markdown_change=blocking
+        )
+        rejected = [field for field, state in classified.items() if state == "rejected"]
+        outcome = "partial" if blocking or rejected else "complete"
+        jobs_service.transition(
+            session,
+            job,
+            status="completed",
+            current_step="技能测试完成",
+            progress=100,
+            result={
+                "context": {
+                    "skill_id": str(version.skill_id),
+                    "skill_version_id": str(version.id),
+                    "skill_version": version.version_number,
+                    "sample_title": title,
+                },
+                "outcome": outcome,
+                "candidate": result.model_dump(mode="json"),
+                "validation": {
+                    "protected_changes": [c.as_warning() for c in protected_changes],
+                    "field_classification": classified,
+                    "rejected_fields": rejected,
+                },
+            },
+        )
+        log.info("blog_skill_test_completed", job_id=str(job.id), outcome=outcome)
+        return outcome
+
+
+@celery.task(
+    name="app.workers.tasks.blog.skill_test",
+    bind=True,
+    max_retries=2,
+    acks_late=True,
+)
+def skill_test(  # type: ignore[no-untyped-def]
+    self,
+    job_id: str,
+    skill_version_id: str,
+    title: str,
+    markdown: str,
+    instruction: str | None = None,
+) -> str:
+    return run_skill_test(
+        uuid.UUID(job_id), uuid.UUID(skill_version_id), title, markdown, instruction
+    )
+
+
 def optimize_run(
     run_id: uuid.UUID,
     scope: str,

@@ -30,6 +30,7 @@ _CELERY_COMMANDS: dict[str, tuple[str, str]] = {
     "blog.bilibili_import": ("app.workers.tasks.blog.import_bilibili", "llm"),
     "blog.generate": ("app.workers.tasks.blog.generate", "llm"),
     "blog.optimize": ("app.workers.tasks.blog.optimize", "llm"),
+    "blog.skill_test": ("app.workers.tasks.blog.skill_test", "llm"),
     "blog.taxonomy_merge": ("app.workers.tasks.blog.taxonomy_merge", "search"),
     "blog.keyword_recompute": ("app.workers.tasks.blog.keyword_recompute", "search"),
     "blog.wordcloud": ("app.workers.tasks.blog.wordcloud", "search"),
@@ -136,6 +137,14 @@ class OutboxPublisher:
                 payload["run_id"],
                 payload.get("scope", "all"),
                 payload.get("selected_fields") or [],
+                payload.get("instruction"),
+            ]
+        elif event_type == "blog.skill_test":
+            args = [
+                payload["job_id"],
+                payload["skill_version_id"],
+                payload["title"],
+                payload["markdown"],
                 payload.get("instruction"),
             ]
         elif event_type == "blog.taxonomy_merge":

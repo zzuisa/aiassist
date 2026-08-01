@@ -10,6 +10,7 @@ vi.mock('@/api/blogSkills', async () => {
       setEnabled: vi.fn(), copy: vi.fn(), remove: vi.fn(),
       listVersions: vi.fn(), addVersion: vi.fn(), restoreVersion: vi.fn(),
       recentRuns: vi.fn(), listDefaults: vi.fn(), setDefault: vi.fn(), removeDefault: vi.fn(),
+      dryRun: vi.fn(), getDryRunJob: vi.fn(),
     },
   }
 })
@@ -24,6 +25,7 @@ import { blogSkillsApi, type Skill, type SkillConfig, type SkillVersion } from '
 import SkillListPage from '@/modules/posts/SkillListPage.vue'
 import SkillEditorPage from '@/modules/posts/SkillEditorPage.vue'
 import SkillVersionsPage from '@/modules/posts/SkillVersionsPage.vue'
+import SkillTestPage from '@/modules/posts/SkillTestPage.vue'
 
 function fakeSkill(over: Partial<Skill> = {}): Skill {
   return {
@@ -148,5 +150,29 @@ describe('SkillVersionsPage', () => {
 
     await w.findAll('button').at(-1)!.trigger('click')
     expect(blogSkillsApi.restoreVersion).toHaveBeenCalledWith('s1', 'v1')
+  })
+})
+
+describe('SkillTestPage', () => {
+  it('runs an isolated test and renders the validated candidate', async () => {
+    vi.mocked(blogSkillsApi.get).mockResolvedValue(fakeSkill())
+    vi.mocked(blogSkillsApi.dryRun).mockResolvedValue({
+      id: 'j1', job_type: 'blog.skill_test', status: 'queued', priority: 0, progress: 0,
+      retry_count: 0, created_at: '', updated_at: '',
+    })
+    vi.mocked(blogSkillsApi.getDryRunJob).mockResolvedValue({
+      id: 'j1', job_type: 'blog.skill_test', status: 'completed', priority: 0, progress: 100,
+      current_step: '技能测试完成', retry_count: 0, created_at: '', updated_at: '',
+      result: { outcome: 'complete', candidate: { title: '优化标题', summary: '摘要', markdown: '正文' } },
+    })
+    const w = mount(SkillTestPage)
+    await Promise.resolve(); await Promise.resolve()
+    await w.find('textarea[aria-label="样例正文"]').setValue('原始正文')
+    await w.find('button.primary').trigger('click')
+    await Promise.resolve(); await Promise.resolve()
+
+    expect(blogSkillsApi.dryRun).toHaveBeenCalledWith('s1', expect.objectContaining({ markdown: '原始正文' }))
+    expect(w.text()).toContain('优化标题')
+    expect(w.text()).toContain('不会创建或修改文章')
   })
 })

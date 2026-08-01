@@ -5,6 +5,7 @@
 // content_type) decide which skill an optimization resolves to.
 
 import { api } from '@/api/client'
+import type { AsyncJob } from '@/api/types'
 
 export type LongContentStrategy = 'reject' | 'chunk' | 'summarize_then_process'
 
@@ -96,6 +97,12 @@ export interface SkillRunSummary {
   created_at: string
 }
 
+export interface SkillDryRunBody {
+  title: string
+  markdown: string
+  instruction?: string | null
+}
+
 export const blogSkillsApi = {
   list: () => api.get<Skill[]>('/blog/skills'),
   get: (id: string) => api.get<Skill>(`/blog/skills/${id}`),
@@ -112,6 +119,9 @@ export const blogSkillsApi = {
   restoreVersion: (id: string, versionId: string) =>
     api.post<SkillVersion>(`/blog/skills/${id}/versions/${versionId}/restore`),
   recentRuns: (id: string) => api.get<SkillRunSummary[]>(`/blog/skills/${id}/runs`),
+  dryRun: (id: string, body: SkillDryRunBody) =>
+    api.post<AsyncJob>(`/blog/skills/${id}/dry-run`, body),
+  getDryRunJob: (jobId: string) => api.get<AsyncJob>(`/jobs/${jobId}`),
   listDefaults: () => api.get<ScopeDefault[]>('/blog/skills/defaults/list'),
   setDefault: (body: ScopeDefault) => api.put<ScopeDefault>('/blog/skills/defaults', body),
   removeDefault: (scopeType: string, scopeKey: string) =>

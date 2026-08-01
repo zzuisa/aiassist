@@ -123,6 +123,13 @@ onMounted(load)
         </div>
         <div class="skill-actions">
           <RouterLink
+            v-if="s.current_version_complete"
+            class="ghost small"
+            :to="{ name: 'blog-skill-test', params: { skillId: s.id } }"
+          >
+            测试
+          </RouterLink>
+          <RouterLink
             class="ghost small"
             :to="{ name: 'blog-skill-versions', params: { skillId: s.id } }"
           >

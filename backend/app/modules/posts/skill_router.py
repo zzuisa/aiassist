@@ -17,10 +17,12 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
+from app.modules.jobs.schemas import AsyncJobOut, serialize_job
 from app.modules.posts import skill_service
 from app.modules.posts.schemas import (
     SkillCreateBody,
     SkillDefaultBody,
+    SkillDryRunBody,
     SkillEnableBody,
     SkillMetaBody,
     SkillVersionBody,
@@ -170,6 +172,70 @@ def copy_skill(
     skill = skill_service.copy_skill(db, user.id, skill_id)
     db.commit()
     return skill_service.serialize_skill(db, user.id, skill, include_config=True)
+
+
+@skill_router.post("/{skill_id}/dry-run", response_model=AsyncJobOut, status_code=202)
+def dry_run_skill(
+    skill_id: uuid.UUID,
+    body: SkillDryRunBody,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> AsyncJobOut:
+    """Queue an isolated Skill test; no Post, revision or AI run is created."""
+    from app.modules.jobs import service as jobs_service
+    from app.services.outbox.publisher import append_event
+
+    skill = skill_service.get_skill(db, user.id, skill_id)
+    version = skill_service.current_skill_version(db, user.id, skill)
+    if version is None or not skill_service.is_version_complete(version):
+        from app.core.errors import ValidationError
+
+        raise ValidationError("Skill has no complete current version", code="incomplete_skill")
+    if len(body.markdown) > version.max_content_chars:
+        from app.core.errors import ValidationError
+
+        raise ValidationError("Sample exceeds the Skill content limit", code="content_too_long")
+
+    job = jobs_service.create_job(
+        db,
+        user_id=user.id,
+        job_type="blog.skill_test",
+        entity_type="skill",
+        entity_id=skill.id,
+        max_retries=2,
+    )
+    jobs_service.transition(
+        db,
+        job,
+        status="queued",
+        current_step="等待技能测试",
+        result={
+            "context": {
+                "skill_id": str(skill.id),
+                "skill_version_id": str(version.id),
+                "skill_version": version.version_number,
+                "sample_title": body.title,
+            }
+        },
+    )
+    append_event(
+        db,
+        event_type="blog.skill_test",
+        aggregate_type="async_job",
+        aggregate_id=job.id,
+        routing_key="blog.skill_test",
+        payload={
+            "job_id": str(job.id),
+            "skill_version_id": str(version.id),
+            "title": body.title,
+            "markdown": body.markdown,
+            "instruction": body.instruction,
+        },
+        user_id=user.id,
+    )
+    db.commit()
+    db.refresh(job)
+    return serialize_job(job)
 
 
 # --- Versions ---

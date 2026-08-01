@@ -112,6 +112,11 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/modules/posts/SkillVersionsPage.vue'),
           },
           {
+            path: 'skills/:skillId/test',
+            name: 'blog-skill-test',
+            component: () => import('@/modules/posts/SkillTestPage.vue'),
+          },
+          {
             path: ':id',
             name: 'blog-post-editor',
             component: () => import('@/modules/posts/PostEditorPage.vue'),

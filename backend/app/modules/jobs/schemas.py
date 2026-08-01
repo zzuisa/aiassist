@@ -66,6 +66,7 @@ _BLOG_STAGE_BY_TYPE = {
     "blog.bilibili_import": "transcribing",
     "blog.generate": "optimizing",
     "blog.optimize": "optimizing",
+    "blog.skill_test": "optimizing",
     "blog.wordcloud": "aggregating",
     "blog.taxonomy_merge": "merging",
     "blog.keyword_recompute": "aggregating",

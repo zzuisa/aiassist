@@ -148,3 +148,77 @@ def test_seed_default_skills_is_idempotent(db_session, make_user):
     db_session.commit()
     assert second is None  # never re-seeds when the user already has a skill
     assert len(skill_service.list_skills(db_session, uid)) == 1
+
+
+@requires_db
+def test_skill_dry_run_validates_result_without_post_mutation(db_session, make_user, monkeypatch):
+    import uuid
+
+    from app.api.dependencies import CurrentUser
+    from app.models.blog import PostAIRun
+    from app.models.foundation import AsyncJob, OutboxEvent
+    from app.models.posts import Post, PostRevision
+    from app.modules.posts import skill_service
+    from app.modules.posts.schemas import SkillDryRunBody
+    from app.modules.posts.skill_router import dry_run_skill
+    from app.services.llm.schemas import BlogOptimizationV1
+    from app.workers.tasks import blog as blog_task
+    from sqlalchemy import func, select
+
+    uid = make_user().id
+    skill = skill_service.create_skill(db_session, uid, name="dry", config=_config("test"))
+    db_session.commit()
+    before = {
+        Post: db_session.scalar(select(func.count()).select_from(Post)),
+        PostRevision: db_session.scalar(select(func.count()).select_from(PostRevision)),
+        PostAIRun: db_session.scalar(select(func.count()).select_from(PostAIRun)),
+    }
+    user = CurrentUser(id=uid, family_id=uuid.uuid4(), email="test@example.com")
+    queued = dry_run_skill(
+        skill.id,
+        SkillDryRunBody(title="样例", markdown="价格是 100 元，网址 https://example.com"),
+        user,
+        db_session,
+    )
+    event = db_session.scalar(select(OutboxEvent).where(OutboxEvent.aggregate_id == queued.id))
+    assert queued.job_type == "blog.skill_test"
+    assert event is not None and event.event_type == "blog.skill_test"
+
+    result = BlogOptimizationV1(
+        schema_version="blog-optimization.v1",
+        title="测试标题",
+        subtitle=None,
+        summary=None,
+        markdown="价格是 100 元，网址 https://example.com",
+        content_class_suggestion=None,
+        content_type_suggestion=None,
+        category_suggestions=[],
+        tag_suggestions=[],
+        keyword_suggestions=[],
+        occurred_at=None,
+        location=None,
+        project=None,
+        source_summary=None,
+        structured_fields={},
+        related_post_suggestions=[],
+        claims=[],
+        warnings=[],
+    )
+
+    class Gateway:
+        def structured(self, _request):
+            return result
+
+    import app.services.llm.gateway as gateway_module
+
+    monkeypatch.setattr(gateway_module, "get_llm_gateway", lambda: Gateway())
+    assert blog_task.run_skill_test(
+        queued.id, skill.current_version_id, "样例", "价格是 100 元，网址 https://example.com", None
+    ) in {"complete", "partial"}
+
+    db_session.expire_all()
+    finished = db_session.get(AsyncJob, queued.id)
+    assert finished.status == "completed"
+    assert finished.result_json["candidate"]["title"] == "测试标题"
+    for model, count in before.items():
+        assert db_session.scalar(select(func.count()).select_from(model)) == count

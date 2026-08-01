@@ -288,6 +288,15 @@ class SkillDefaultBody(BaseModel):
     skill_id: uuid.UUID
 
 
+class SkillDryRunBody(BaseModel):
+    """Ephemeral sample used to validate a Skill without creating a Post."""
+
+    model_config = {"extra": "forbid"}
+    title: str = Field(default="技能测试样例", min_length=1, max_length=240)
+    markdown: str = Field(min_length=1, max_length=200_000)
+    instruction: str | None = Field(default=None, max_length=2000)
+
+
 # ---------------------------------------------------------------------------
 # Article management DTOs (spec 005, US6)
 # ---------------------------------------------------------------------------

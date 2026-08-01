@@ -149,6 +149,19 @@ def test_publish_failure_backs_off_and_stays_pending() -> None:
             "llm",
             ["run-1", "all", ["title"], "shorten"],
         ),
+        (
+            "blog.skill_test",
+            {
+                "job_id": "job-1",
+                "skill_version_id": "version-1",
+                "title": "sample",
+                "markdown": "sample body",
+                "instruction": None,
+            },
+            "app.workers.tasks.blog.skill_test",
+            "llm",
+            ["job-1", "version-1", "sample", "sample body", None],
+        ),
     ],
 )
 def test_blog_outbox_envelope_becomes_celery_task(

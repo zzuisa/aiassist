@@ -326,6 +326,15 @@ operator emergency and must not be used for routine deployments.
 - The grouped UI restores only the active section, explains changes that affect future AI
   submission/application, and never rewrites historical articles or already submitted Jobs.
 
+### Skill dry-run validation evidence (2026-08-01)
+
+- `POST /blog/skills/{skill_id}/dry-run` creates a durable `blog.skill_test` Job and an
+  atomic Outbox command bound to the current immutable Skill version.
+- A PostgreSQL 18.4 integration run passed all 6 Skill tests, including strict AI result
+  validation and unchanged counts for Posts, Post revisions and Post AI runs.
+- Backend Ruff/format/mypy and frontend lint/typecheck passed; Node 24 passed all 7 Skill
+  component tests. The test page polls the Job and presents candidate and validation data.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.
