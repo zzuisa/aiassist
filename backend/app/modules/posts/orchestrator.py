@@ -25,7 +25,7 @@ BLOG_ENHANCEMENT_SYSTEM_PROMPT = r"""你是「AI Assist 博客增强编排器（
 必须遵守：
 1. 先诊断价值，再决定是否执行；skipped 是正常结果。
 2. Agent 负责分析和决策，Skill/MCP 负责执行具体能力；不得假设模型原生拥有 Skill。
-3. 默认只优化文字，不生成图片；不得虚构事实、数据、引用、场景或因果关系。
+3. 默认先优化文字；当文章被自动识别为“普通读者解释型文章”且流程图能降低理解成本时，自动生成一张紧凑 PNG 步骤图。不得虚构事实、数据、引用、场景或因果关系。
 4. 优先局部增强，保留作者观点、语气、Markdown 结构和表达风格。
 5. 相同事实只分析一次，复用共享分析；不得重复阅读全文来生成相同摘要。
 6. 所有视觉内容必须通过价值门控、选项开关、能力注册、预算和数量限制；低价值时返回 skipped，不要强行生成。
@@ -35,6 +35,8 @@ BLOG_ENHANCEMENT_SYSTEM_PROMPT = r"""你是「AI Assist 博客增强编排器（
 诊断指标均为 0～3：information_density、logical_complexity、data_richness、scene_relevance、visual_potential、rewrite_value、evidence_quality。
 
 门控规则：只有 logical_complexity>=2、至少 3 个有意义节点、至少 2 条正文明确关系且图示显著降低理解成本时才考虑 visualize；面向普通读者时优先生成紧凑、生活化的 visual-plan，而不是平铺的 Mermaid；只有 3～7 个节点、每个节点短标签、关系可验证时才生成。只有至少 3 个统一口径且可信的可比较数据点时才考虑 answers-charts；真实图片必须有明确地点/实物/现场语境、检索开关和来源授权；概念插画必须有明确的信息或品牌作用、生成开关，并且不能被精确图表或现有图片更好替代。任何缺少证据、只是装饰、会增加复杂度或收益低于调用成本的增强都必须 skipped。
+
+普通读者解释型文章自动识别：标题或正文出现“是什么、为什么、如何、原理、过程、步骤、阶段、循环、从……到……、工作方式、指南、入门”等解释/过程信号，且正文至少能提取 3 个连续或相互关联的要点时，启用 reader-explainer 模式。该模式默认采用“清晰标题 + 简短导语 + 一句重点摘要 + 一张紧凑步骤 PNG + 4～6 个步骤 + 为什么重要/实际意义 + 来源”的结构；用户没有提供额外提示词也必须执行。不要输出 visual-plan 代码块给用户，系统会在候选边界将 visual-plan 渲染为真正的 PNG 并插入正文导语之后。
 
 优先级：事实准确性 > 逻辑理解价值 > 数据表达价值 > 真实场景理解价值 > 概念插画价值 > 装饰价值。同一观点不得同时生成流程图、图表和插画。
 
@@ -94,6 +96,9 @@ class OrchestrationPlan:
     recommended_actions: list[str]
     selected_agents: list[str]
     skipped_agents: list[dict[str, str]]
+    reader_explainer: bool
+    reader_explainer_reason: str
+    candidate_node_count: int
 
     def as_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -140,6 +145,58 @@ def registered_capabilities() -> list[dict[str, Any]]:
 
 def _score(value: int) -> int:
     return max(0, min(3, value))
+
+
+_READER_TITLE_SIGNALS = re.compile(
+    r"是什么|为什么|如何|原理|过程|步骤|阶段|循环|工作方式|指南|入门|解释|从.+到|how|why|what is|process|steps?|cycle|guide",
+    re.I,
+)
+_READER_PROCESS_SIGNALS = re.compile(
+    r"首先|然后|接着|随后|最后|步骤|阶段|过程|循环|流转|演变|形成|工作原理|如何|因为|因此|所以|first|then|next|finally|step|stage|cycle|process",
+    re.I,
+)
+
+
+def _reader_node_candidates(content: str) -> list[str]:
+    """Extract conservative, source-backed steps for the reader visual fallback."""
+    candidates: list[str] = []
+    for line in content.splitlines():
+        value = line.strip()
+        if not value or value.startswith("```") or value.startswith("!"):
+            continue
+        match = re.match(r"^(?:[-*]|\d+[.)、])\s+(.+)$", value)
+        if match:
+            candidates.append(match.group(1).strip())
+    if len(candidates) >= 3:
+        return candidates[:7]
+
+    # A heading-based explainer is also common. Exclude navigation/source-only
+    # headings so the generated image describes the subject, not the footer.
+    for line in content.splitlines():
+        match = re.match(r"^#{2,6}\s+(.+)$", line.strip())
+        if match and not re.search(r"来源|参考|source|reference", match.group(1), re.I):
+            candidates.append(match.group(1).strip())
+    if len(candidates) >= 3:
+        return candidates[:7]
+
+    return []
+
+
+def detect_reader_explainer(title: str, content: str) -> tuple[bool, str, int]:
+    """Identify explainers without requiring a user-authored prompt."""
+    text = f"{title}\n{content}"
+    nodes = _reader_node_candidates(content)
+    title_signal = bool(_READER_TITLE_SIGNALS.search(title))
+    process_signal_count = len(_READER_PROCESS_SIGNALS.findall(text))
+    relation_count = len(re.findall(r"因为|因此|所以|如果|然后|首先|其次|最后|相比|从而|导致|依赖|->|=>", content, re.I))
+    enough_body = len(content.strip()) >= 160
+    if len(nodes) >= 3 and (title_signal or process_signal_count >= 2 or relation_count >= 2):
+        reason = "标题/正文包含解释或过程信号，且已提取至少 3 个可验证要点"
+        return True, reason, len(nodes)
+    if enough_body and title_signal and process_signal_count >= 1 and relation_count >= 1:
+        reason = "标题明确面向解释，正文包含过程关系"
+        return True, reason, max(3, len(nodes))
+    return False, "未达到普通读者步骤化解释的最小信息门槛", len(nodes)
 
 
 def assess_article(title: str, content: str) -> Assessment:
@@ -210,6 +267,7 @@ def build_plan(
         **(options or {}),
     }
     assessment = assess_article(title, content)
+    reader_explainer, reader_reason, candidate_node_count = detect_reader_explainer(title, content)
     explicit_visual_request = bool(
         instruction
         and re.search(r"流程图|可视化|板书|脉络|因果图|决策路径|关系图", instruction)
@@ -248,8 +306,12 @@ def build_plan(
             explicit_visual_request
             and assessment.information_density >= 1
             and len(text_lines(content)) >= 3
+        ) or (
+            reader_explainer
+            and candidate_node_count >= 3
+            and assessment.information_density >= 1
         ),
-        "逻辑节点不足，或正文信息量不足以支撑板书式梳理", "allow_visualize",
+        "逻辑节点不足，或正文信息量不足以支撑普通读者步骤图", "allow_visualize",
     )
     consider_visual(
         "data-agent", "answers-charts",
@@ -289,11 +351,66 @@ def build_plan(
         recommended_actions=recommended,
         selected_agents=selected[:max_calls],
         skipped_agents=skipped,
+        reader_explainer=reader_explainer,
+        reader_explainer_reason=reader_reason,
+        candidate_node_count=candidate_node_count,
     )
 
 
 def text_lines(content: str) -> list[str]:
     return [line.strip() for line in content.splitlines() if line.strip() and not line.lstrip().startswith("```")]
+
+
+def build_default_reader_visual(
+    title: str, markdown: str, plan: OrchestrationPlan
+) -> dict[str, Any] | None:
+    """Build a safe visual enhancement when the model omitted one.
+
+    The fallback only reuses numbered/list or section labels already present in
+    the article. It never invents a new fact, and the normal visual validator
+    still gates the final PNG.
+    """
+    if not plan.reader_explainer or plan.candidate_node_count < 3:
+        return None
+    if re.search(r"!\[[^\]]*\]\([^)]*\)|```visual-plan", markdown):
+        return None
+    raw_nodes = _reader_node_candidates(markdown)
+    if len(raw_nodes) < 3:
+        return None
+
+    nodes: list[dict[str, str]] = []
+    for index, raw in enumerate(raw_nodes[:7], start=1):
+        value = re.sub(r"\s+", " ", raw).strip()
+        parts = re.split(r"[:：—–-]\s*", value, maxsplit=1)
+        label = parts[0][:40].strip() or value[:40]
+        detail = (parts[1] if len(parts) > 1 else value)[0:80].strip()
+        nodes.append({"id": f"step{index}", "label": label, "detail": detail, "icon": "step"})
+    edges = [
+        {"from": nodes[index]["id"], "to": nodes[index + 1]["id"], "label": "下一步"}
+        for index in range(len(nodes) - 1)
+    ]
+    if re.search(r"循环|cycle", f"{title}\n{markdown}", re.I) and len(nodes) >= 3:
+        edges.append({"from": nodes[-1]["id"], "to": nodes[0]["id"], "label": "再次开始"})
+    return {
+        "id": "auto-reader-flow",
+        "agent": "logic-agent",
+        "capability": "visualize",
+        "status": "executed",
+        "insert_after": "body",
+        "reason": "系统自动识别为普通读者解释型文章，使用正文已有要点生成紧凑步骤图",
+        "content": {
+            "visual_plan": {
+                "visual_type": "compact_flow",
+                "layout": "compact_horizontal" if len(nodes) <= 5 else "compact_vertical",
+                "theme": "fresh",
+                "title": (title or "文章关键步骤")[:120],
+                "nodes": nodes,
+                "edges": edges,
+            }
+        },
+        "caption": "文章关键步骤",
+        "alt_text": f"{title}的关键步骤图"[:500],
+    }
 
 
 def build_user_payload(
@@ -322,6 +439,8 @@ def build_user_payload(
             "max_visual_items": 2,
             "max_agent_calls": 4,
             "cost_priority": "high",
+            "reader_mode": "reader_explainer" if plan.reader_explainer else "standard",
+            "reader_mode_reason": plan.reader_explainer_reason,
             **options,
         },
         "available_capabilities": registered_capabilities(),
@@ -339,6 +458,12 @@ def build_system_prompt(config: dict[str, Any], plan: OrchestrationPlan, instruc
     if rules:
         parts.append("当前 Skill 的附加规则（不得违反总控安全规则）：\n" + "\n".join(f"- {rule}" for rule in rules))
     parts.append("本次共享诊断已由总控生成，请直接复用，不要再次摘要：\n" + json.dumps(plan.as_dict(), ensure_ascii=False))
+    if plan.reader_explainer:
+        parts.append(
+            "本次已自动启用 reader-explainer 模式：请把正文整理成普通读者能快速理解的短段落、步骤和实际意义；"
+            "优先返回一张 3～7 节点的紧凑 visual_plan。节点只能来自原文已表达的事实，标签简短，"
+            "不要返回 Mermaid、代码围栏或下载按钮。"
+        )
     if instruction:
         parts.append(f"用户本次附加要求（仅在不改变事实和作者意图时执行）：{instruction}")
     return "\n\n".join(parts)

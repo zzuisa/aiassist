@@ -645,6 +645,7 @@ def optimize_run(
     from app.modules.jobs import service as jobs_service
     from app.modules.posts import ai_service, field_policy, protected_content
     from app.modules.posts.orchestrator import (
+        build_default_reader_visual,
         build_plan,
         build_system_prompt,
         build_user_payload,
@@ -654,6 +655,7 @@ def optimize_run(
     from app.services.llm.gateway import get_llm_gateway
     from app.services.llm.schemas import (
         BlogBodyOptimizationV1,
+        BlogEnhancementV1,
         BlogEnhancementResultV1,
         BlogOptimizationV1,
     )
@@ -882,6 +884,22 @@ def optimize_run(
         orchestration_result = None
         visual_items: list[dict] = []
         if isinstance(result, BlogEnhancementResultV1):
+            # The model is instructed to create a compact reader visual for
+            # explainers, but the product promise must not depend on a model
+            # remembering one optional field. Reuse only source-backed steps
+            # when it omitted the visual; the normal visual validator and PNG
+            # renderer remain the final safety gates.
+            if orchestration_plan.reader_explainer and not any(
+                item.capability == "visualize" and item.status == "executed"
+                for item in result.enhancements
+            ):
+                fallback = build_default_reader_visual(
+                    post.title,
+                    result.optimized_article.content_markdown or post.markdown,
+                    orchestration_plan,
+                )
+                if fallback is not None:
+                    result.enhancements.append(BlogEnhancementV1(**fallback))
             visual_items = execute_enhancements(
                 result,
                 max_visual_items=2,

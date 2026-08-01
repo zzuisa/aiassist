@@ -92,3 +92,29 @@ def test_explicit_board_request_allows_visual_agent_for_essay(monkeypatch):
 
     assert "logic-agent" in plan.selected_agents
     assert any("板书式" in item for item in plan.recommended_actions)
+
+
+def test_reader_explainer_is_detected_without_user_prompt(monkeypatch):
+    from app.core.config import reload_settings
+    from app.modules.posts import orchestrator
+
+    monkeypatch.setenv("BLOG_CAPABILITIES_JSON", json.dumps([{"name": "visualize", "enabled": True}]))
+    reload_settings()
+    content = (
+        "水循环是水在海洋、陆地和大气之间不断移动的过程。\n\n"
+        "1. 蒸发：太阳加热水体，液态水变成水蒸气。\n"
+        "2. 凝结：水蒸气遇冷形成云。\n"
+        "3. 降水：云中的水回到地面。\n"
+        "4. 汇流：地表水最终回到河流和海洋。"
+    )
+    plan = orchestrator.build_plan("水循环：水如何在海洋、天空与陆地之间旅行", content)
+
+    assert plan.reader_explainer is True
+    assert plan.candidate_node_count == 4
+    assert "logic-agent" in plan.selected_agents
+    fallback = orchestrator.build_default_reader_visual(
+        "水循环：水如何在海洋、天空与陆地之间旅行", content, plan
+    )
+    assert fallback is not None
+    assert fallback["content"]["visual_plan"]["nodes"][0]["label"] == "蒸发"
+    assert fallback["content"]["visual_plan"]["edges"][-1]["to"] == "step1"
