@@ -364,6 +364,68 @@ operator emergency and must not be used for routine deployments.
 - All 15 focused migration, private/public Post and RSS tests passed. Application rollback
   keeps the additive head schema; destructive schema downgrade is not used for live data.
 
+### 100,000-Post performance evidence (2026-08-01)
+
+- Manual CI run `30715091795`, release commit `3c82d5d`, passed the 100,000-row job
+  in 1m28s and uploaded `performance-100k-results`.
+- JUnit measurements: blog search p95 `0.173099s` (<2s), timeline p95 `0.042410s`
+  (<2s), and asynchronous keyword word-cloud aggregation `0.380895s` (<10s).
+- The existing trigram GIN indexes and `ix_posts_user_timeline` were retained. Timeline
+  paging now performs database-side count/offset/limit instead of loading every Post.
+  `ix_post_keyword_links_user_keyword_post` was added because the cloud groups owner-scoped
+  keyword links over a large Post set; model metadata and Alembic drift checks agree.
+
+### Required 26-case execution evidence (2026-08-01)
+
+All rows below passed on release commit `3c82d5d` in push CI `30714867859` and manual
+full/performance CI `30715091795`.
+
+| # | Result | Evidence |
+|---|---|---|
+| 1 | PASS | clipboard contract/integration and capture component |
+| 2 | PASS | normalization/protected-token units and editor component |
+| 3 | PASS | URL capture contract and integration |
+| 4 | PASS | `test_blog_capture.py` and `test_blog_failure_matrix.py` |
+| 5 | PASS | `test_blog_ai_pipeline.py` atomic Job/Outbox binding |
+| 6 | PASS | Skill matching unit and integration |
+| 7 | PASS | manual Skill override integration |
+| 8 | PASS | AI schema and candidate pipeline integration |
+| 9 | PASS | `test_blog_field_policy.py` |
+| 10 | PASS | candidate merge concurrency integration |
+| 11 | PASS | three-way candidate API/component coverage |
+| 12 | PASS | selective apply integration and authenticated E2E |
+| 13 | PASS | immutable Skill version integration |
+| 14 | PASS | historical task/Skill binding integration |
+| 15 | PASS | retry and failure-matrix reliability suites |
+| 16 | PASS | timeline integration and authenticated E2E |
+| 17 | PASS | word-cloud component and E2E navigation |
+| 18 | PASS | mobile component plus 360px E2E |
+| 19 | PASS | category projection contract/component |
+| 20 | PASS | app-shell component and production build |
+| 21 | PASS | 360/375/390px Playwright matrix |
+| 22 | PASS | deep-search contract/integration and 100k gate |
+| 23 | PASS | timeline fallback contract/component |
+| 24 | PASS | release popup component and E2E |
+| 25 | PASS | release history component and production build |
+| 26 | PASS | CI/deployment shell contracts plus exact-commit deployment gate |
+
+### Final Compose and live happy-path evidence (2026-08-01)
+
+- `deploy.sh up` gated release `3c82d5d` on CI `30714867859`, applied migration
+  `0018_blog_wordcloud_index`, and reported PostgreSQL, Redis, RabbitMQ, backend,
+  frontend, Nginx, Beat, Outbox publisher and both Workers healthy; both Worker pings
+  returned `OK`.
+- Outbox lease/crash/retry recovery tests in `test_outbox.py` passed in the same backend
+  CI job. The live optimization command was observed as `blog.optimize`, routing key
+  `blog.optimize`, status `published`, retry count `0`.
+- A temporary account executed clipboard capture (`201`) -> real Outbox/heavy Worker AI
+  Job (`waiting_user`) -> one review candidate -> `apply_all` (`200`); Post version moved
+  from 1 to 2. Safe business IDs retained for trace lookup: Post
+  `cfe16a94-a991-4975-b214-2bf5cc6060b9`, Job
+  `e33e5ba0-95b5-4519-9ed9-ae2f5e6f070c`.
+- Both temporary acceptance accounts and their cascade-owned test data were removed after
+  verification; the remaining temporary-user count was `0`.
+
 ### 2026-08-01 execution evidence
 
 - Release commit `8212e49` passed [GitHub Actions CI run 30703186458](https://github.com/zzuisa/aiassist/actions/runs/30703186458) before deployment started.
