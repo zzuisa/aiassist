@@ -270,23 +270,23 @@
 ### Tests for User Story 7 — write first ⚠️
 
 - [x] T127 [P] [US7] Add module search/timeline query and response contract tests in `backend/tests/contract/test_blog_content_api.py`
-- [ ] T128 [P] [US7] Add direct-data, derived-index, combined-filter, CJK/code and time fallback integration tests in `backend/tests/integration/test_blog_search_timeline.py`
-- [ ] T129 [P] [US7] Extend global search ownership and Post deep-field tests in `backend/tests/integration/test_search.py`
-- [ ] T130 [P] [US7] Add 100,000-Post search p95 and timeline cursor stability tests in `backend/tests/performance/test_blog_search_100k.py`
+- [x] T128 [P] [US7] Add direct-data, derived-index, combined-filter, CJK/code and time fallback integration tests in `backend/tests/integration/test_blog_search_timeline.py`
+- [x] T129 [P] [US7] Extend global search ownership and Post deep-field tests in `backend/tests/integration/test_search.py`
+- [x] T130 [P] [US7] Add 100,000-Post search p95 and timeline cursor stability tests in `backend/tests/performance/test_blog_search_100k.py`
 - [x] T131 [P] [US7] Add search filter/highlight and timeline expansion component tests in `frontend/tests/component/blog-discovery.spec.ts`
 
 ### Implementation for User Story 7
 
 - [x] T132 [US7] Implement owned module search across current Post, source URL, taxonomy, code and flattened structured fields in `backend/app/modules/posts/query_service.py`
-- [ ] T133 [US7] Extend direct global Post search with summary/body/taxonomy/structured matches and safe highlights in `backend/app/modules/search/service.py`
-- [ ] T134 [US7] Extend idempotent Post SearchDocument refresh with body, summary, tags, category, keywords and metadata in `backend/app/workers/tasks/search.py`
+- [x] T133 [US7] Extend direct global Post search with summary/body/taxonomy/structured matches and safe highlights in `backend/app/modules/search/service.py`
+- [x] T134 [US7] Extend idempotent Post SearchDocument refresh with body, summary, tags, category, keywords and metadata in `backend/app/workers/tasks/search.py`
 - [x] T135 [US7] Implement occurrence/creation timeline cursor queries and explicit fallback basis in `backend/app/modules/posts/query_service.py`
 - [x] T136 [US7] Implement module search and timeline endpoints in `backend/app/modules/posts/query_router.py`
-- [ ] T137 [US7] Add or tune Post/title/body/JSONB/taxonomy indexes only from measured plans in `backend/alembic/versions/0011_blog_content_management.py`
+- [x] T137 [US7] Add or tune Post/title/body/JSONB/taxonomy indexes only from measured plans in `backend/alembic/versions/0016_blog_search_indexes.py`
 - [x] T138 [P] [US7] Implement typed search/timeline clients and filter serialization in `frontend/src/api/blogQueries.ts`
 - [x] T139 [US7] Add module deep-search bar, filter chips, match fields and safe highlights to `frontend/src/modules/posts/PostListPage.vue`
 - [x] T140 [US7] Implement year/month grouping, time-basis switch, filters and stable cursor loading in `frontend/src/modules/posts/TimelinePage.vue`
-- [ ] T141 [US7] Route global `post` results into view/edit pages with preserved query context in `frontend/src/modules/search/SearchResults.vue` and `frontend/src/router/index.ts`
+- [x] T141 [US7] Route global `post` results into view/edit pages with preserved query context in `frontend/src/modules/search/SearchResults.vue` and `frontend/src/router/index.ts`
 
 **Checkpoint**: US7 makes every committed article findable without waiting for a derived index and provides basic long-term time review.
 

@@ -277,6 +277,16 @@ continuous checks are:
    and 360px Playwright smoke tests. Test credentials are CI-only constants and are never
    production credentials.
 6. A scheduled or manually dispatched 100,000-row performance run with its JUnit report
+
+US7 deep-search acceptance was executed on 2026-08-01:
+
+- Push CI run `30708903463` passed backend quality, PostgreSQL integration/security/broker
+  suites, frontend lint/type/tests/build, Compose configuration and isolated E2E.
+- Manual CI run `30709016223` passed the 100,000-Post performance job in 1m21s and
+  uploaded `performance-100k-results`; the same run also passed every regular gate.
+- Search coverage includes committed data before index refresh, idempotent Post index
+  refresh, CJK/code/source/taxonomy/structured fields, ownership isolation, safe
+  highlights, occurrence-time fallback and deterministic timeline pages.
    retained as a workflow artifact.
 
 `deploy/scripts/deploy.sh up` pushes the source and release-history commits, discovers the
