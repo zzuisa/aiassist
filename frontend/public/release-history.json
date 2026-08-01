@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.133307-51d2df5",
+      "version": "2026.08.01.133307",
+      "commit": "51d2df52c69e4c90515fa0be204d52914a104828",
+      "commit_short": "51d2df5",
+      "message": "deploy: update 2026.08.01.133307",
+      "changes": [
+        "deploy: update 2026.08.01.133307",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/core/observability.py",
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:33:07Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.132425-69e98fd",
       "version": "2026.08.01.132425",
       "commit": "69e98fd8c3987c2009cf9083e9cc44f86b34f24d",
