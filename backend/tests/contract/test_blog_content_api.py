@@ -223,7 +223,9 @@ def test_source_detail_readable_by_owner(client, make_user):
     h = _login(client, user.email)
     cap = client.post("/api/v1/posts/captures/quick", json={"content": "细节"}, headers=h).json()
     sid = cap["source"]["id"]
-    r = client.get(f"/api/v1/post-sources/{sid}", headers=h)
+    # Read-only source endpoints use the authenticated cookie without requiring
+    # the write-only CSRF header, matching the browser API client.
+    r = client.get(f"/api/v1/post-sources/{sid}")
     assert r.status_code == 200
     assert r.json()["id"] == sid
 

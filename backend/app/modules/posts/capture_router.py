@@ -12,7 +12,7 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import CurrentUser, require_csrf
+from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.core.errors import ConflictError, NotFoundError
 from app.db.session import get_db
 from app.models.blog import PostSource
@@ -130,7 +130,7 @@ def capture_quick(
 @sources_router.get("/{source_id}")
 def get_source(
     source_id: uuid.UUID,
-    user: CurrentUser = Depends(require_csrf),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostSourceOut:
     return source_out(capture_service.get_source(db, user.id, source_id))
@@ -150,7 +150,7 @@ def retry_source(
 @sources_router.get("/{source_id}/snapshot-access")
 def snapshot_access(
     source_id: uuid.UUID,
-    user: CurrentUser = Depends(require_csrf),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Authorize access to an owned private source snapshot.
