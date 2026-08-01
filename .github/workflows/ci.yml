@@ -90,11 +90,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Unit, contract, integration, security and reliability coverage
+      - name: Unit, contract, integration and reliability coverage
         run: >-
           pytest
-          -m "(unit or contract or integration or security or reliability) and not performance and not broker"
-          --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=70 -q
+          -m "(unit or contract or integration or reliability) and not security and not performance and not broker"
+          --cov=app --cov-report= --cov-fail-under=0 -q
+      - name: Security tests and aggregate coverage gate
+        run: >-
+          pytest -m "security and not performance and not broker"
+          --cov=app --cov-append --cov-report=term-missing --cov-report=xml
+          --cov-fail-under=70 -q
       - name: Broker round-trip tests
         run: pytest -m broker -q
       - name: Upload backend coverage

@@ -8,7 +8,7 @@ Task with status='todo' without waiting for user review.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -83,7 +83,7 @@ def _calendar_bounds(
     except ValueError:
         return None, None
     try:
-        tz = ZoneInfo(tz_name)
+        tz: tzinfo = ZoneInfo(tz_name)
     except Exception:
         tz = UTC
     t = time(0, 0)

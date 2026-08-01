@@ -21,6 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
+from structlog.typing import Processor
 
 _trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
 
@@ -99,7 +100,7 @@ def configure_logging(level: str = "INFO", service: str = "backend") -> None:
         def filter(self, record: logging.LogRecord) -> bool:
             return record.name != "uvicorn.access"
 
-    foreign_pre_chain = [
+    foreign_pre_chain: list[Processor] = [
         _redact_processor,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,

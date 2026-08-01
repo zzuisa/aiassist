@@ -120,7 +120,7 @@ def attach_images(
                 media_type = upload.expected_media_type
                 is_image = media_type in _PREVIEWABLE_IMAGE
                 width = height = None
-                if is_image:
+                if is_image and media_type is not None:
                     width, height = validate_image(data, media_type)
 
                 asset = TaskNoteAsset(

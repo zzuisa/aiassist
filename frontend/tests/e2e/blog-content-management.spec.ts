@@ -13,6 +13,7 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel('邮箱').fill(EMAIL!)
   await page.getByLabel('密码').fill(PASSWORD!)
   await page.getByRole('button', { name: '登录' }).click()
+  await expect(page).toHaveURL(/\/today/)
 }
 
 test('quick capture saves and returns to the list (happy path)', async ({ page }) => {

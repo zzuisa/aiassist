@@ -79,6 +79,7 @@ describe('article AI provider settings', () => {
         stubs: {
           DependencyBadge: { template: '<div />' },
           MemorySettings: { template: '<div />' },
+          RouterLink: { template: '<a><slot /></a>' },
         },
       },
     })

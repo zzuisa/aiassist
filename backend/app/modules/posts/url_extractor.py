@@ -80,7 +80,7 @@ def canonicalize_url(raw: str) -> str:
     )
 
 
-def _ip_is_forbidden(ip: ipaddress._BaseAddress) -> bool:
+def _ip_is_forbidden(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return (
         ip.is_private
         or ip.is_loopback

@@ -119,9 +119,9 @@ def _apply_snapshot(
                 current = dict(getattr(post, "structured_data_json", None) or {})
                 if isinstance(value, dict):
                     current[sub_key] = value.get(sub_key)
-                post.structured_data_json = current  # type: ignore[assignment]
+                post.structured_data_json = current
             else:
-                post.structured_data_json = value  # type: ignore[assignment]
+                post.structured_data_json = value
         else:
             # Map snapshot key → model attribute name.
             attr = "structured_data_json" if top == "structured_data" else top

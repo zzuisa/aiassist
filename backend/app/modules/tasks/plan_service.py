@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import suppress
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -57,12 +57,15 @@ def _upcoming_summary(session: Session, user_id: uuid.UUID, tz_name: str) -> str
     from zoneinfo import ZoneInfo
 
     try:
-        tz = ZoneInfo(tz_name)
+        tz: tzinfo = ZoneInfo(tz_name)
     except Exception:
         tz = UTC
     parts = []
-    for t in sorted(rows, key=lambda x: x.start_at)[:20]:
-        local = t.start_at.astimezone(tz)
+    for t in sorted(rows, key=lambda x: x.start_at or now)[:20]:
+        start_at = t.start_at
+        if start_at is None:
+            continue
+        local = start_at.astimezone(tz)
         parts.append(f"{local:%m-%d %H:%M} {t.title}")
     return "；".join(parts)
 

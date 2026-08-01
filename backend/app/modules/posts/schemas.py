@@ -503,22 +503,19 @@ from app.models.posts import Post, PostRevision  # noqa: E402 (local import avoi
 
 
 def _ai_summary(p: Post) -> PostAiSummary:
+    first_optimized_at = p.first_ai_optimized_at
+    last_optimized_at = p.last_ai_optimized_at
     return PostAiSummary(
         display_status=getattr(p, "latest_ai_status", None),
         optimization_count=getattr(p, "ai_optimization_count", 0) or 0,
-        first_optimized_at=(
-            p.first_ai_optimized_at.isoformat()
-            if getattr(p, "first_ai_optimized_at", None)
-            else None
-        ),
-        last_optimized_at=(
-            p.last_ai_optimized_at.isoformat() if getattr(p, "last_ai_optimized_at", None) else None
-        ),
+        first_optimized_at=first_optimized_at.isoformat() if first_optimized_at else None,
+        last_optimized_at=last_optimized_at.isoformat() if last_optimized_at else None,
     )
 
 
 def post_out(p: Post) -> PostOut:
     """Lightweight projection (no relation queries) for lists and captures."""
+    occurred_at = p.occurred_at
     return PostOut(
         id=str(p.id),
         title=p.title,
@@ -533,7 +530,7 @@ def post_out(p: Post) -> PostOut:
         category_id=str(p.category_id) if getattr(p, "category_id", None) else None,
         language=getattr(p, "language", "zh-CN"),
         editor_mode=getattr(p, "editor_mode", "rich"),
-        occurred_at=p.occurred_at.isoformat() if getattr(p, "occurred_at", None) else None,
+        occurred_at=occurred_at.isoformat() if occurred_at else None,
         location=getattr(p, "location_text", None),
         project=getattr(p, "project_text", None),
         structured_data=getattr(p, "structured_data_json", {}) or {},

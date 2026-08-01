@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
+from app.models.blog import PostAIRun
 from app.modules.jobs.schemas import serialize_job
 from app.modules.posts import ai_service
 from app.modules.posts.schemas import CandidateDecisionBody, OptimizeBody
@@ -25,7 +26,7 @@ optimize_router = APIRouter(prefix="/posts", tags=["blog-ai"])
 ai_router = APIRouter(prefix="/blog/ai", tags=["blog-ai"])
 
 
-def _run_out(run) -> dict:
+def _run_out(run: PostAIRun) -> dict:
     return {
         "id": str(run.id),
         "post_id": str(run.post_id),

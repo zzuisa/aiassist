@@ -397,8 +397,9 @@ def _call_image_capability(name: str, enhancement: Any) -> tuple[str | None, dic
     capability = _configured_capability(name)
     if not capability or not capability.get("enabled") or capability.get("type") != "http-api":
         return None, {"code": "CAPABILITY_UNAVAILABLE", "message": f"{name} 未配置 http-api"}
-    endpoint = capability.get("endpoint")
-    parsed = urlparse(endpoint if isinstance(endpoint, str) else "")
+    endpoint_value = capability.get("endpoint")
+    endpoint = endpoint_value if isinstance(endpoint_value, str) else ""
+    parsed = urlparse(endpoint)
     if parsed.scheme != "https" or not parsed.netloc:
         return None, {"code": "INVALID_ENDPOINT", "message": f"{name} endpoint 无效"}
 

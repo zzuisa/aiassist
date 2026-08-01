@@ -71,7 +71,7 @@ describe('MarkdownSourceEditor', () => {
 describe('PostPropertySidebar', () => {
   it('emits a content_class patch and resets content_type', async () => {
     const w = mount(PostPropertySidebar, { props: { post: fakePost() } })
-    const select = w.findAll('select')[0]
+    const select = w.findAll('select')[1]
     await select.setValue('life')
     const patches = w.emitted('patch')! as Array<[Record<string, unknown>]>
     expect(patches.at(-1)![0]).toEqual({ content_class: 'life', content_type_id: null })
@@ -79,7 +79,7 @@ describe('PostPropertySidebar', () => {
 
   it('emits a status patch', async () => {
     const w = mount(PostPropertySidebar, { props: { post: fakePost() } })
-    const statusSelect = w.findAll('select')[2]
+    const statusSelect = w.findAll('select')[3]
     await statusSelect.setValue('completed')
     const patches = w.emitted('patch')! as Array<[Record<string, unknown>]>
     expect(patches.at(-1)![0]).toEqual({ content_status: 'completed' })

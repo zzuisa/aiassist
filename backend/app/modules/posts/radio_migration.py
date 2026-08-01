@@ -75,8 +75,9 @@ def _record_title(record: dict[str, Any], record_id: str) -> str:
 
 
 def _record_time(record: dict[str, Any]) -> datetime:
+    created_at = record.get("created_at")
     try:
-        return datetime.fromtimestamp(float(record.get("created_at")), tz=UTC)
+        return datetime.fromtimestamp(float(created_at), tz=UTC)  # type: ignore[arg-type]
     except (TypeError, ValueError, OSError):
         return datetime.now(UTC)
 
@@ -189,9 +190,9 @@ def migrate_record(
     source.created_at = timestamp
     source.updated_at = timestamp
     source.captured_at = timestamp
-    revision = session.get(PostRevision, post.current_revision_id)
-    if revision is not None:
-        revision.created_at = timestamp
+    created_revision = session.get(PostRevision, post.current_revision_id)
+    if created_revision is not None:
+        created_revision.created_at = timestamp
     return MigrationItem(record_id, "created", post_id=str(post.id))
 
 

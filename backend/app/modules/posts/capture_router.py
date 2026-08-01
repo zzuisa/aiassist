@@ -15,6 +15,9 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import CurrentUser, require_csrf
 from app.core.errors import ConflictError, NotFoundError
 from app.db.session import get_db
+from app.models.blog import PostSource
+from app.models.foundation import AsyncJob
+from app.models.posts import Post
 from app.modules.jobs.schemas import serialize_job
 from app.modules.posts import capture_service
 from app.modules.posts.schemas import (
@@ -32,7 +35,7 @@ captures_router = APIRouter(prefix="/posts/captures", tags=["blog-capture"])
 sources_router = APIRouter(prefix="/post-sources", tags=["blog-sources"])
 
 
-def _result(post, source, job) -> CaptureResultOut:
+def _result(post: Post, source: PostSource, job: AsyncJob | None) -> CaptureResultOut:
     return CaptureResultOut(
         post=post_out(post),
         source=source_out(source),

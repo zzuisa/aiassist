@@ -60,43 +60,44 @@ def create_item(
     aliases = list(dict.fromkeys(a.strip() for a in aliases or [] if a.strip()))
 
     if kind == "category":
-        existing = session.scalar(
+        category_existing = session.scalar(
             select(Category).where(
                 Category.user_id == user_id,
                 Category.kind == "post",
                 func.lower(Category.name) == cleaned_name.lower(),
             )
         )
-        if existing is not None:
+        if category_existing is not None:
             raise ConflictError("category already exists", code="taxonomy_exists")
         if parent_id is not None:
             _owned_parent(session, user_id, parent_id)
-        item = Category(id=uuid.uuid4(), user_id=user_id, name=cleaned_name, kind="post")
-        session.add(item)
+        category_item = Category(id=uuid.uuid4(), user_id=user_id, name=cleaned_name, kind="post")
+        session.add(category_item)
         session.flush()
         session.add(
             PostCategoryProfile(
-                category_id=item.id,
+                category_id=category_item.id,
                 user_id=user_id,
                 parent_category_id=parent_id,
                 description=description,
                 enabled=enabled,
             )
         )
+        result_id = category_item.id
     elif kind == "tag":
-        existing = session.scalar(
+        tag_existing = session.scalar(
             select(Tag).where(Tag.user_id == user_id, func.lower(Tag.name) == cleaned_name.lower())
         )
-        if existing is not None:
+        if tag_existing is not None:
             raise ConflictError("tag already exists", code="taxonomy_exists")
         if any(len(alias) > 64 for alias in aliases):
             raise ValidationError("tag alias is too long", code="invalid_taxonomy_alias")
-        item = Tag(id=uuid.uuid4(), user_id=user_id, name=cleaned_name)
-        session.add(item)
+        tag_item = Tag(id=uuid.uuid4(), user_id=user_id, name=cleaned_name)
+        session.add(tag_item)
         session.flush()
         session.add(
             PostTagProfile(
-                tag_id=item.id,
+                tag_id=tag_item.id,
                 user_id=user_id,
                 color=color,
                 description=description,
@@ -104,19 +105,20 @@ def create_item(
             )
         )
         session.add_all(
-            PostTagAlias(id=uuid.uuid4(), user_id=user_id, tag_id=item.id, alias=alias)
+            PostTagAlias(id=uuid.uuid4(), user_id=user_id, tag_id=tag_item.id, alias=alias)
             for alias in aliases
         )
+        result_id = tag_item.id
     else:
-        existing = session.scalar(
+        keyword_existing = session.scalar(
             select(PostKeyword).where(
                 PostKeyword.user_id == user_id,
                 func.lower(PostKeyword.canonical_text) == cleaned_name.lower(),
             )
         )
-        if existing is not None:
+        if keyword_existing is not None:
             raise ConflictError("keyword already exists", code="taxonomy_exists")
-        item = PostKeyword(
+        keyword_item = PostKeyword(
             id=uuid.uuid4(),
             user_id=user_id,
             canonical_text=cleaned_name,
@@ -124,14 +126,17 @@ def create_item(
             enabled=enabled,
             is_stop_word=stop_word,
         )
-        session.add(item)
+        session.add(keyword_item)
         session.flush()
         session.add_all(
-            PostKeywordAlias(id=uuid.uuid4(), user_id=user_id, keyword_id=item.id, alias=alias)
+            PostKeywordAlias(
+                id=uuid.uuid4(), user_id=user_id, keyword_id=keyword_item.id, alias=alias
+            )
             for alias in aliases
         )
+        result_id = keyword_item.id
     session.flush()
-    return get_item(session, user_id, kind, item.id)
+    return get_item(session, user_id, kind, result_id)
 
 
 def get_item(session: Session, user_id: uuid.UUID, kind: str, item_id: uuid.UUID) -> dict:
@@ -151,7 +156,7 @@ def list_items(
 ) -> list[dict]:
     _validate_kind(kind)
     if kind == "category":
-        stmt = (
+        category_stmt = (
             select(Category, PostCategoryProfile, func.count(Post.id))
             .join(PostCategoryProfile, PostCategoryProfile.category_id == Category.id)
             .outerjoin(Post, Post.category_id == Category.id)
@@ -160,9 +165,9 @@ def list_items(
             .order_by(func.lower(Category.name))
         )
         if enabled is not None:
-            stmt = stmt.where(PostCategoryProfile.enabled == enabled)
+            category_stmt = category_stmt.where(PostCategoryProfile.enabled == enabled)
         if item_id is not None:
-            stmt = stmt.where(Category.id == item_id)
+            category_stmt = category_stmt.where(Category.id == item_id)
         return [
             {
                 "id": str(item.id),
@@ -178,10 +183,10 @@ def list_items(
                 "stop_word": False,
                 "usage_count": count,
             }
-            for item, profile, count in session.execute(stmt)
+            for item, profile, count in session.execute(category_stmt)
         ]
     if kind == "tag":
-        stmt = (
+        tag_stmt = (
             select(Tag, PostTagProfile, func.count(PostTag.post_id))
             .join(PostTagProfile, PostTagProfile.tag_id == Tag.id)
             .outerjoin(PostTag, PostTag.tag_id == Tag.id)
@@ -190,10 +195,10 @@ def list_items(
             .order_by(func.lower(Tag.name))
         )
         if enabled is not None:
-            stmt = stmt.where(PostTagProfile.enabled == enabled)
+            tag_stmt = tag_stmt.where(PostTagProfile.enabled == enabled)
         if item_id is not None:
-            stmt = stmt.where(Tag.id == item_id)
-        rows = session.execute(stmt).all()
+            tag_stmt = tag_stmt.where(Tag.id == item_id)
+        tag_rows = session.execute(tag_stmt).all()
         return [
             {
                 "id": str(item.id),
@@ -211,9 +216,9 @@ def list_items(
                 "stop_word": False,
                 "usage_count": count,
             }
-            for item, profile, count in rows
+            for item, profile, count in tag_rows
         ]
-    stmt = (
+    keyword_stmt = (
         select(PostKeyword, func.count(PostKeywordLink.post_id))
         .outerjoin(PostKeywordLink, PostKeywordLink.keyword_id == PostKeyword.id)
         .where(PostKeyword.user_id == user_id)
@@ -221,10 +226,10 @@ def list_items(
         .order_by(func.lower(PostKeyword.canonical_text))
     )
     if enabled is not None:
-        stmt = stmt.where(PostKeyword.enabled == enabled)
+        keyword_stmt = keyword_stmt.where(PostKeyword.enabled == enabled)
     if item_id is not None:
-        stmt = stmt.where(PostKeyword.id == item_id)
-    rows = session.execute(stmt).all()
+        keyword_stmt = keyword_stmt.where(PostKeyword.id == item_id)
+    keyword_rows = session.execute(keyword_stmt).all()
     return [
         {
             "id": str(item.id),
@@ -242,5 +247,5 @@ def list_items(
             "stop_word": item.is_stop_word,
             "usage_count": count,
         }
-        for item, count in rows
+        for item, count in keyword_rows
     ]

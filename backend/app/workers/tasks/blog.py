@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import uuid
 from time import monotonic
+from typing import Any, cast
+
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.observability import get_logger, set_trace_id
 from app.db.session import session_scope
+from app.models.blog import PostSource
 from app.services.llm.base import ChatRequest, LLMError
 from app.workers.celery_app import celery
 
@@ -52,7 +56,7 @@ def generate_revision(post_id: uuid.UUID, scenario: str, instruction: str | None
 
 
 @celery.task(name="app.workers.tasks.blog.generate", bind=True, max_retries=3)
-def generate(self, post_id: str, scenario: str, instruction: str | None = None) -> str:  # type: ignore[no-untyped-def]
+def generate(self: Any, post_id: str, scenario: str, instruction: str | None = None) -> str:
     return generate_revision(uuid.UUID(post_id), scenario, instruction)
 
 
@@ -77,8 +81,8 @@ def _is_stub_body(markdown: str, url: str | None) -> bool:
 
 
 def _finish_parse(
-    session,
-    src_row,
+    session: Session,
+    src_row: PostSource,
     *,
     ok: bool,
     code: str | None = None,
@@ -255,7 +259,7 @@ def extract_source(source_id: uuid.UUID) -> str:
     max_retries=2,
     acks_late=True,
 )
-def extract(self, source_id: str) -> str:  # type: ignore[no-untyped-def]
+def extract(self: Any, source_id: str) -> str:
     return extract_source(uuid.UUID(source_id))
 
 
@@ -283,8 +287,8 @@ def _radio_task_failure(error: str | None) -> tuple[str, str, bool]:
 
 
 def _fail_radio_import(
-    session,
-    source,
+    session: Session,
+    source: PostSource,
     *,
     code: str,
     message: str,
@@ -754,6 +758,7 @@ def optimize_run(
             if scope != "body"
             else (body if instruction is None else f"{body}\n\n[要求]{instruction}")
         )
+        result: BlogOptimizationV1 | BlogEnhancementResultV1
         if run.provider_key == "radio":
             from app.services.radio import RadioServiceError, get_radio_client
 
@@ -960,7 +965,8 @@ def optimize_run(
                 result.markdown = insert_enhancements(
                     result.markdown or post.markdown, visual_items
                 )
-        result, orchestration_result = _normalize_orchestration_result(result, post)
+        normalized_result, orchestration_result = _normalize_orchestration_result(result, post)
+        result = cast(BlogOptimizationV1, normalized_result)
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)
         blocking = protected_content.has_blocking_change(changes)

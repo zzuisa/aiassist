@@ -246,7 +246,7 @@ def clear_completed_jobs(session: Session, user_id: uuid.UUID) -> int:
     result = session.execute(
         delete(AsyncJob).where(AsyncJob.user_id == user_id, AsyncJob.status == "completed")
     )
-    return result.rowcount or 0
+    return int(getattr(result, "rowcount", 0) or 0)
 
 
 def events_after(
