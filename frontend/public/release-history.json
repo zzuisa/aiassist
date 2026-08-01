@@ -1,6 +1,32 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.112503-28d7054",
+      "version": "2026.08.01.112503",
+      "commit": "28d705493f08d0d0c6c744daa94f1a5566750020",
+      "commit_short": "28d7054",
+      "message": "deploy: update 2026.08.01.112503",
+      "changes": [
+        "deploy: update 2026.08.01.112503",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/integration/test_blog_ai_pipeline.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/src/modules/posts/OptimizePostDialog.vue"
+      ],
+      "deployed_at": "2026-08-01T11:25:03Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.104808-a360578",
       "version": "2026.08.01.104808",
       "commit": "a360578747bcd723a37dd874c8f67ee02867d3f0",
