@@ -56,11 +56,23 @@ test('url capture rejects an unsafe address (failure path)', async ({ page }) =>
   await page.getByText('从网址', { exact: true }).click()
 
   await page.getByPlaceholder('https://…').fill('http://169.254.169.254/latest/meta-data')
-  await page.getByRole('button', { name: '保存并抓取' }).click()
+  const [captureResponse] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes('/api/v1/posts/captures/url') && response.request().method() === 'POST',
+    ),
+    page.getByRole('button', { name: '保存并抓取' }).click(),
+  ])
+  const capture = await captureResponse.json() as { source: { id: string } }
 
   // The source remains durable, while the asynchronous per-hop SSRF guard
   // rejects the fetch without importing remote content.
   await expect(page).toHaveURL(/\/blog\/[0-9a-f-]+$/)
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/v1/post-sources/${capture.source.id}`)
+    const source = await response.json() as { status: string }
+    return source.status
+  }, { timeout: 30_000 }).toBe('failed')
+  await page.reload()
   await expect(page.getByText('url failed')).toBeVisible({ timeout: 15_000 })
 })
 
@@ -99,7 +111,7 @@ test('focus mode hides the outline and sidebar', async ({ page }) => {
   await expect(page.locator('.outline')).toBeVisible()
   await page.getByRole('button', { name: '专注' }).click()
   await expect(page.locator('.outline')).toBeHidden()
-  await expect(page.locator('.sidebar')).toHaveCount(0)
+  await expect(page.locator('.workbench > .sidebar')).toHaveCount(0)
 })
 
 test('clicking an outline heading moves the source editor to that chapter', async ({ page }) => {
