@@ -1,6 +1,37 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.182401-66b9511",
+      "version": "2026.08.01.182401",
+      "commit": "66b9511e55f6b65f5b89209a31a93989d795f2c4",
+      "commit_short": "66b9511",
+      "message": "deploy: update 2026.08.01.182401",
+      "changes": [
+        "deploy: update 2026.08.01.182401",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/main.py",
+        "backend/app/modules/posts/settings_router.py",
+        "backend/app/modules/posts/settings_service.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "frontend/src/api/blogSettings.ts",
+        "frontend/src/modules/posts/BlogSettingsPage.vue",
+        "frontend/src/modules/posts/WordCloudPage.vue",
+        "frontend/tests/component/blog-discovery.spec.ts",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T18:24:01Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.180529-2207dd6",
       "version": "2026.08.01.180529",
       "commit": "2207dd6bd33bdbf4f57dd44a2052f9da33ab8813",
