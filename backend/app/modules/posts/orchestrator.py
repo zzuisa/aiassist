@@ -34,7 +34,7 @@ BLOG_ENHANCEMENT_SYSTEM_PROMPT = r"""你是「AI Assist 博客增强编排器（
 
 诊断指标均为 0～3：information_density、logical_complexity、data_richness、scene_relevance、visual_potential、rewrite_value、evidence_quality。
 
-门控规则：只有 logical_complexity>=2、至少 3 个有意义节点、至少 2 条正文明确关系且图示显著降低理解成本时才考虑 visualize；面向普通读者时优先生成紧凑、生活化的 visual-plan，而不是平铺的 Mermaid；只有 3～7 个节点、每个节点短标签、关系可验证时才生成。只有至少 3 个统一口径且可信的可比较数据点时才考虑 answers-charts；真实图片必须有明确地点/实物/现场语境、检索开关和来源授权；概念插画必须有明确的信息或品牌作用、生成开关，并且不能被精确图表或现有图片更好替代。任何缺少证据、只是装饰、会增加复杂度或收益低于调用成本的增强都必须 skipped。
+门控规则：只有 logical_complexity>=2、正文存在可验证关系且图示显著降低理解成本时才考虑 visualize；面向普通读者时由文章内容决定图示类型、节点数量和布局，不为了固定模板删减事实。只有至少 3 个统一口径且可信的可比较数据点时才考虑 answers-charts；真实图片必须有明确地点/实物/现场语境、检索开关和来源授权；概念插画必须有明确的信息或品牌作用、生成开关，并且不能被精确图表或现有图片更好替代。任何缺少证据、只是装饰、会增加复杂度或收益低于调用成本的增强都必须 skipped。
 
 普通读者解释型文章自动识别：标题或正文出现“是什么、为什么、如何、原理、过程、步骤、阶段、循环、从……到……、工作方式、指南、入门”等解释/过程信号，且正文至少能提取 3 个连续或相互关联的要点时，启用 reader-explainer 模式。该模式默认采用“清晰标题 + 简短导语 + 一句重点摘要 + 一张紧凑步骤 PNG + 4～6 个步骤 + 为什么重要/实际意义 + 来源”的结构；用户没有提供额外提示词也必须执行。不要输出 visual-plan 代码块给用户，系统会在候选边界将 visual-plan 渲染为真正的 PNG 并插入正文导语之后。
 
@@ -42,7 +42,7 @@ BLOG_ENHANCEMENT_SYSTEM_PROMPT = r"""你是「AI Assist 博客增强编排器（
 
 只输出符合请求 JSON Schema 的一个 JSON 对象，不输出解释文字或 Markdown 代码围栏。最终对象必须包含 status、article_assessment、decision、optimized_article、enhancements、quality_report、usage；每个视觉增强必须包含标题/说明和 alt_text。Quality 检查只删除无依据或低价值增强，不用更多虚构内容修补。
 
-视觉增强的 content 必须使用可执行结构：visualize 优先使用 {"visual_plan":{"visual_type":"illustrated_steps|compact_flow|concept_map|before_after|timeline","layout":"compact_horizontal|compact_vertical|timeline|radial","theme":"warm|fresh|calm|energetic|neutral","title":"...","nodes":[{"id":"step1","label":"不超过40字","detail":"不超过80字","icon":"step"}],"edges":[{"from":"step1","to":"step2","label":"不超过30字"}]}}；技术图或无法压缩时才使用 {"mermaid":"flowchart TD..."} 或 {"mermaid":"mindmap..."}。visual-plan 必须有 3～7 个节点、最多 10 条关系，节点文字短、面向普通用户、不要写代码或长段落。answers-charts 使用 {"chart_type":"bar|line|pie|scatter|table","data":[{"label":"...","value":0}],"unit":"...","source":[]}，只使用正文已有且口径一致的数据；imagegen/answers-images 使用 {"prompt":"..."} 或 {"query":"..."}。不要把 HTML、脚本、data URI 或未经验证的图片地址放入 content。
+视觉增强的 content 必须使用可执行结构：visualize 优先使用 visual_plan，按文章内容自行选择图示类型、布局、主题和节点数量；节点与关系只能来自原文，不要为了凑数拆分或合并事实。节点文字应清晰，细节应足以帮助理解但避免复制整段正文；系统会负责安全校验并渲染为 PNG。技术图或无法压缩时才使用 {"mermaid":"flowchart TD..."} 或 {"mermaid":"mindmap..."}。answers-charts 使用 {"chart_type":"bar|line|pie|scatter|table","data":[{"label":"...","value":0}],"unit":"...","source":[]}，只使用正文已有且口径一致的数据；imagegen/answers-images 使用 {"prompt":"..."} 或 {"query":"..."}。不要把 HTML、脚本、data URI 或未经验证的图片地址放入 content。
 
 模型与工具无关：不得依赖 Claude CLI。Qwen、DeepSeek 或其他兼容 JSON Schema 的模型均按同一规则工作。"""
 
@@ -174,8 +174,8 @@ def _reader_node_candidates(content: str) -> list[str]:
         match = re.match(r"^(?:[-*]|\d+[.)、])\s+(.+)$", value)
         if match:
             candidates.append(match.group(1).strip())
-    if len(candidates) >= 3:
-        return candidates[:7]
+    if candidates:
+        return candidates
 
     # A heading-based explainer is also common. Exclude navigation/source-only
     # headings so the generated image describes the subject, not the footer.
@@ -183,8 +183,8 @@ def _reader_node_candidates(content: str) -> list[str]:
         match = re.match(r"^#{2,6}\s+(.+)$", line.strip())
         if match and not re.search(r"来源|参考|source|reference", match.group(1), re.I):
             candidates.append(match.group(1).strip())
-    if len(candidates) >= 3:
-        return candidates[:7]
+    if candidates:
+        return candidates
 
     # Spoken essays and analyses often have no Markdown headings or numbered
     # list. Reuse only substantial paragraphs that explicitly express a
@@ -200,8 +200,8 @@ def _reader_node_candidates(content: str) -> list[str]:
         for paragraph in paragraphs
         if len(paragraph) >= 48 and _READER_RELATION_SIGNALS.search(paragraph)
     ]
-    if len(paragraph_nodes) >= 3:
-        return paragraph_nodes[:5]
+    if paragraph_nodes:
+        return paragraph_nodes
 
     return []
 
@@ -214,12 +214,12 @@ def detect_reader_explainer(title: str, content: str) -> tuple[bool, str, int]:
     process_signal_count = len(_READER_PROCESS_SIGNALS.findall(text))
     relation_count = len(_READER_RELATION_SIGNALS.findall(content))
     enough_body = len(content.strip()) >= 160
-    if len(nodes) >= 3 and (title_signal or process_signal_count >= 2 or relation_count >= 2):
+    if nodes and (title_signal or process_signal_count >= 2 or relation_count >= 2):
         reason = "标题/正文包含解释或过程信号，且已提取至少 3 个可验证要点"
         return True, reason, len(nodes)
-    if enough_body and title_signal and process_signal_count >= 1 and relation_count >= 1:
+    if nodes and enough_body and title_signal and process_signal_count >= 1 and relation_count >= 1:
         reason = "标题明确面向解释，正文包含过程关系"
-        return True, reason, max(3, len(nodes))
+        return True, reason, len(nodes)
     return False, "未达到普通读者步骤化解释的最小信息门槛", len(nodes)
 
 
@@ -332,7 +332,7 @@ def build_plan(
             and len(text_lines(content)) >= 3
         ) or (
             reader_explainer
-            and candidate_node_count >= 3
+            and candidate_node_count >= 1
             and assessment.information_density >= 1
         ),
         "逻辑节点不足，或正文信息量不足以支撑普通读者步骤图", "allow_visualize",
@@ -394,16 +394,16 @@ def build_default_reader_visual(
     the article. It never invents a new fact, and the normal visual validator
     still gates the final PNG.
     """
-    if not plan.reader_explainer or plan.candidate_node_count < 3:
+    if not plan.reader_explainer or plan.candidate_node_count < 1:
         return None
     if re.search(r"!\[[^\]]*\]\([^)]*\)|```visual-plan", markdown):
         return None
     raw_nodes = _reader_node_candidates(markdown)
-    if len(raw_nodes) < 3:
+    if not raw_nodes:
         return None
 
     nodes: list[dict[str, str]] = []
-    for index, raw in enumerate(raw_nodes[:7], start=1):
+    for index, raw in enumerate(raw_nodes, start=1):
         value = re.sub(r"\s+", " ", raw).strip()
         value = _READER_DISCOURSE_PREFIX.sub("", value)
         parts = re.split(r"[:：—–-]\s*", value, maxsplit=1)
@@ -497,14 +497,14 @@ def build_system_prompt(config: dict[str, Any], plan: OrchestrationPlan, instruc
     if plan.reader_explainer:
         parts.append(
             "本次已自动启用 reader-explainer 模式：请把正文整理成普通读者能快速理解的短段落、步骤和实际意义；"
-            "优先返回一张 3～7 节点的紧凑 visual_plan。节点只能来自原文已表达的事实，标签简短，"
+            "优先返回一张适合本文内容的 visual_plan。节点只能来自原文已表达的事实，标签简短，"
             "不要返回 Mermaid、代码围栏或下载按钮。"
         )
     if "logic-agent" in plan.selected_agents:
         parts.append(
             "本次优化已将读者示意图列为固定增强步骤。请在 enhancements 中返回一项 status=executed、"
-            "capability=visualize 的紧凑 visual_plan；仅使用原文事实，控制在 3～5 个节点，"
-            "每个节点只保留短标题和一句细节，避免大段文字。系统会将其渲染为 PNG 并插入候选正文，"
+            "capability=visualize 的 visual_plan；节点数量、图示类型、布局和主题由文章内容决定，"
+            "不要为了符合固定模板而删减或虚构节点。每个节点保留能帮助读者理解的标题和细节，避免复制大段正文。系统会将其渲染为 PNG 并插入候选正文，"
             "不要返回图片 URL、base64 或下载按钮。"
         )
     if instruction:

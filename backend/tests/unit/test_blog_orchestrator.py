@@ -136,8 +136,8 @@ def test_prose_analysis_gets_compact_reader_visual_without_instruction(monkeypat
     plan = orchestrator.build_plan("全球金融风险分析", content)
 
     assert plan.reader_explainer is True
-    assert 3 <= plan.candidate_node_count <= 5
+    assert plan.candidate_node_count >= 1
     fallback = orchestrator.build_default_reader_visual("全球金融风险分析", content, plan)
     assert fallback is not None
-    assert len(fallback["content"]["visual_plan"]["nodes"]) <= 5
+    assert len(fallback["content"]["visual_plan"]["nodes"]) == plan.candidate_node_count
     assert fallback["content"]["visual_plan"]["nodes"][0]["detail"]

@@ -26,13 +26,8 @@ from app.services.storage.providers.local import get_storage
 _MAX_MERMAID = 20_000
 _MAX_CHART_POINTS = 100
 _MAX_IMAGE_RESPONSE = 64 * 1024
-_MAX_VISUAL_NODES = 7
-_MAX_VISUAL_EDGES = 10
 _DANGEROUS_MERMAID = re.compile(r"<\s*script|javascript:|data:text/html|on\w+\s*=", re.I)
 _VISUAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")
-_VISUAL_LAYOUTS = {"compact_horizontal", "compact_vertical", "timeline", "radial"}
-_VISUAL_TYPES = {"illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"}
-_VISUAL_THEMES = {"warm", "fresh", "calm", "energetic", "neutral"}
 _FONT_CANDIDATES = (
     ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 2),
     ("/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc", 2),
@@ -315,16 +310,19 @@ def _as_visual_plan(content: dict[str, Any]) -> dict[str, Any] | None:
     nodes = raw.get("nodes")
     edges = raw.get("edges", [])
     if (
-        visual_type not in _VISUAL_TYPES
-        or layout not in _VISUAL_LAYOUTS
-        or theme not in _VISUAL_THEMES
+        not isinstance(visual_type, str)
+        or not (1 <= len(visual_type.strip()) <= 80)
+        or not isinstance(layout, str)
+        or not (1 <= len(layout.strip()) <= 80)
+        or not isinstance(theme, str)
+        or not (1 <= len(theme.strip()) <= 80)
     ):
         return None
     if not isinstance(title, str) or not (1 <= len(title.strip()) <= 120):
         return None
-    if not isinstance(nodes, list) or not (3 <= len(nodes) <= _MAX_VISUAL_NODES):
+    if not isinstance(nodes, list) or not nodes:
         return None
-    if not isinstance(edges, list) or len(edges) > _MAX_VISUAL_EDGES:
+    if not isinstance(edges, list):
         return None
 
     normalized_nodes: list[dict[str, str]] = []
@@ -373,8 +371,6 @@ def _as_visual_plan(content: dict[str, Any]) -> dict[str, Any] | None:
                 "label": str(edge.get("label", "")).strip()[:30],
             }
         )
-    if not normalized_edges and visual_type not in {"before_after", "timeline"}:
-        return None
     return {
         "visual_type": visual_type,
         "layout": layout,

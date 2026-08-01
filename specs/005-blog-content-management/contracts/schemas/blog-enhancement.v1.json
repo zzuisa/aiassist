@@ -73,12 +73,12 @@
       "type": "object", "additionalProperties": false,
       "required": ["visual_type", "layout", "theme", "title", "nodes", "edges"],
       "properties": {
-        "visual_type": { "enum": ["illustrated_steps", "compact_flow", "concept_map", "before_after", "timeline"] },
-        "layout": { "enum": ["compact_horizontal", "compact_vertical", "timeline", "radial"] },
-        "theme": { "enum": ["warm", "fresh", "calm", "energetic", "neutral"] },
+        "visual_type": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "layout": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "theme": { "type": "string", "minLength": 1, "maxLength": 80 },
         "title": { "type": "string", "minLength": 1, "maxLength": 120 },
-        "nodes": { "type": "array", "minItems": 3, "maxItems": 7, "items": { "$ref": "#/$defs/visualNode" } },
-        "edges": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/visualEdge" } }
+        "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/visualNode" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/visualEdge" } }
       }
     },
     "visualNode": {

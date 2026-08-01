@@ -7,9 +7,9 @@ type VisualKind = 'mermaid' | 'visual-plan' | 'echarts'
 type VisualNode = { id: string; label: string; detail?: string; icon?: string }
 type VisualEdge = { from: string; to: string; label?: string }
 type VisualPlan = {
-  visual_type: 'illustrated_steps' | 'compact_flow' | 'concept_map' | 'before_after' | 'timeline'
-  layout: 'compact_horizontal' | 'compact_vertical' | 'timeline' | 'radial'
-  theme: 'warm' | 'fresh' | 'calm' | 'energetic' | 'neutral'
+  visual_type: string
+  layout: string
+  theme: string
   title: string
   nodes: VisualNode[]
   edges: VisualEdge[]
@@ -26,7 +26,7 @@ const error = ref('')
 let chart: ECharts | null = null
 let renderSerial = 0
 
-const themeMap: Record<VisualPlan['theme'], { background: string; ink: string; muted: string; colors: string[] }> = {
+const themeMap: Record<string, { background: string; ink: string; muted: string; colors: string[] }> = {
   warm: { background: '#fff8f1', ink: '#3b2f2a', muted: '#806d62', colors: ['#f6bd60', '#f28482', '#84a59d', '#f5cac3'] },
   fresh: { background: '#f2fbf8', ink: '#173b3a', muted: '#567674', colors: ['#69c6b0', '#8dc6ff', '#f5c46b', '#d6a2e8'] },
   calm: { background: '#f5f7ff', ink: '#2f3658', muted: '#68708e', colors: ['#91a7ff', '#a5d8ff', '#b2f2bb', '#ffd8a8'] },
@@ -57,7 +57,7 @@ function parseVisualPlan(source: string): VisualPlan | null {
         ? (parsed as { visual_plan?: unknown }).visual_plan
         : parsed
     ) as Partial<VisualPlan> | null
-    if (!value || !Array.isArray(value.nodes) || value.nodes.length < 3 || value.nodes.length > 7) return null
+    if (!value || !Array.isArray(value.nodes) || value.nodes.length < 1) return null
     if (typeof value.title !== 'string' || !Array.isArray(value.edges)) return null
     const nodes = value.nodes as VisualNode[]
     const edges = value.edges as VisualEdge[]
@@ -92,7 +92,7 @@ function nodePositions(plan: VisualPlan, width: number, height: number): Map<str
 }
 
 function visualPlanSvg(plan: VisualPlan): string {
-  const theme = themeMap[plan.theme]
+  const theme = themeMap[plan.theme] ?? themeMap.neutral
   const nodeWidth = 190
   const nodeHeight = 86
   const columns = plan.layout === 'compact_vertical' ? 1 : plan.nodes.length <= 4 ? plan.nodes.length : 3
@@ -100,7 +100,7 @@ function visualPlanSvg(plan: VisualPlan): string {
   const width = Math.min(900, Math.max(360, columns * nodeWidth + (columns - 1) * 26 + 40))
   const height = 74 + rows * nodeHeight + Math.max(0, rows - 1) * 24 + 28
   const positions = nodePositions(plan, width, height)
-  const markerId = `arrow-${plan.theme}`
+  const markerId = `arrow-${plan.theme.replace(/[^A-Za-z0-9_-]/g, '-')}`
   const edgeSvg = plan.edges.map((edge) => {
     const from = positions.get(edge.from)
     const to = positions.get(edge.to)
