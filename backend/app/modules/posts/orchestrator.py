@@ -413,6 +413,14 @@ def build_default_reader_visual(
     }
 
 
+def has_embedded_visual(markdown: str) -> bool:
+    """Return whether the article already contains an AI Assist visual asset."""
+    return bool(
+        re.search(r"/api/v1/posts/[^)]+/visual-assets/[^)]+\.png", markdown)
+        or "```visual-plan" in markdown
+    )
+
+
 def build_user_payload(
     *, title: str, content: str, language: str, category: str | None,
     target_audience: str | None, author_intent: str | None,

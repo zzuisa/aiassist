@@ -649,6 +649,7 @@ def optimize_run(
         build_plan,
         build_system_prompt,
         build_user_payload,
+        has_embedded_visual,
     )
     from app.modules.posts.visuals import execute_enhancements, insert_enhancements
     from app.services.llm.base import LLMError, StructuredRequest
@@ -884,12 +885,18 @@ def optimize_run(
         orchestration_result = None
         visual_items: list[dict] = []
         if isinstance(result, BlogEnhancementResultV1):
+            existing_visual = has_embedded_visual(post.markdown)
+            if existing_visual:
+                for item in result.enhancements:
+                    if item.capability == "visualize" and item.status == "executed":
+                        item.status = "skipped"
+                        item.reason = "文章已有 PNG 视觉资产，保留现有图示以避免重复"
             # The model is instructed to create a compact reader visual for
             # explainers, but the product promise must not depend on a model
             # remembering one optional field. Reuse only source-backed steps
             # when it omitted the visual; the normal visual validator and PNG
             # renderer remain the final safety gates.
-            if orchestration_plan.reader_explainer and not any(
+            if not existing_visual and orchestration_plan.reader_explainer and not any(
                 item.capability == "visualize" and item.status == "executed"
                 for item in result.enhancements
             ):
