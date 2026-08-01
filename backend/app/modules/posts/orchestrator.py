@@ -155,6 +155,13 @@ _READER_PROCESS_SIGNALS = re.compile(
     r"首先|然后|接着|随后|最后|步骤|阶段|过程|循环|流转|演变|形成|工作原理|如何|因为|因此|所以|first|then|next|finally|step|stage|cycle|process",
     re.I,
 )
+_READER_RELATION_SIGNALS = re.compile(
+    r"因为|因此|所以|如果|那么|导致|意味着|问题在于|无非|一方面|另一方面|此外|然而|最终|从而|叠加|依赖|无法|只有|一旦|也就是说",
+    re.I,
+)
+_READER_DISCOURSE_PREFIX = re.compile(
+    r"^(?:此外|另外|同时|然而|因此|所以|也就是说|问题在于|第一|第二|第三)[，、:：\s]+"
+)
 
 
 def _reader_node_candidates(content: str) -> list[str]:
@@ -179,6 +186,23 @@ def _reader_node_candidates(content: str) -> list[str]:
     if len(candidates) >= 3:
         return candidates[:7]
 
+    # Spoken essays and analyses often have no Markdown headings or numbered
+    # list. Reuse only substantial paragraphs that explicitly express a
+    # relationship, so the fallback visual remains source-backed rather than
+    # inventing a summary from arbitrary prose.
+    paragraphs = [
+        re.sub(r"\s+", " ", part).strip()
+        for part in re.split(r"\n\s*\n", content)
+        if part.strip()
+    ]
+    paragraph_nodes = [
+        paragraph
+        for paragraph in paragraphs
+        if len(paragraph) >= 48 and _READER_RELATION_SIGNALS.search(paragraph)
+    ]
+    if len(paragraph_nodes) >= 3:
+        return paragraph_nodes[:5]
+
     return []
 
 
@@ -188,7 +212,7 @@ def detect_reader_explainer(title: str, content: str) -> tuple[bool, str, int]:
     nodes = _reader_node_candidates(content)
     title_signal = bool(_READER_TITLE_SIGNALS.search(title))
     process_signal_count = len(_READER_PROCESS_SIGNALS.findall(text))
-    relation_count = len(re.findall(r"因为|因此|所以|如果|然后|首先|其次|最后|相比|从而|导致|依赖|->|=>", content, re.I))
+    relation_count = len(_READER_RELATION_SIGNALS.findall(content))
     enough_body = len(content.strip()) >= 160
     if len(nodes) >= 3 and (title_signal or process_signal_count >= 2 or relation_count >= 2):
         reason = "标题/正文包含解释或过程信号，且已提取至少 3 个可验证要点"
@@ -381,12 +405,16 @@ def build_default_reader_visual(
     nodes: list[dict[str, str]] = []
     for index, raw in enumerate(raw_nodes[:7], start=1):
         value = re.sub(r"\s+", " ", raw).strip()
+        value = _READER_DISCOURSE_PREFIX.sub("", value)
         parts = re.split(r"[:：—–-]\s*", value, maxsplit=1)
-        label = parts[0][:40].strip() or value[:40]
-        detail = (parts[1] if len(parts) > 1 else value)[0:80].strip()
+        label_source = parts[0]
+        if len(label_source) > 40:
+            label_source = re.split(r"[，,；;。]", label_source, maxsplit=1)[0]
+        label = label_source[:40].strip() or value[:40]
+        detail = (parts[1] if len(parts) > 1 else value)[0:72].strip()
         nodes.append({"id": f"step{index}", "label": label, "detail": detail, "icon": "step"})
     edges = [
-        {"from": nodes[index]["id"], "to": nodes[index + 1]["id"], "label": "下一步"}
+        {"from": nodes[index]["id"], "to": nodes[index + 1]["id"], "label": "文中关系"}
         for index in range(len(nodes) - 1)
     ]
     if re.search(r"循环|cycle", f"{title}\n{markdown}", re.I) and len(nodes) >= 3:
@@ -403,13 +431,13 @@ def build_default_reader_visual(
                 "visual_type": "compact_flow",
                 "layout": "compact_horizontal" if len(nodes) <= 5 else "compact_vertical",
                 "theme": "fresh",
-                "title": (title or "文章关键步骤")[:120],
+                "title": (title or "文章关键脉络")[:80],
                 "nodes": nodes,
                 "edges": edges,
             }
         },
-        "caption": "文章关键步骤",
-        "alt_text": f"{title}的关键步骤图"[:500],
+        "caption": "文章关键脉络（基于作者观点）",
+        "alt_text": f"{title}的关键脉络示意图"[:500],
     }
 
 
@@ -471,6 +499,13 @@ def build_system_prompt(config: dict[str, Any], plan: OrchestrationPlan, instruc
             "本次已自动启用 reader-explainer 模式：请把正文整理成普通读者能快速理解的短段落、步骤和实际意义；"
             "优先返回一张 3～7 节点的紧凑 visual_plan。节点只能来自原文已表达的事实，标签简短，"
             "不要返回 Mermaid、代码围栏或下载按钮。"
+        )
+    if "logic-agent" in plan.selected_agents:
+        parts.append(
+            "本次优化已将读者示意图列为固定增强步骤。请在 enhancements 中返回一项 status=executed、"
+            "capability=visualize 的紧凑 visual_plan；仅使用原文事实，控制在 3～5 个节点，"
+            "每个节点只保留短标题和一句细节，避免大段文字。系统会将其渲染为 PNG 并插入候选正文，"
+            "不要返回图片 URL、base64 或下载按钮。"
         )
     if instruction:
         parts.append(f"用户本次附加要求（仅在不改变事实和作者意图时执行）：{instruction}")

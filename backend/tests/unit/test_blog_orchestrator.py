@@ -118,3 +118,26 @@ def test_reader_explainer_is_detected_without_user_prompt(monkeypatch):
     assert fallback is not None
     assert fallback["content"]["visual_plan"]["nodes"][0]["label"] == "蒸发"
     assert fallback["content"]["visual_plan"]["edges"][-1]["to"] == "step1"
+
+
+def test_prose_analysis_gets_compact_reader_visual_without_instruction(monkeypatch):
+    from app.core.config import reload_settings
+    from app.modules.posts import orchestrator
+
+    monkeypatch.setenv("BLOG_CAPABILITIES_JSON", json.dumps([{"name": "visualize", "enabled": True}]))
+    reload_settings()
+    content = (
+        "美国试图通过人工智能投资吸引全球资金，但这也意味着资本市场对未来收益有很高预期。"
+        "如果收益无法兑现，泡沫就可能面临重新定价。\n\n"
+        "地缘冲突可能导致能源价格上升，进而增加进口国的通胀和外汇压力。"
+        "一方面日本依赖进口能源，另一方面汇率下跌会提高进口成本。\n\n"
+        "这些因素叠加后，作者认为风险可能从局部市场传导到美国金融市场，最终形成更大的危机。"
+    )
+    plan = orchestrator.build_plan("全球金融风险分析", content)
+
+    assert plan.reader_explainer is True
+    assert 3 <= plan.candidate_node_count <= 5
+    fallback = orchestrator.build_default_reader_visual("全球金融风险分析", content, plan)
+    assert fallback is not None
+    assert len(fallback["content"]["visual_plan"]["nodes"]) <= 5
+    assert fallback["content"]["visual_plan"]["nodes"][0]["detail"]

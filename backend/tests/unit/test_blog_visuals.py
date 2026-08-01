@@ -1,6 +1,7 @@
 import io
 
 from app.modules.posts.visuals import (
+    execute_enhancement_items,
     enhancements_markdown,
     execute_enhancements,
     render_visual_plan_png,
@@ -184,6 +185,39 @@ def test_visual_plan_rejects_invalid_edges():
     )
     execute_enhancements(result)
     assert result.enhancements[0].status == "failed"
+
+
+def test_enhancement_items_support_provider_neutral_fallbacks():
+    from app.services.llm.schemas import BlogEnhancementV1
+
+    enhancement = BlogEnhancementV1(
+        id="fallback",
+        agent="logic-agent",
+        capability="visualize",
+        status="executed",
+        insert_after="body",
+        reason="自动生成紧凑示意图",
+        content={
+            "visual_plan": {
+                "visual_type": "compact_flow",
+                "layout": "compact_horizontal",
+                "theme": "fresh",
+                "title": "风险传导",
+                "nodes": [
+                    {"id": "a", "label": "起点", "detail": "原文事实", "icon": "step"},
+                    {"id": "b", "label": "变化", "detail": "原文关系", "icon": "step"},
+                    {"id": "c", "label": "结果", "detail": "原文判断", "icon": "step"},
+                ],
+                "edges": [{"from": "a", "to": "b"}, {"from": "b", "to": "c"}],
+            }
+        },
+        caption="风险传导",
+        alt_text="风险传导示意图",
+    )
+
+    items = execute_enhancement_items([enhancement])
+
+    assert items[0]["content"]["format"] == "visual-plan"
 
 
 def test_chart_rejects_non_numeric_points():

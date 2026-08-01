@@ -651,7 +651,11 @@ def optimize_run(
         build_user_payload,
         has_embedded_visual,
     )
-    from app.modules.posts.visuals import execute_enhancements, insert_enhancements
+    from app.modules.posts.visuals import (
+        execute_enhancement_items,
+        execute_enhancements,
+        insert_enhancements,
+    )
     from app.services.llm.base import LLMError, StructuredRequest
     from app.services.llm.gateway import get_llm_gateway
     from app.services.llm.schemas import (
@@ -884,6 +888,8 @@ def optimize_run(
 
         orchestration_result = None
         visual_items: list[dict] = []
+        jobs_service.transition(s, job, current_step="正在生成读者示意图", progress=90)
+        s.commit()
         if isinstance(result, BlogEnhancementResultV1):
             existing_visual = has_embedded_visual(post.markdown)
             if existing_visual:
@@ -921,11 +927,31 @@ def optimize_run(
                 user_id=post.user_id,
                 post_id=post.id,
             )
-            if visual_items:
+        elif scope in {"all", "body"} and not has_embedded_visual(post.markdown):
+            # Radio and the body-only AI Assist path use the legacy text schema,
+            # so they cannot return an enhancement envelope. Keep the visual
+            # stage provider-neutral by rendering a source-backed compact PNG
+            # from the shared diagnosis instead of requiring another prompt.
+            visual_source = getattr(result, "markdown", None) or post.markdown
+            fallback = build_default_reader_visual(post.title, visual_source, orchestration_plan)
+            if fallback is None and visual_source != post.markdown:
+                fallback = build_default_reader_visual(post.title, post.markdown, orchestration_plan)
+            if fallback is not None:
+                visual_items = execute_enhancement_items(
+                    [BlogEnhancementV1(**fallback)],
+                    max_visual_items=1,
+                    user_id=post.user_id,
+                    post_id=post.id,
+                )
+
+        if visual_items:
+            if isinstance(result, BlogEnhancementResultV1):
                 result.optimized_article.content_markdown = insert_enhancements(
                     result.optimized_article.content_markdown,
                     visual_items,
                 )
+            else:
+                result.markdown = insert_enhancements(result.markdown or post.markdown, visual_items)
         result, orchestration_result = _normalize_orchestration_result(result, post)
         candidate_md = result.markdown if result.markdown is not None else post.markdown
         changes = protected_content.compare(post.markdown, candidate_md)

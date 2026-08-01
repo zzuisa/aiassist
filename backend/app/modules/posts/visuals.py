@@ -474,8 +474,24 @@ def execute_enhancements(
     calls always provide them, which changes the enhancement into a Markdown
     image backed by a private, ownership-checked post asset.
     """
+    return execute_enhancement_items(
+        result.enhancements,
+        max_visual_items=max_visual_items,
+        user_id=user_id,
+        post_id=post_id,
+    )
+
+
+def execute_enhancement_items(
+    enhancements: list[Any],
+    *,
+    max_visual_items: int = 2,
+    user_id: uuid.UUID | None = None,
+    post_id: uuid.UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Execute a validated list of enhancements, including deterministic fallbacks."""
     executed: list[dict[str, Any]] = []
-    for enhancement in result.enhancements:
+    for enhancement in enhancements:
         if enhancement.status != "executed":
             continue
         if len(executed) >= max(1, min(10, max_visual_items)):

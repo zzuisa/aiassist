@@ -156,7 +156,7 @@ async function submit(): Promise<void> {
           Radio（Gemini 轻量正文优化，默认）
         </option>
         <option value="aiassist">
-          AI Assist（完整优化）
+          AI Assist（完整优化，含示意图）
         </option>
       </select>
     </label>
@@ -165,7 +165,7 @@ async function submit(): Promise<void> {
       v-if="providerKey === 'radio'"
       class="hint"
     >
-      Radio 仅优化正文表达并保留 Markdown、链接、代码和事实；结果仍需审核后应用。
+      Radio 仅优化正文表达并保留 Markdown、链接、代码和事实；符合条件时也会自动生成一张紧凑 PNG 示意图，结果仍需审核后应用。
     </p>
 
     <label class="field">

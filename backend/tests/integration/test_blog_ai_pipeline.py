@@ -245,6 +245,7 @@ def test_valid_run_saves_candidate_without_touching_article(db_session, user_id,
     assert "AI Assist 正在生成优化内容" in steps
     assert "已收到结果，正在检查" in steps
     assert "正在校验格式与受保护内容" in steps
+    assert "正在生成读者示意图" in steps
     assert "正在保存优化候选" in steps
 
 
