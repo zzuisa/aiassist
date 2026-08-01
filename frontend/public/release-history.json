@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026.08.01.114621-db10210",
+      "version": "2026.08.01.114621",
+      "commit": "db1021092b58e49569c82013e6d03565931c25e1",
+      "commit_short": "db10210",
+      "message": "deploy: update 2026.08.01.114621",
+      "changes": [
+        "deploy: update 2026.08.01.114621",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json"
+      ],
+      "deployed_at": "2026-08-01T11:46:21Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.112503-28d7054",
       "version": "2026.08.01.112503",
       "commit": "28d705493f08d0d0c6c744daa94f1a5566750020",
