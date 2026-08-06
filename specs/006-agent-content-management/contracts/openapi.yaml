@@ -1,0 +1,404 @@
+openapi: 3.1.0
+info:
+  title: AI Assist Blog Agent Management API
+  version: 1.0.0
+  description: Private Agent topology, immutable content versions, activation, preview and run snapshots.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /blog/agents/topology:
+    get:
+      operationId: getBlogAgentTopology
+      summary: Return the system-defined execution topology merged with owned Agent versions, Skills and safe capabilities
+      responses:
+        '200':
+          description: Current topology
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentTopology' }
+  /blog/agents/{agent_key}:
+    get:
+      operationId: getBlogAgent
+      parameters: [{$ref: '#/components/parameters/AgentKey'}]
+      responses:
+        '200':
+          description: Agent detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /blog/agents/{agent_key}/versions:
+    get:
+      operationId: listBlogAgentVersions
+      parameters:
+        - $ref: '#/components/parameters/AgentKey'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Owned immutable versions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentVersionPage' }
+    post:
+      operationId: createBlogAgentVersion
+      parameters: [{$ref: '#/components/parameters/AgentKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentVersionCreate' }
+      responses:
+        '201':
+          description: New draft version; active version is unchanged
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentVersion' }
+        '422': { $ref: '#/components/responses/ValidationFailure' }
+  /blog/agents/{agent_key}/versions/{version_id}/activate:
+    post:
+      operationId: activateBlogAgentVersion
+      parameters:
+        - $ref: '#/components/parameters/AgentKey'
+        - $ref: '#/components/parameters/VersionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentActivationWrite' }
+      responses:
+        '200':
+          description: New activation state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentActivation' }
+        '409': { $ref: '#/components/responses/VersionConflict' }
+        '422': { $ref: '#/components/responses/ValidationFailure' }
+  /blog/agents/{agent_key}/versions/{version_id}/restore:
+    post:
+      operationId: restoreBlogAgentVersion
+      parameters:
+        - $ref: '#/components/parameters/AgentKey'
+        - $ref: '#/components/parameters/VersionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                change_summary: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '201':
+          description: New draft copied from historical content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentVersion' }
+  /blog/agents/{agent_key}/restore-default:
+    post:
+      operationId: restoreBlogAgentDefault
+      parameters: [{$ref: '#/components/parameters/AgentKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_activation_version]
+              properties:
+                expected_activation_version: { type: integer, minimum: 0 }
+                activate: { type: boolean, default: false }
+                confirm_impact: { type: boolean, default: false }
+      responses:
+        '201':
+          description: New user version copied from current builtin default
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentVersion' }
+  /blog/agents/{agent_key}/activation:
+    put:
+      operationId: updateBlogAgentActivation
+      parameters: [{$ref: '#/components/parameters/AgentKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentActivationWrite' }
+      responses:
+        '200':
+          description: Activation updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentActivation' }
+        '409': { $ref: '#/components/responses/VersionConflict' }
+  /blog/agents/{agent_key}/preview:
+    post:
+      operationId: previewBlogAgentVersion
+      parameters: [{$ref: '#/components/parameters/AgentKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentPreviewCreate' }
+      responses:
+        '202':
+          description: Durable preview and AsyncJob created before dispatch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentPreview' }
+  /blog/agent-previews/{preview_id}:
+    get:
+      operationId: getBlogAgentPreview
+      parameters:
+        - in: path
+          name: preview_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Owned preview status/result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentPreview' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /blog/ai-runs/{run_id}/orchestration:
+    get:
+      operationId: getBlogRunOrchestration
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Frozen snapshot or explicit legacy marker
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunOrchestration' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    AgentKey:
+      in: path
+      name: agent_key
+      required: true
+      schema: { type: string, pattern: '^[a-z][a-z0-9-]{1,63}$' }
+    VersionId:
+      in: path
+      name: version_id
+      required: true
+      schema: { type: string, format: uuid }
+    Cursor:
+      in: query
+      name: cursor
+      required: false
+      schema: { type: [string, 'null'], maxLength: 500 }
+  schemas:
+    AgentNode:
+      type: object
+      additionalProperties: false
+      required: [key, node_type, stage, order, execution_mode, display_name, status, editable, incoming, outgoing]
+      properties:
+        key: { type: string }
+        node_type: { enum: [stage, orchestrator, agent, capability, validator, persistence] }
+        stage: { type: string }
+        order: { type: integer }
+        execution_mode: { enum: [required, conditional, readonly] }
+        display_name: { type: string }
+        description: { type: string }
+        status: { enum: [active, disabled, unavailable, unknown, needs_revalidation, deprecated] }
+        editable: { type: boolean }
+        incoming: { type: array, items: { type: string } }
+        outgoing: { type: array, items: { type: string } }
+        skip_policy: { enum: [skip, degrade, block] }
+        active_version: { oneOf: [{$ref: '#/components/schemas/VersionRef'}, {type: 'null'}] }
+        skill_refs: { type: array, items: { $ref: '#/components/schemas/SkillRef' } }
+        capabilities: { type: array, items: { $ref: '#/components/schemas/Capability' } }
+    AgentTopology:
+      type: object
+      additionalProperties: false
+      required: [manifest_version, stages, nodes, edges]
+      properties:
+        manifest_version: { type: string }
+        stages: { type: array, items: { type: object } }
+        nodes: { type: array, items: { $ref: '#/components/schemas/AgentNode' } }
+        edges:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [from, to, kind]
+            properties:
+              from: { type: string }
+              to: { type: string }
+              kind: { enum: [sequence, conditional, invokes, validates, persists] }
+    AgentDetail:
+      allOf:
+        - $ref: '#/components/schemas/AgentNode'
+        - type: object
+          required: [locked_rules, editable_fields, activation]
+          properties:
+            locked_rules: { type: array, items: { type: object } }
+            editable_fields: { type: array, items: { type: string } }
+            activation: { $ref: '#/components/schemas/AgentActivation' }
+    AgentVersionCreate:
+      type: object
+      additionalProperties: false
+      required: [base_manifest_version, config]
+      properties:
+        base_manifest_version: { type: string, maxLength: 48 }
+        config: { type: object, description: Must validate blog-agent-config.v1 }
+        change_summary: { type: [string, 'null'], maxLength: 500 }
+    AgentVersion:
+      type: object
+      additionalProperties: false
+      required: [id, agent_key, version_number, schema_version, base_manifest_version, config, content_hash, validation, source, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        agent_key: { type: string }
+        version_number: { type: integer, minimum: 1 }
+        schema_version: { const: blog-agent-config.v1 }
+        base_manifest_version: { type: string }
+        config: { type: object }
+        content_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        validation: { $ref: '#/components/schemas/ValidationResult' }
+        change_summary: { type: [string, 'null'] }
+        source: { enum: [user_edit, history_restore, system_default] }
+        compatibility: { enum: [current, needs_revalidation, deprecated] }
+        created_at: { type: string, format: date-time }
+    AgentVersionPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AgentVersion' } }
+        next_cursor: { type: [string, 'null'] }
+    AgentActivationWrite:
+      type: object
+      additionalProperties: false
+      required: [expected_version, enabled, confirm_impact]
+      properties:
+        version_id: { type: [string, 'null'], format: uuid }
+        enabled: { type: boolean }
+        expected_version: { type: integer, minimum: 0 }
+        confirm_impact: { const: true }
+    AgentActivation:
+      type: object
+      additionalProperties: false
+      required: [agent_key, enabled, version, source]
+      properties:
+        agent_key: { type: string }
+        active_version_id: { type: [string, 'null'], format: uuid }
+        enabled: { type: boolean }
+        version: { type: integer, minimum: 0 }
+        source: { enum: [builtin, user] }
+        activated_at: { type: [string, 'null'], format: date-time }
+        impact: { type: object }
+    AgentPreviewCreate:
+      type: object
+      additionalProperties: false
+      required: [version_source]
+      oneOf:
+        - required: [sample_title, sample_markdown]
+        - required: [post_revision_id]
+      properties:
+        version_source: { enum: [builtin, draft, active, historical] }
+        version_id: { type: [string, 'null'], format: uuid }
+        sample_title: { type: string, maxLength: 240 }
+        sample_markdown: { type: string, maxLength: 200000 }
+        post_revision_id: { type: string, format: uuid }
+        options: { type: object, maxProperties: 20 }
+    AgentPreview:
+      type: object
+      additionalProperties: false
+      required: [id, job_id, agent_key, status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+        agent_key: { type: string }
+        agent_version_id: { type: [string, 'null'], format: uuid }
+        status: { enum: [pending, queued, processing, completed, failed, cancelled] }
+        result: { type: [object, 'null'] }
+        error: { type: [object, 'null'] }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+    RunOrchestration:
+      type: object
+      additionalProperties: false
+      required: [snapshot_status]
+      properties:
+        snapshot_status: { enum: [available, legacy_incomplete] }
+        snapshot: { type: [object, 'null'], description: Must validate blog-orchestration-snapshot.v1 }
+    VersionRef:
+      type: object
+      additionalProperties: false
+      required: [source, content_hash]
+      properties:
+        source: { enum: [builtin, user] }
+        id: { type: [string, 'null'], format: uuid }
+        version_number: { type: [integer, 'null'] }
+        content_hash: { type: string }
+    SkillRef:
+      type: object
+      additionalProperties: false
+      required: [id, name, enabled, current_version_id, href]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        enabled: { type: boolean }
+        current_version_id: { type: string, format: uuid }
+        href: { type: string }
+    Capability:
+      type: object
+      additionalProperties: false
+      required: [name, type, enabled, status, source]
+      properties:
+        name: { type: string }
+        type: { type: string }
+        description: { type: string }
+        enabled: { type: boolean }
+        status: { enum: [available, disabled, unavailable, unknown] }
+        source: { enum: [builtin, deployment, unknown] }
+    ValidationResult:
+      type: object
+      additionalProperties: false
+      required: [valid, errors, warnings]
+      properties:
+        valid: { type: boolean }
+        errors: { type: array, items: { $ref: '#/components/schemas/ValidationIssue' } }
+        warnings: { type: array, items: { $ref: '#/components/schemas/ValidationIssue' } }
+    ValidationIssue:
+      type: object
+      additionalProperties: false
+      required: [code, field, message]
+      properties:
+        code: { type: string }
+        field: { type: string }
+        message: { type: string }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object }
+  responses:
+    NotFound:
+      description: Owned resource or manifest node not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    VersionConflict:
+      description: Activation or edit base changed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationFailure:
+      description: Config, placeholder, dependency or safety validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

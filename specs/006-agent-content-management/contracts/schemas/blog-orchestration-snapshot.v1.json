@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/blog-orchestration-snapshot.v1.json",
+  "title": "Blog Orchestration Snapshot V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_version",
+    "safety_policy_version",
+    "orchestrator",
+    "eligible_agents",
+    "skill_version_id",
+    "capabilities",
+    "configuration_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "blog-orchestration-snapshot.v1" },
+    "manifest_version": { "type": "string", "maxLength": 48 },
+    "safety_policy_version": { "type": "string", "maxLength": 48 },
+    "orchestrator": { "$ref": "#/$defs/versionRef" },
+    "eligible_agents": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agent_key",
+          "source",
+          "content_hash",
+          "enabled",
+          "execution_mode",
+          "missing_dependency_policy"
+        ],
+        "properties": {
+          "agent_key": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+          "source": { "enum": ["builtin", "user"] },
+          "version_id": { "type": ["string", "null"], "format": "uuid" },
+          "version_number": { "type": ["integer", "null"], "minimum": 1 },
+          "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "enabled": { "type": "boolean" },
+          "execution_mode": { "enum": ["required", "conditional", "readonly"] },
+          "missing_dependency_policy": { "enum": ["skip", "degrade", "block"] }
+        }
+      }
+    },
+    "skill_version_id": { "type": "string", "format": "uuid" },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type", "enabled", "status"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 80 },
+          "type": { "type": "string", "maxLength": 40 },
+          "description": { "type": "string", "maxLength": 500 },
+          "enabled": { "type": "boolean" },
+          "status": { "enum": ["available", "disabled", "unavailable", "unknown"] },
+          "source": { "enum": ["builtin", "deployment", "unknown"] }
+        }
+      }
+    },
+    "configuration_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "execution_result": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["selected_agents", "skipped_agents", "capability_results", "quality_status"],
+      "properties": {
+        "selected_agents": { "type": "array", "items": { "type": "string" }, "maxItems": 32 },
+        "skipped_agents": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["agent_key", "reason_code"],
+            "properties": {
+              "agent_key": { "type": "string" },
+              "reason_code": { "type": "string", "maxLength": 80 },
+              "reason": { "type": "string", "maxLength": 500 }
+            }
+          }
+        },
+        "capability_results": { "type": "array", "maxItems": 50, "items": { "type": "object" } },
+        "quality_status": { "enum": ["pending", "passed", "partial", "failed"] }
+      }
+    }
+  },
+  "$defs": {
+    "versionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_key", "source", "content_hash"],
+      "properties": {
+        "agent_key": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "source": { "enum": ["builtin", "user"] },
+        "version_id": { "type": ["string", "null"], "format": "uuid" },
+        "version_number": { "type": ["integer", "null"], "minimum": 1 },
+        "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}
