@@ -53,3 +53,6 @@ Thumbs.db
 
 # Claude Code worktrees / tooling
 .claude/
+
+# code-review-graph local index (per-machine, do not commit)
+.code-review-graph/
