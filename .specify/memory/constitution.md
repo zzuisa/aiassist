@@ -1,5 +1,24 @@
 <!--
-Sync Impact Report
+Sync Impact Report (1.1.0)
+- Version change: 1.0.0 -> 1.1.0 (MINOR)
+- Rationale: spec 007 (self-service Q&A and task execution agent) requires agent-driven
+  tool invocation over MCP. The 1.0.0 deferral list blocked it outright. Rather than
+  silently relaxing the constraint, MCP is removed from the deferral list and replaced
+  with a binding tool-invocation rule that extends Principle IV (typed gateways),
+  Principle VI (least privilege, no secrets) and Principle VIII (auditability) to every
+  agent tool call. Net effect is a materially expanded gate, not a relaxation, so MINOR.
+- Amended sections:
+  - Architecture and Data Constraints: added the agent tool invocation rule; removed
+    "MCP" from the explicitly deferred list. Calendar-provider sync, push notifications,
+    vector/image semantic search, and native mobile clients remain deferred.
+- Principles: unchanged (I-VIII carry over verbatim).
+- Templates: no change required (no template references the deferral list).
+- Active specifications impacted:
+  - specs/007-self-service-agent/spec.md: MCP clarification resolved; tool-invocation
+    requirements now inherit the constraints above.
+- Deferred items: none
+
+Sync Impact Report (1.0.0)
 - Version change: template -> 1.0.0
 - Added principles:
   - I. Durable Capture Before Intelligence
@@ -123,8 +142,17 @@ private payloads or reverse-engineering queue internals.
 - Mobile-first interaction, keyboard accessibility, clear focus states, and semantic color
   use are release requirements. Primary capture actions SHOULD complete within three user
   interactions under normal conditions.
+- Agent tool invocation, including MCP-exposed tools, MUST pass through a typed tool
+  registry that applies the Principle IV gateway rules: replaceable providers, timeouts,
+  bounded retries, usage logging, and stable domain errors. Only a safe manifest — tool
+  name, type, responsibility, required permission, availability — may reach a model
+  prompt or a user-visible surface. Endpoints, credentials, tokens, and connection
+  strings MUST NOT appear in prompts, status events, or execution records. Every tool
+  call MUST enforce the caller's ownership scope and MUST produce an audit record with
+  desensitized parameters. A tool that is not registered MUST NOT be described as
+  callable, and its result MUST NOT be simulated.
 - MVP scope is limited to the first-phase capabilities in the product specification.
-  Calendar-provider sync, push notifications, vector/image semantic search, MCP, and native
+  Calendar-provider sync, push notifications, vector/image semantic search, and native
   mobile clients are explicitly deferred.
 
 ## Delivery Workflow and Quality Gates
@@ -154,4 +182,4 @@ Unexplained violations block implementation. Compliance is reviewed at specifica
 design, code review, and deployment validation. Runtime development guidance lives in the
 active feature plan referenced by `AGENTS.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-07-22
+**Version**: 1.1.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-06
