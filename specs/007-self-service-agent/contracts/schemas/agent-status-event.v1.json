@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/agent-status-event.v1.json",
+  "title": "Agent Status Event V1",
+  "description": "Payload of an agent.status_changed event delivered on the existing GET /events/jobs SSE stream. The SSE event_type string is 'agent.status_changed' (20 chars), within the async_job_events.event_type String(40) limit. This payload MUST NOT contain model reasoning, system prompts, or any credential.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_type",
+    "task_id",
+    "job_id",
+    "agent",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": { "const": "agent-status-event.v1" },
+    "event_type": { "const": "agent_status_changed" },
+    "task_id": { "type": "string", "format": "uuid" },
+    "job_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Owning async job; required because async_job_events.job_id is NOT NULL."
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "agent_key",
+        "agent_version",
+        "agent_name",
+        "responsibility",
+        "current_task",
+        "status"
+      ],
+      "properties": {
+        "agent_id": { "type": "string", "format": "uuid" },
+        "parent_agent_id": { "type": ["string", "null"], "format": "uuid" },
+        "agent_key": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "agent_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The spec-006 agent version bound at task submission."
+        },
+        "agent_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "responsibility": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "current_task": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "waiting_confirmation",
+            "success",
+            "partial_success",
+            "failed",
+            "skipped"
+          ]
+        },
+        "current_tool": { "type": ["string", "null"], "maxLength": 120 },
+        "progress": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "description": "Null when the total is unknown; stage_label carries a phase description instead. A total MUST NOT be fabricated.",
+          "properties": {
+            "current": { "type": "integer", "minimum": 0 },
+            "total": { "type": "integer", "minimum": 0 },
+            "stage_label": { "type": ["string", "null"], "maxLength": 120 }
+          }
+        },
+        "result_summary": { "type": ["string", "null"], "maxLength": 2000 },
+        "error_message": { "type": ["string", "null"], "maxLength": 2000 },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "finished_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

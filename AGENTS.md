@@ -1,10 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies, architecture, project structure,
-contracts, and implementation constraints, read the current specification:
-`specs/007-self-service-agent/spec.md`.
-The plan phase has not run for this feature yet; once
-`specs/007-self-service-agent/plan.md` exists it supersedes the specification
-as the implementation reference and this block is regenerated.
+contracts, and implementation constraints, read the current plan:
+`specs/007-self-service-agent/plan.md`.
 <!-- SPECKIT END -->
 
 ## 修复复盘归档
