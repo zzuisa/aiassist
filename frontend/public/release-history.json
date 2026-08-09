@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "id": "2026.08.09.124515-eab3e9f",
+      "version": "2026.08.09.124515",
+      "commit": "eab3e9f5edfe52f1ae49eb4fcf1d7c7b51e8f88d",
+      "commit_short": "eab3e9f",
+      "message": "deploy(agent): phase 5 parallel analysis format fix",
+      "changes": [
+        "deploy(agent): phase 5 parallel analysis format fix",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T12:45:15Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.09.124240-38d45ff",
       "version": "2026.08.09.124240",
       "commit": "38d45ff41a1b631ffc2e5a1169e8a318add9f28e",
