@@ -9,7 +9,9 @@ import pytest
 pytestmark = [pytest.mark.integration]
 
 
-def test_body_tool_reads_owned_body_while_list_tool_stays_lightweight(db_session, make_user) -> None:
+def test_body_tool_reads_owned_body_while_list_tool_stays_lightweight(
+    db_session, make_user
+) -> None:
     from app.models.posts import Post
     from app.modules.agent.registry import ToolContext, tool_registry
 

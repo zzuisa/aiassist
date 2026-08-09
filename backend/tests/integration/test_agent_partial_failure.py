@@ -10,9 +10,7 @@ from sqlalchemy import select
 pytestmark = [pytest.mark.integration]
 
 
-def test_five_of_twenty_five_failures_produce_partial_success(
-    db_session, make_user
-) -> None:
+def test_five_of_twenty_five_failures_produce_partial_success(db_session, make_user) -> None:
     from app.models.agent import AgentRun, ExecutionRecord
     from app.models.posts import Post
     from app.modules.agent.service import create_agent_task, execute_analysis_task
@@ -65,9 +63,7 @@ def test_five_of_twenty_five_failures_produce_partial_success(
         ).all()
     )
     records = list(
-        db_session.scalars(
-            select(ExecutionRecord).where(ExecutionRecord.task_id == task.id)
-        ).all()
+        db_session.scalars(select(ExecutionRecord).where(ExecutionRecord.task_id == task.id)).all()
     )
 
     assert completed.status == "partial_success"

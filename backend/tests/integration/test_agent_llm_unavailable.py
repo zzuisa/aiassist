@@ -7,7 +7,9 @@ import pytest
 pytestmark = [pytest.mark.integration]
 
 
-def test_dependency_failure_preserves_article_and_returns_no_fake_result(db_session, make_user) -> None:
+def test_dependency_failure_preserves_article_and_returns_no_fake_result(
+    db_session, make_user
+) -> None:
     import json
 
     from app.models.posts import Post

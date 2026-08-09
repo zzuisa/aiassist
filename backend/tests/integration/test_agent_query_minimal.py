@@ -37,9 +37,7 @@ def test_recent_articles_query_never_records_body_analysis(db_session, make_user
     db_session.refresh(task)
 
     records = list(
-        db_session.scalars(
-            select(ExecutionRecord).where(ExecutionRecord.task_id == task.id)
-        )
+        db_session.scalars(select(ExecutionRecord).where(ExecutionRecord.task_id == task.id))
     )
     assert records
     assert all(record.operation_type != "analyze" for record in records)
@@ -48,4 +46,8 @@ def test_recent_articles_query_never_records_body_analysis(db_session, make_user
     payload = json.loads(rendered)
     assert len(payload["处理结果"]) == 10
     assert all("markdown" not in item and "body" not in item for item in payload["处理结果"])
-    assert all(set(item) <= {"id", "title", "link", "category", "tags", "published_at", "updated_at", "status"} for item in payload["处理结果"])
+    assert all(
+        set(item)
+        <= {"id", "title", "link", "category", "tags", "published_at", "updated_at", "status"}
+        for item in payload["处理结果"]
+    )

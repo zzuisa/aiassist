@@ -141,8 +141,7 @@ class ExecutionRecord(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "operation_type in ('query','analyze','create','update','delete',"
-            "'publish','rollback')",
+            "operation_type in ('query','analyze','create','update','delete','publish','rollback')",
             name="agent_execution_operation_type",
         ),
         CheckConstraint(
@@ -184,8 +183,7 @@ class PendingWrite(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "operation_type in ('query','analyze','create','update','delete',"
-            "'publish','rollback')",
+            "operation_type in ('query','analyze','create','update','delete','publish','rollback')",
             name="agent_pending_write_operation_type",
         ),
         CheckConstraint(

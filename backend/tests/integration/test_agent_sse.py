@@ -86,9 +86,7 @@ async def test_agent_status_replays_after_last_event_id_and_invalid_cursor_snaps
     task.status = "running"
     db_session.flush()
     initial_event = db_session.scalar(
-        select(AsyncJobEvent)
-        .where(AsyncJobEvent.job_id == task.job_id)
-        .order_by(AsyncJobEvent.id)
+        select(AsyncJobEvent).where(AsyncJobEvent.job_id == task.job_id).order_by(AsyncJobEvent.id)
     )
     assert initial_event is not None
     status_event = publish_status(db_session, task, run)

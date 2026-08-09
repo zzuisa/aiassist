@@ -20,9 +20,7 @@ def test_category_count_uses_taxonomy_aggregate_not_article_listing(
         category = Category(user_id=user.id, name=name, kind="post")
         db_session.add(category)
         db_session.flush()
-        db_session.add(
-            PostCategoryProfile(category_id=category.id, user_id=user.id, enabled=True)
-        )
+        db_session.add(PostCategoryProfile(category_id=category.id, user_id=user.id, enabled=True))
     task = create_agent_task(
         db_session,
         user_id=user.id,

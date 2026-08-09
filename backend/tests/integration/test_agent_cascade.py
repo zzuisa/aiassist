@@ -69,11 +69,15 @@ def test_clear_completed_jobs_cascades_agent_tables_but_preserves_posts(
     jobs_service.transition(db_session, task.job, status="completed", progress=100)
     db_session.commit()
 
-    assert [_count(db_session, model) for model in (AgentTask, AgentRun, ExecutionRecord, PendingWrite)] == [1, 1, 1, 1]
+    assert [
+        _count(db_session, model) for model in (AgentTask, AgentRun, ExecutionRecord, PendingWrite)
+    ] == [1, 1, 1, 1]
     post_id = post.id
 
     assert jobs_service.clear_completed_jobs(db_session, user.id) == 1
     db_session.commit()
 
-    assert [_count(db_session, model) for model in (AgentTask, AgentRun, ExecutionRecord, PendingWrite)] == [0, 0, 0, 0]
+    assert [
+        _count(db_session, model) for model in (AgentTask, AgentRun, ExecutionRecord, PendingWrite)
+    ] == [0, 0, 0, 0]
     assert db_session.get(Post, post_id) is not None

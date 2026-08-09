@@ -14,7 +14,7 @@
       "deployed_at": "2026-08-09T12:42:40Z",
       "environment": "production",
       "git_pushed": true,
-      "deployment_status": "verified",
+      "deployment_status": "failed_ci",
       "migration_head": null
     },
     {

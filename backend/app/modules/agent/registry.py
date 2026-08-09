@@ -153,9 +153,7 @@ def _list_recent_posts(context: ToolContext, params: Mapping[str, Any]) -> list[
     ]
 
 
-def _taxonomy_statistics(
-    context: ToolContext, params: Mapping[str, Any]
-) -> dict[str, Any]:
+def _taxonomy_statistics(context: ToolContext, params: Mapping[str, Any]) -> dict[str, Any]:
     from app.modules.posts import taxonomy_service
 
     kind = str(params["kind"])
@@ -171,9 +169,7 @@ def _taxonomy_statistics(
     }
 
 
-def _read_post_bodies(
-    context: ToolContext, params: Mapping[str, Any]
-) -> list[dict[str, Any]]:
+def _read_post_bodies(context: ToolContext, params: Mapping[str, Any]) -> list[dict[str, Any]]:
     from app.models.posts import Post
 
     raw_ids = params.get("post_ids", [])
@@ -191,15 +187,10 @@ def _read_post_bodies(
         .where(Post.user_id == context.user_id, Post.id.in_(post_ids))
         .order_by(Post.created_at, Post.id)
     ).all()
-    return [
-        {"id": str(post.id), "title": post.title, "markdown": post.markdown}
-        for post in posts
-    ]
+    return [{"id": str(post.id), "title": post.title, "markdown": post.markdown} for post in posts]
 
 
-def _analyze_post_content(
-    context: ToolContext, params: Mapping[str, Any]
-) -> dict[str, Any]:
+def _analyze_post_content(context: ToolContext, params: Mapping[str, Any]) -> dict[str, Any]:
     """Analyze one already-authorized article through the provider-neutral gateway."""
     from app.modules.agent.schemas import ContentAnalysisResult
     from app.services.llm.base import EntityRef, StructuredRequest

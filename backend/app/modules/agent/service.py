@@ -86,9 +86,7 @@ def list_owned_tasks(
     stmt = select(AgentTask).where(AgentTask.user_id == user_id)
     if status:
         stmt = stmt.where(AgentTask.status == status)
-    return list(
-        session.scalars(stmt.order_by(AgentTask.created_at.desc()).limit(limit)).all()
-    )
+    return list(session.scalars(stmt.order_by(AgentTask.created_at.desc()).limit(limit)).all())
 
 
 def task_runs(session: Session, task_id: uuid.UUID) -> list[AgentRun]:
@@ -247,9 +245,7 @@ def _analysis_reply(
         }
         for result in outcome.failed
     ]
-    unique_tags = _normalize_terms(
-        [tag for item in generated for tag in item.get("tags", [])]
-    )
+    unique_tags = _normalize_terms([tag for item in generated for tag in item.get("tags", [])])
     unique_keywords = _normalize_terms(
         [keyword for item in generated for keyword in item.get("keywords", [])]
     )
@@ -578,9 +574,7 @@ def execute_analysis_task(
                 params={"post_id": result.key, "attempts": result.attempts},
                 status=result.status,
                 result_summary=(
-                    "已生成结果，尚未保存"
-                    if result.status == "success"
-                    else "文章分析失败"
+                    "已生成结果，尚未保存" if result.status == "success" else "文章分析失败"
                 ),
                 error_reason=result.error,
             )
@@ -637,9 +631,7 @@ def execute_analysis_task(
     coordinator.result_summary = (
         f"成功 {len(outcome.succeeded)}，失败 {len(outcome.failed)}，未处理 {len(unprocessed_ids)}"
     )
-    coordinator.error_message = (
-        "全部目标分析失败" if terminal_status == "failed" else None
-    )
+    coordinator.error_message = "全部目标分析失败" if terminal_status == "failed" else None
     coordinator.finished_at = finished
     if terminal_status == "failed":
         retryable = any(result.retryable for result in outcome.failed)

@@ -86,9 +86,7 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
                 }
                 for j in jobs
             ],
-            "agents": [
-                build_status_payload(task, run) for task, run in active_agents
-            ],
+            "agents": [build_status_payload(task, run) for task, run in active_agents],
             "notifications": _unread_notifications(s, user_id),
         }
         return payload, cursor
