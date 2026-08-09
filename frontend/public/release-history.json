@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "id": "2026.08.09.135807-72b5c00",
+      "version": "2026.08.09.135807",
+      "commit": "72b5c005c4da9d39602e842243ccedc98ba4f5e4",
+      "commit_short": "72b5c00",
+      "message": "deploy(ops): postgres recovery report",
+      "changes": [
+        "deploy(ops): postgres recovery report",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T13:58:07Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.09.131751-550f27c",
       "version": "2026.08.09.131751",
       "commit": "550f27cfc1109cf4b6fc3f5fc474db97e5f83f29",
