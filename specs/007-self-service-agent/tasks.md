@@ -279,7 +279,7 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 - [ ] T096 [P] 在 `backend/tests/integration/test_agent_latency.py` 验证首个状态事件延迟 ≤ 2s（SC-002）
 - [ ] T097 [P] 在 `backend/tests/integration/test_agent_single_agent_ratio.py` 验证简单查询的单 Agent 占比 ≥ 95%（SC-003）
 - [ ] T098 [P] 在 `backend/app/core/observability.py` 确认 trace id 贯穿 REST → Celery → LLM 网关 → 状态事件（Constitution VIII）
-- [ ] T099 前端 `frontend/src/router/` 注册 Agent 页面路由并接入 `AppShell.vue` 导航
+- [X] T099 前端 `frontend/src/router/` 注册 Agent 页面路由并接入 `AppShell.vue` 导航
 - [ ] T100 [P] 文档：在 `docs/operations.md` 补充两个新配置项的调优说明与单槽位并发注意事项
 - [ ] T101 按 `specs/007-self-service-agent/quickstart.md` 逐节执行验收（9 节全过）
 

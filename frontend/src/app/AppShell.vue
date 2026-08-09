@@ -24,6 +24,7 @@ const primaryNav = [
   { to: '/search', label: '搜索', icon: '🔍' },
   { to: '/posts', label: '博客', icon: '✍️' },
   { to: '/assistant', label: 'AI 助手', icon: '🤖' },
+  { to: '/agent', label: '自助 Agent', icon: '🧩' },
   { to: '/settings', label: '设置', icon: '⚙️' },
 ]
 

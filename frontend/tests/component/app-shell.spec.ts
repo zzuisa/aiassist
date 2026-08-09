@@ -71,10 +71,11 @@ describe('AppShell mobile navigation', () => {
     const nav = wrapper.find('.bottom-nav')
 
     expect(nav.attributes('aria-label')).toBe('主导航')
-    expect(nav.findAll('.bottom-item')).toHaveLength(8)
+    expect(nav.findAll('.bottom-item')).toHaveLength(9)
     expect(nav.text()).toContain('今日')
     expect(nav.text()).toContain('博客')
     expect(nav.text()).toContain('AI 助手')
+    expect(nav.text()).toContain('自助 Agent')
     expect(nav.text()).toContain('设置')
   })
 
