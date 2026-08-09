@@ -11,8 +11,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFoundError, ValidationError
-from app.models.agent import AgentRun, AgentTask
+from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.models.agent import AgentRun, AgentTask, PendingWrite
 from app.modules.agent.audit import write_execution_record
 from app.modules.agent.intents import IntentPlan, dispatch_intent
 from app.modules.agent.registry import ToolContext, tool_registry
@@ -21,6 +21,314 @@ from app.modules.agent.status import publish_status
 from app.modules.jobs import service as jobs_service
 
 AnalysisCallable = Callable[[dict[str, str], str], Mapping[str, Any] | Any]
+
+_OPERATIONS = {"query", "analyze", "create", "update", "delete", "publish", "rollback"}
+_WRITE_SIGNALS = ("保存", "写入", "应用", "更新到", "落库")
+
+
+def _request_wants_write(request_text: str) -> bool:
+    return any(signal in request_text.casefold() for signal in _WRITE_SIGNALS)
+
+
+def _high_risk_write(
+    operation_type: str,
+    targets: Sequence[Mapping[str, Any]],
+    preview: Mapping[str, Any],
+) -> bool:
+    return (
+        operation_type == "delete"
+        or bool(preview.get("overwrite"))
+        or (operation_type == "update" and len(targets) > 1)
+    )
+
+
+def create_pending_write(
+    session: Session,
+    *,
+    task: AgentTask,
+    run: AgentRun,
+    operation_type: str,
+    target_type: str,
+    targets: Sequence[Mapping[str, Any]],
+    preview: Mapping[str, Any],
+    reversible: bool,
+    tool_name: str,
+    original_request_confirmed: bool = False,
+) -> PendingWrite:
+    """Persist an auditable proposal and stop execution before any business write."""
+    del original_request_confirmed  # Never bypass the structured confirmation endpoint.
+    if operation_type not in _OPERATIONS or operation_type in {"query", "analyze"}:
+        raise ValidationError(
+            "Pending write operation is invalid",
+            code="agent_pending_write_operation_invalid",
+        )
+    tool = tool_registry.get(tool_name)
+    if tool.type != "write" or not tool.available:
+        raise ValidationError(
+            "Requested tool is not an available write capability",
+            code="agent_write_capability_unavailable",
+        )
+    normalized_targets: list[dict[str, Any]] = []
+    for target in targets:
+        try:
+            target_id = str(uuid.UUID(str(target.get("id") or "")))
+        except ValueError as exc:
+            raise ValidationError(
+                "Pending write target id is invalid",
+                code="agent_write_target_invalid",
+            ) from exc
+        version = target.get("version")
+        if version is not None and (not isinstance(version, int) or version < 0):
+            raise ValidationError(
+                "Pending write target version is invalid",
+                code="agent_write_target_invalid",
+            )
+        normalized_targets.append({"id": target_id, "version": version})
+
+    pending = PendingWrite(
+        task_id=task.id,
+        run_id=run.id,
+        operation_type=operation_type,
+        target_type=target_type,
+        targets_json=normalized_targets,
+        preview_json=dict(preview),
+        affected_count=len(normalized_targets),
+        reversible=reversible,
+        high_risk=_high_risk_write(operation_type, normalized_targets, preview),
+        decision="pending",
+    )
+    session.add(pending)
+    session.flush()
+    tools_by_confirmation = dict(task.scope_json.get("pending_write_tools", {}))
+    tools_by_confirmation[str(pending.id)] = tool_name
+    task.scope_json = {**task.scope_json, "pending_write_tools": tools_by_confirmation}
+    task.status = "waiting_confirmation"
+    task.finished_at = None
+    run.allowed_tools = list(dict.fromkeys([*run.allowed_tools, tool_name]))
+    run.allow_write = False
+    run.status = "waiting_confirmation"
+    run.current_tool = None
+    run.stage_label = "等待确认写入"
+    run.finished_at = None
+    jobs_service.transition(
+        session,
+        task.job,
+        status="waiting_user",
+        progress=90,
+        current_step="等待确认写入",
+        result={"agent_task_id": str(task.id), "confirmation_id": str(pending.id)},
+    )
+    publish_status(session, task, run)
+    session.flush()
+    return pending
+
+
+def prepare_pending_write(
+    session: Session,
+    *,
+    task: AgentTask,
+    run: AgentRun,
+    operation_type: str,
+    target_type: str,
+    targets: Sequence[Mapping[str, Any]],
+    preview: Mapping[str, Any],
+    reversible: bool,
+    tool_name: str,
+    original_request_confirmed: bool = False,
+) -> tuple[PendingWrite | None, str]:
+    """Create a proposal or explicitly report that generated output cannot be saved."""
+    try:
+        tool = tool_registry.get(tool_name)
+    except ValidationError:
+        tool = None
+    if tool is None or tool.type != "write" or not tool.available:
+        message = "结果已生成，但当前没有可用的写入能力，因此无法保存；生成结果仍可查看。"
+        run.allow_write = False
+        run.status = "partial_success"
+        run.current_tool = None
+        run.stage_label = "已生成但无法保存"
+        run.result_summary = message
+        run.finished_at = datetime.now(UTC)
+        task.status = "partial_success"
+        task.finished_at = run.finished_at
+        jobs_service.transition(
+            session,
+            task.job,
+            status="completed",
+            progress=100,
+            current_step="已生成但无法保存",
+            result={"agent_task_id": str(task.id), "status": "partial_success"},
+        )
+        publish_status(session, task, run)
+        session.flush()
+        return None, message
+    pending = create_pending_write(
+        session,
+        task=task,
+        run=run,
+        operation_type=operation_type,
+        target_type=target_type,
+        targets=targets,
+        preview=preview,
+        reversible=reversible,
+        tool_name=tool_name,
+        original_request_confirmed=original_request_confirmed,
+    )
+    return pending, "等待确认后保存。"
+
+
+def list_pending_writes(
+    session: Session,
+    user_id: uuid.UUID,
+    task_id: uuid.UUID,
+) -> list[PendingWrite]:
+    get_owned_task(session, user_id, task_id)
+    return list(
+        session.scalars(
+            select(PendingWrite)
+            .where(PendingWrite.task_id == task_id)
+            .order_by(PendingWrite.created_at, PendingWrite.id)
+        ).all()
+    )
+
+
+def _update_confirmation_result(
+    task: AgentTask,
+    *,
+    decision: str,
+    saved: Sequence[Mapping[str, Any]] = (),
+) -> None:
+    try:
+        reply = json.loads(task.result_summary or "{}")
+    except json.JSONDecodeError:
+        reply = {}
+    if not isinstance(reply, dict):
+        reply = {}
+    result = reply.get("执行结果")
+    if not isinstance(result, dict):
+        result = {}
+    result["已保存"] = list(saved)
+    result["写入确认"] = "已批准并执行" if decision == "approved" else "用户已拒绝，未写入"
+    reply["执行结果"] = result
+    task.result_summary = json.dumps(reply, ensure_ascii=False, separators=(",", ":"))
+
+
+def decide_pending_write(
+    session: Session,
+    *,
+    user_id: uuid.UUID,
+    task_id: uuid.UUID,
+    confirmation_id: uuid.UUID,
+    decision: str,
+) -> PendingWrite:
+    """Record one decision and resume the approved write in the same transaction."""
+    if decision not in {"approve", "reject"}:
+        raise ValidationError("Invalid confirmation decision", code="agent_decision_invalid")
+    task = get_owned_task(session, user_id, task_id)
+    pending = session.scalar(
+        select(PendingWrite)
+        .where(PendingWrite.id == confirmation_id, PendingWrite.task_id == task.id)
+        .with_for_update()
+    )
+    if pending is None:
+        raise NotFoundError("Pending write not found")
+    if pending.decision != "pending" or task.status != "waiting_confirmation":
+        raise ConflictError(
+            "Pending write was already decided or task is not waiting for confirmation",
+            code="agent_confirmation_conflict",
+        )
+    run = session.get(AgentRun, pending.run_id) if pending.run_id else None
+    if run is None or run.task_id != task.id or run.status != "waiting_confirmation":
+        raise ConflictError(
+            "Agent run is not waiting for confirmation",
+            code="agent_confirmation_conflict",
+        )
+    now = datetime.now(UTC)
+    if decision == "reject":
+        pending.decision = "rejected"
+        pending.decided_at = now
+        run.allow_write = False
+        run.status = "success"
+        run.stage_label = "写入已取消"
+        run.result_summary = "用户已拒绝写入，业务数据未修改"
+        run.finished_at = now
+        task.status = "success"
+        task.finished_at = now
+        _update_confirmation_result(task, decision="rejected")
+        jobs_service.transition(
+            session,
+            task.job,
+            status="completed",
+            progress=100,
+            current_step="写入已取消",
+            result={"agent_task_id": str(task.id), "status": "success"},
+        )
+        publish_status(session, task, run)
+        session.flush()
+        return pending
+
+    tool_name = task.scope_json.get("pending_write_tools", {}).get(str(pending.id))
+    if not isinstance(tool_name, str):
+        raise ConflictError(
+            "Write capability binding is missing",
+            code="agent_write_capability_missing",
+        )
+    pending.decision = "approved"
+    pending.decided_at = now
+    run.allow_write = True
+    run.status = "running"
+    run.current_tool = tool_name
+    run.stage_label = "正在执行已确认写入"
+    publish_status(session, task, run)
+    saved = tool_registry.invoke(
+        tool_name,
+        context=ToolContext(
+            user_id=user_id,
+            task_id=task.id,
+            run_id=run.id,
+            session=session,
+        ),
+        params={"confirmation_id": str(pending.id)},
+    )
+    finished = datetime.now(UTC)
+    run.allow_write = False
+    run.status = "success"
+    run.current_tool = None
+    run.stage_label = "确认写入完成"
+    run.result_summary = f"已保存 {len(saved) if isinstance(saved, list) else 1} 项"
+    run.finished_at = finished
+    task.status = "success"
+    task.finished_at = finished
+    _update_confirmation_result(
+        task,
+        decision="approved",
+        saved=saved if isinstance(saved, list) else [saved],
+    )
+    write_execution_record(
+        session,
+        task_id=task.id,
+        run_id=run.id,
+        step_id=f"write-{pending.id.hex[:12]}",
+        agent_name=run.agent_name,
+        step_label="执行用户已确认的文章写入",
+        tool_name=tool_name,
+        operation_type=pending.operation_type,
+        params={"confirmation_id": str(pending.id), "affected_count": pending.affected_count},
+        status="success",
+        result_summary=run.result_summary,
+        started_at=now,
+    )
+    jobs_service.transition(
+        session,
+        task.job,
+        status="completed",
+        progress=100,
+        current_step="确认写入完成",
+        result={"agent_task_id": str(task.id), "status": "success"},
+    )
+    publish_status(session, task, run)
+    session.flush()
+    return pending
 
 
 def create_agent_task(
@@ -633,6 +941,61 @@ def execute_analysis_task(
     )
     coordinator.error_message = "全部目标分析失败" if terminal_status == "failed" else None
     coordinator.finished_at = finished
+    if outcome.succeeded and _request_wants_write(task.request_text):
+        from app.models.posts import Post
+
+        succeeded_ids = [uuid.UUID(result.key) for result in outcome.succeeded]
+        version_rows = session.execute(
+            select(Post.id, Post.version).where(
+                Post.user_id == task.user_id,
+                Post.id.in_(succeeded_ids),
+            )
+        ).all()
+        versions = {str(post_id): version for post_id, version in version_rows}
+        changes = [
+            {
+                "post_id": result.key,
+                "summary": result.value.get("summary"),
+                "tags": result.value.get("tags", []),
+                "keywords": result.value.get("keywords", []),
+            }
+            for result in outcome.succeeded
+            if result.key in versions
+        ]
+        targets = [
+            {"id": change["post_id"], "version": versions[change["post_id"]]} for change in changes
+        ]
+        pending, capability_message = prepare_pending_write(
+            session,
+            task=task,
+            run=coordinator,
+            operation_type="update",
+            target_type="post",
+            targets=targets,
+            preview={
+                "summary": "把已生成的标签、关键词与摘要写入目标文章",
+                "scope": {"post_ids": [change["post_id"] for change in changes]},
+                "changes": changes,
+            },
+            reversible=True,
+            tool_name="posts.apply_analysis",
+            original_request_confirmed=True,
+        )
+        reply["执行结果"]["写入说明"] = capability_message
+        if pending is not None:
+            reply["执行结果"]["待确认写入"] = {
+                "confirmation_id": str(pending.id),
+                "affected_count": pending.affected_count,
+                "high_risk": pending.high_risk,
+                "reversible": pending.reversible,
+            }
+            coordinator.result_summary = f"已生成 {len(changes)} 项，等待确认写入"
+            task.result_summary = json.dumps(reply, ensure_ascii=False, separators=(",", ":"))
+        else:
+            reply["局限说明"] = {"写入能力": capability_message}
+            task.result_summary = json.dumps(reply, ensure_ascii=False, separators=(",", ":"))
+        session.flush()
+        return task
     if terminal_status == "failed":
         retryable = any(result.retryable for result in outcome.failed)
         jobs_service.transition(

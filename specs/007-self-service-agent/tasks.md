@@ -174,20 +174,20 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### Tests for User Story 4 (REQUIRED; write first) ⚠️
 
-- [ ] T059 [P] [US4] 契约测试 `backend/tests/contract/test_agent_confirmation.py`：`GET/POST /agent/tasks/{id}/confirmations[/{cid}]` 符合 `PendingWrite` schema
-- [ ] T060 [P] [US4] 安全测试 `backend/tests/security/test_agent_no_write_before_approval.py`：`decision != approved` 时目标对象零变化（SC-004/FR-022）
-- [ ] T061 [P] [US4] 集成测试 `backend/tests/integration/test_agent_write_apply.py`：批准后经既有领域服务写入，归属与乐观版本重校验；版本不匹配返回冲突而非静默覆盖（FR-024）
-- [ ] T062 [P] [US4] 集成测试 `backend/tests/integration/test_agent_high_risk.py`：删除/覆盖/批量更新即便原始请求已表达执行意图仍需二次确认（FR-023）
-- [ ] T063 [P] [US4] 集成测试 `backend/tests/integration/test_agent_no_write_capability.py`：只有读能力时明确说明"可生成但无法写回"，**不谎称已保存**（FR-006 写操作分支）
+- [X] T059 [P] [US4] 契约测试 `backend/tests/contract/test_agent_confirmation.py`：`GET/POST /agent/tasks/{id}/confirmations[/{cid}]` 符合 `PendingWrite` schema
+- [X] T060 [P] [US4] 安全测试 `backend/tests/security/test_agent_no_write_before_approval.py`：`decision != approved` 时目标对象零变化（SC-004/FR-022）
+- [X] T061 [P] [US4] 集成测试 `backend/tests/integration/test_agent_write_apply.py`：批准后经既有领域服务写入，归属与乐观版本重校验；版本不匹配返回冲突而非静默覆盖（FR-024）
+- [X] T062 [P] [US4] 集成测试 `backend/tests/integration/test_agent_high_risk.py`：删除/覆盖/批量更新即便原始请求已表达执行意图仍需二次确认（FR-023）
+- [X] T063 [P] [US4] 集成测试 `backend/tests/integration/test_agent_no_write_capability.py`：只有读能力时明确说明"可生成但无法写回"，**不谎称已保存**（FR-006 写操作分支）
 
 ### Implementation for User Story 4
 
-- [ ] T064 [US4] 在 `backend/app/modules/agent/service.py` 实现 `PendingWrite` 生成：影响条数、修改范围、可回滚性、变更预览、`high_risk` 判定（FR-021）
-- [ ] T065 [US4] 在 `backend/app/modules/agent/service.py` 实现 `waiting_confirmation` 状态转换与恢复执行
-- [ ] T066 [US4] 在 `backend/app/modules/agent/router.py` 实现 `GET /agent/tasks/{id}/confirmations` 与 `POST .../confirmations/{cid}`
-- [ ] T067 [US4] 在 `backend/app/modules/agent/service.py` 实现批准后写入路径，全部经既有领域服务（不绕过归属、乐观版本、固定事件保护）
-- [ ] T068 [US4] 在 `backend/app/modules/agent/registry.py` 登记写入类工具，标记 `type=write` 并要求 `allow_write=true` 的 run + 已批准 `PendingWrite`
-- [ ] T069 [P] [US4] 前端 `frontend/src/components/agent/ConfirmationCard.vue` 渲染影响范围预览与批准/拒绝动作
+- [X] T064 [US4] 在 `backend/app/modules/agent/service.py` 实现 `PendingWrite` 生成：影响条数、修改范围、可回滚性、变更预览、`high_risk` 判定（FR-021）
+- [X] T065 [US4] 在 `backend/app/modules/agent/service.py` 实现 `waiting_confirmation` 状态转换与恢复执行
+- [X] T066 [US4] 在 `backend/app/modules/agent/router.py` 实现 `GET /agent/tasks/{id}/confirmations` 与 `POST .../confirmations/{cid}`
+- [X] T067 [US4] 在 `backend/app/modules/agent/service.py` 实现批准后写入路径，全部经既有领域服务（不绕过归属、乐观版本、固定事件保护）
+- [X] T068 [US4] 在 `backend/app/modules/agent/registry.py` 登记写入类工具，标记 `type=write` 并要求 `allow_write=true` 的 run + 已批准 `PendingWrite`
+- [X] T069 [P] [US4] 前端 `frontend/src/components/agent/ConfirmationCard.vue` 渲染影响范围预览与批准/拒绝动作
 
 **Checkpoint**: US1–US4 均独立可用
 

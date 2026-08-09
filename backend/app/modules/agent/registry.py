@@ -98,6 +98,43 @@ class ToolRegistry:
                 tool.unavailable_reason or f"Tool is unavailable: {name}",
                 code="agent_tool_unavailable",
             )
+        if tool.type == "write":
+            from app.models.agent import AgentRun, PendingWrite
+
+            if context.run_id is None:
+                raise ConflictError(
+                    "Write tool requires an approved Agent run",
+                    code="agent_write_approval_required",
+                )
+            run = context.session.get(AgentRun, context.run_id)
+            if (
+                run is None
+                or run.task_id != context.task_id
+                or not run.allow_write
+                or name not in run.allowed_tools
+            ):
+                raise ConflictError(
+                    "Write tool requires explicit approval",
+                    code="agent_write_approval_required",
+                )
+            try:
+                confirmation_id = uuid.UUID(str(params.get("confirmation_id") or ""))
+            except ValueError as exc:
+                raise ConflictError(
+                    "Write tool requires an approved confirmation",
+                    code="agent_write_approval_required",
+                ) from exc
+            pending = context.session.get(PendingWrite, confirmation_id)
+            if (
+                pending is None
+                or pending.task_id != context.task_id
+                or pending.run_id != context.run_id
+                or pending.decision != "approved"
+            ):
+                raise ConflictError(
+                    "Write tool requires an approved confirmation",
+                    code="agent_write_approval_required",
+                )
         return tool.handler(context, params)
 
     def safe_manifest(self) -> list[dict[str, str | bool | None]]:
@@ -232,6 +269,84 @@ def _analyze_post_content(context: ToolContext, params: Mapping[str, Any]) -> di
     return result.model_dump()
 
 
+def _apply_post_analysis(context: ToolContext, params: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Apply an approved analysis preview through existing post/taxonomy services."""
+    from app.models.agent import PendingWrite
+    from app.modules.posts import service as post_service
+    from app.modules.posts import taxonomy_service
+    from app.modules.posts.schemas import PostPatch
+
+    confirmation_id = uuid.UUID(str(params["confirmation_id"]))
+    pending = context.session.get(PendingWrite, confirmation_id)
+    if pending is None or pending.target_type != "post" or pending.operation_type != "update":
+        raise ValidationError(
+            "Confirmation is not a supported post update",
+            code="agent_write_not_supported",
+        )
+    raw_changes = pending.preview_json.get("changes", [])
+    if not isinstance(raw_changes, list):
+        raise ValidationError("Invalid write preview", code="agent_write_preview_invalid")
+    target_versions = {str(target["id"]): target.get("version") for target in pending.targets_json}
+    results: list[dict[str, Any]] = []
+    for raw_change in raw_changes:
+        if not isinstance(raw_change, Mapping):
+            raise ValidationError("Invalid write preview", code="agent_write_preview_invalid")
+        post_id = str(raw_change.get("post_id") or "")
+        target_version = target_versions.get(post_id)
+        if not isinstance(target_version, int):
+            raise ValidationError(
+                "Write target has no optimistic version",
+                code="agent_write_target_invalid",
+            )
+
+        patch_values: dict[str, Any] = {"version": target_version}
+        if "summary" in raw_change:
+            patch_values["summary"] = str(raw_change.get("summary") or "") or None
+        for field, kind in (("tags", "tag"), ("keywords", "keyword")):
+            if field not in raw_change:
+                continue
+            values = raw_change.get(field)
+            if not isinstance(values, list):
+                raise ValidationError(
+                    f"{field} must be a list",
+                    code="agent_write_preview_invalid",
+                )
+            item_ids: list[uuid.UUID] = []
+            seen: set[str] = set()
+            for raw_value in values:
+                value = " ".join(str(raw_value or "").split())
+                key = value.casefold()
+                if not value or key in seen:
+                    continue
+                seen.add(key)
+                item = taxonomy_service.resolve_name(context.session, context.user_id, kind, value)
+                if item is None:
+                    item = taxonomy_service.create_item(
+                        context.session,
+                        context.user_id,
+                        kind,
+                        name=value,
+                    )
+                item_ids.append(uuid.UUID(str(item["id"])))
+            patch_values["tag_ids" if kind == "tag" else "keyword_ids"] = item_ids
+
+        post, warnings = post_service.patch_post(
+            context.session,
+            context.user_id,
+            uuid.UUID(post_id),
+            PostPatch(**patch_values),
+        )
+        results.append(
+            {
+                "post_id": str(post.id),
+                "version": post.version,
+                "status": "saved",
+                "warnings": warnings,
+            }
+        )
+    return results
+
+
 tool_registry.register(
     ToolDefinition(
         name="posts.list_recent",
@@ -239,6 +354,15 @@ tool_registry.register(
         responsibility="按时间返回归属用户的轻量文章元数据，不读取正文",
         required_permission="posts:read",
         handler=_list_recent_posts,
+    )
+)
+tool_registry.register(
+    ToolDefinition(
+        name="posts.apply_analysis",
+        type="write",
+        responsibility="在结构化确认后通过文章领域服务写入标签、关键词与摘要",
+        required_permission="posts:write",
+        handler=_apply_post_analysis,
     )
 )
 tool_registry.register(

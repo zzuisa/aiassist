@@ -56,11 +56,18 @@ def create_task(
     db: Session = Depends(get_db),
 ) -> schemas.AgentTask:
     intent_key = classify_request(body.request_text)
+    scope: dict | None = None
+    if body.previous_task_id is not None:
+        previous = service.get_owned_task(db, user.id, body.previous_task_id)
+        object_ids = previous.scope_json.get("object_ids", [])
+        if isinstance(object_ids, list):
+            scope = {"object_ids": object_ids, "previous_task_id": str(previous.id)}
     task = service.create_agent_task(
         db,
         user_id=user.id,
         request_text=body.request_text,
         intent_key=intent_key,
+        scope=scope,
     )
     db.commit()
     db.refresh(task)
@@ -98,3 +105,41 @@ def get_task(
         **task_data,
         runs=[_run_out(run) for run in service.task_runs(db, task.id)],
     )
+
+
+@router.get(
+    "/tasks/{task_id}/confirmations",
+    response_model=list[schemas.PendingWrite],
+)
+def list_confirmations(
+    task_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[schemas.PendingWrite]:
+    return [
+        schemas.PendingWrite.model_validate(item)
+        for item in service.list_pending_writes(db, user.id, task_id)
+    ]
+
+
+@router.post(
+    "/tasks/{task_id}/confirmations/{confirmation_id}",
+    response_model=schemas.PendingWrite,
+)
+def decide_confirmation(
+    task_id: uuid.UUID,
+    confirmation_id: uuid.UUID,
+    body: schemas.ConfirmationDecision,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> schemas.PendingWrite:
+    pending = service.decide_pending_write(
+        db,
+        user_id=user.id,
+        task_id=task_id,
+        confirmation_id=confirmation_id,
+        decision=body.decision,
+    )
+    db.commit()
+    db.refresh(pending)
+    return schemas.PendingWrite.model_validate(pending)

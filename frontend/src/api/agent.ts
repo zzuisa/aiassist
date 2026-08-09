@@ -41,6 +41,27 @@ export interface AgentTaskDetail extends AgentTask {
   runs: AgentRun[]
 }
 
+export type ConfirmationDecision = 'approve' | 'reject'
+
+export interface PendingWriteTarget {
+  id: string
+  version: number | null
+}
+
+export interface PendingWrite {
+  confirmation_id: string
+  operation_type: 'create' | 'update' | 'delete' | 'publish' | 'rollback'
+  target_type: string
+  targets: PendingWriteTarget[]
+  preview: Record<string, unknown>
+  affected_count: number
+  reversible: boolean
+  high_risk: boolean
+  decision: 'pending' | 'approved' | 'rejected' | 'expired'
+  decided_at: string | null
+  created_at: string
+}
+
 export interface AgentArticleResult {
   id: string
   title: string
@@ -67,6 +88,17 @@ export const agentApi = {
   listTasks: (limit = 20, status?: AgentTaskStatus) =>
     api.get<AgentTask[]>('/agent/tasks', { limit, status }),
   getTask: (taskId: string) => api.get<AgentTaskDetail>(`/agent/tasks/${taskId}`),
+  listConfirmations: (taskId: string) =>
+    api.get<PendingWrite[]>(`/agent/tasks/${taskId}/confirmations`),
+  decideConfirmation: (
+    taskId: string,
+    confirmationId: string,
+    decision: ConfirmationDecision,
+  ) =>
+    api.post<PendingWrite>(
+      `/agent/tasks/${taskId}/confirmations/${confirmationId}`,
+      { decision },
+    ),
 }
 
 export function parseAgentReply(summary: string | null): AgentReply | null {

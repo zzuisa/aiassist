@@ -3,15 +3,20 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import {
   agentApi,
   parseAgentReply,
+  type ConfirmationDecision,
   type AgentArticleResult,
+  type PendingWrite,
   type AgentTaskDetail,
 } from '@/api/agent'
 import AgentStatusPanel from '@/components/agent/AgentStatusPanel.vue'
+import ConfirmationCard from '@/components/agent/ConfirmationCard.vue'
 
 const requestText = ref('')
 const task = ref<AgentTaskDetail | null>(null)
 const error = ref('')
 const submitting = ref(false)
+const confirmations = ref<PendingWrite[]>([])
+const decidingId = ref<string | null>(null)
 let pollTimer: number | null = null
 
 const reply = computed(() => parseAgentReply(task.value?.result_summary ?? null))
@@ -33,6 +38,7 @@ function stopPolling(): void {
 
 async function refresh(taskId: string): Promise<void> {
   task.value = await agentApi.getTask(taskId)
+  confirmations.value = await agentApi.listConfirmations(taskId)
   if (['pending', 'running'].includes(task.value.status)) {
     pollTimer = window.setTimeout(() => void refresh(taskId), 1000)
   }
@@ -45,12 +51,30 @@ async function submit(): Promise<void> {
   submitting.value = true
   error.value = ''
   try {
-    const created = await agentApi.createTask(value)
+    const created = await agentApi.createTask(value, task.value?.task_id)
     await refresh(created.task_id)
   } catch {
     error.value = '任务创建失败，请稍后重试。'
   } finally {
     submitting.value = false
+  }
+}
+
+async function decide(confirmation: PendingWrite, decision: ConfirmationDecision): Promise<void> {
+  if (!task.value || decidingId.value) return
+  decidingId.value = confirmation.confirmation_id
+  error.value = ''
+  try {
+    await agentApi.decideConfirmation(
+      task.value.task_id,
+      confirmation.confirmation_id,
+      decision,
+    )
+    await refresh(task.value.task_id)
+  } catch {
+    error.value = '确认操作失败，数据可能已变化，请刷新后重试。'
+  } finally {
+    decidingId.value = null
   }
 }
 
@@ -99,6 +123,20 @@ onBeforeUnmount(stopPolling)
     </p>
 
     <AgentStatusPanel :task-id="task?.task_id" />
+
+    <section
+      v-if="confirmations.length"
+      class="confirmations"
+      aria-label="写入确认"
+    >
+      <ConfirmationCard
+        v-for="confirmation in confirmations"
+        :key="confirmation.confirmation_id"
+        :confirmation="confirmation"
+        :deciding="decidingId === confirmation.confirmation_id"
+        @decide="(decision) => decide(confirmation, decision)"
+      />
+    </section>
 
     <section
       v-if="articles.length"
@@ -161,6 +199,10 @@ button {
 .results {
   display: grid;
   gap: var(--space-2);
+}
+.confirmations {
+  display: grid;
+  gap: var(--space-3);
 }
 .result-card {
   padding: var(--space-3);

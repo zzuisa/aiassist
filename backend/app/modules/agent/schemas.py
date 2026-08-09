@@ -128,6 +128,12 @@ class PendingWrite(BaseModel):
     created_at: datetime
 
 
+class ConfirmationDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["approve", "reject"]
+
+
 class ToolManifestEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
