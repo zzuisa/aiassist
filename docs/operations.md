@@ -37,6 +37,39 @@ Check current states (admin): `GET /api/v1/settings` → `dependencies`, or
   docker compose run --rm backend python -m app.cli.dlq replay voice --limit 10
   ```
 
+## One-click Agent API validation
+
+Use the dedicated Playwright flow to watch and verify the production-safe,
+read-only Agent lifecycle. It checks readiness, unauthenticated rejection,
+Cookie + CSRF authentication, task submission, the shared SSE stream, and the
+durable terminal result.
+
+```bash
+cd frontend
+npm run verify:agent:ui
+```
+
+The command securely prompts for the validation account and targets
+`https://llm.roguelife.de` by default. Override the target for an isolated
+stack without changing the test:
+
+```bash
+BASE_URL=http://127.0.0.1:18080 npm run verify:agent:ui
+```
+
+For a headless run and a desensitized HTML report:
+
+```bash
+npm run verify:agent
+npm run verify:agent:report
+```
+
+The operator profile persists no Playwright trace, video, password, Cookie,
+CSRF value, or article content. Its report contains only lifecycle status,
+timing, Agent identity/version, event count, and necessary task/job IDs. CI
+runs the same scenario against its isolated throwaway account and uploads the
+HTML dashboard with the existing E2E diagnostics artifact.
+
 ## Storage migration (local → S3)
 
 1. Set `STORAGE_PROVIDER=s3` + `S3_ENDPOINT_URL/S3_BUCKET/S3_REGION` and the

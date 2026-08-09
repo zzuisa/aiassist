@@ -191,12 +191,13 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:18080/health/ready
           docker compose exec -T worker-fast celery -A app.workers.celery_app.celery inspect ping --timeout 10
           docker compose exec -T worker-heavy celery -A app.workers.celery_app.celery inspect ping --timeout 10
-      - name: Authenticated blog and 360px E2E
+      - name: Authenticated blog, 360px and Agent API E2E
         working-directory: frontend
         run: >-
           npm run test:e2e --
           tests/e2e/blog-content-management.spec.ts
           tests/e2e/accessibility.spec.ts
+          tests/e2e/agent-api-validation.spec.ts
           --project=desktop-chromium --workers=1
       - name: Capture Compose logs on failure
         if: failure()

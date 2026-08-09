@@ -14,7 +14,10 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify:agent": "bash scripts/verify-agent.sh run",
+    "verify:agent:ui": "bash scripts/verify-agent.sh ui",
+    "verify:agent:report": "playwright show-report playwright-report/agent-validation"
   },
   "dependencies": {
     "@fullcalendar/core": "6.1.21",
