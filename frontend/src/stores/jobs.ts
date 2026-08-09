@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AsyncJob, NotificationItem } from '@/api/types'
+import { useAgentStore } from '@/stores/agent'
 
 // Global jobs/notifications store fed by a single EventSource per tab. Events are
 // deduplicated by id and applied only when job_version is newer (see sse.md).
@@ -86,6 +87,7 @@ export const useJobsStore = defineStore('jobs', () => {
     for (const j of snapshotJobs) {
       applyJobEvent(j)
     }
+    useAgentStore().applySnapshot(data)
   }
 
   function applyNotification(data: Record<string, unknown>): void {
@@ -144,6 +146,10 @@ export const useJobsStore = defineStore('jobs', () => {
       lastEventId = (e as MessageEvent).lastEventId || lastEventId
       applyNotification(JSON.parse((e as MessageEvent).data))
     })
+    source.addEventListener('agent.status_changed', (e) => {
+      lastEventId = (e as MessageEvent).lastEventId || lastEventId
+      useAgentStore().applyStatusEvent(JSON.parse((e as MessageEvent).data))
+    })
     source.addEventListener('error', () => {
       connected.value = false
       reconnecting.value = true
@@ -162,6 +168,7 @@ export const useJobsStore = defineStore('jobs', () => {
     jobs.value.clear()
     jobVersions.value.clear()
     notifications.value = []
+    useAgentStore().clear()
     lastEventId = ''
   }
 

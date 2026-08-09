@@ -144,10 +144,18 @@ def test_backend_file_excludes_uvicorn_access_logs(tmp_path, monkeypatch):
 
 
 def test_handled_api_error_keeps_event_and_human_message(caplog):
+    import logging
+
     from app.core.errors import ConflictError, register_exception_handlers
+    from app.core.observability import configure_logging
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
+    # Other logging tests deliberately replace structlog's global factory.
+    # Restore the production stdlib bridge before asserting caplog behavior.
+    configure_logging("INFO", service="backend")
+    # Celery may disable loggers that existed before its logging bootstrap.
+    logging.getLogger("api.error").disabled = True
     app = FastAPI()
     register_exception_handlers(app)
 

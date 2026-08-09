@@ -36,10 +36,10 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 **Purpose**: 模块骨架与配置项就位
 
-- [ ] T001 创建 `backend/app/modules/agent/__init__.py` 模块骨架目录
-- [ ] T002 [P] 在 `backend/app/core/config.py` 新增 `AGENT_MAX_BATCH_OBJECTS`（默认 200，上限 500）与 `AGENT_MAX_CONCURRENCY`（默认 4，上限 8）配置项，值域校验写在 Settings 内
-- [ ] T003 [P] 在 `.env.example` 补充上述两个配置项及注释说明其与 `worker-heavy` 单并发的关系
-- [ ] T004 [P] 在 `backend/app/workers/celery_app.py` 的 `task_routes` 增加 `app.workers.tasks.agent.*` → `llm` 队列路由（复用既有队列，不新增）
+- [X] T001 创建 `backend/app/modules/agent/__init__.py` 模块骨架目录
+- [X] T002 [P] 在 `backend/app/core/config.py` 新增 `AGENT_MAX_BATCH_OBJECTS`（默认 200，上限 500）与 `AGENT_MAX_CONCURRENCY`（默认 4，上限 8）配置项，值域校验写在 Settings 内
+- [X] T003 [P] 在 `.env.example` 补充上述两个配置项及注释说明其与 `worker-heavy` 单并发的关系
+- [X] T004 [P] 在 `backend/app/workers/celery_app.py` 的 `task_routes` 增加 `app.workers.tasks.agent.*` → `llm` 队列路由（复用既有队列，不新增）
 
 ---
 
@@ -51,28 +51,28 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### 数据层
 
-- [ ] T005 在 `backend/app/models/agent.py` 定义 `AgentTask` 模型（`job_id` UNIQUE NOT NULL FK → `async_jobs.id` ON DELETE CASCADE，见 R-002）
-- [ ] T006 在 `backend/app/models/agent.py` 定义 `AgentRun` 模型（含 `agent_key`/`agent_version`/`allow_write` 默认 false/`progress_current`/`progress_total`/`stage_label`）（FR-014 的 9 个必备字段）
-- [ ] T007 在 `backend/app/models/agent.py` 定义 `ExecutionRecord` 模型 —— **禁止对任何业务实体建外键**，被操作对象以 UUID 值记录在 `params_digest_json`
-- [ ] T008 在 `backend/app/models/agent.py` 定义 `PendingWrite` 模型（`decision` 默认 `pending`，`targets_json` 含目标 ID 与乐观版本号）
-- [ ] T009 在 `backend/app/models/__init__.py` 导出上述四个模型
-- [ ] T010 创建迁移 `backend/alembic/versions/0019_agent_runtime.py`，建四张表及 data-model.md 指定的全部索引（当前最新版本为 `0018`）
+- [X] T005 在 `backend/app/models/agent.py` 定义 `AgentTask` 模型（`job_id` UNIQUE NOT NULL FK → `async_jobs.id` ON DELETE CASCADE，见 R-002）
+- [X] T006 在 `backend/app/models/agent.py` 定义 `AgentRun` 模型（含 `agent_key`/`agent_version`/`allow_write` 默认 false/`progress_current`/`progress_total`/`stage_label`）（FR-014 的 9 个必备字段）
+- [X] T007 在 `backend/app/models/agent.py` 定义 `ExecutionRecord` 模型 —— **禁止对任何业务实体建外键**，被操作对象以 UUID 值记录在 `params_digest_json`
+- [X] T008 在 `backend/app/models/agent.py` 定义 `PendingWrite` 模型（`decision` 默认 `pending`，`targets_json` 含目标 ID 与乐观版本号）
+- [X] T009 在 `backend/app/models/__init__.py` 导出上述四个模型
+- [X] T010 创建迁移 `backend/alembic/versions/0019_agent_runtime.py`，建四张表及 data-model.md 指定的全部索引（当前最新版本为 `0018`）
 
 ### 基础设施
 
-- [ ] T011 [P] 在 `backend/app/modules/agent/intents.py` 实现可扩展意图注册表：装饰器或注册函数登记 `intent_key` → handler，**禁止 if/elif 硬编码分支**（FR-001/FR-048）
-- [ ] T012 [P] 在 `backend/app/modules/agent/registry.py` 实现类型化工具注册表：只暴露 `agent-tool-manifest.v1.json` 允许的安全清单字段，未注册工具调用抛领域错误（FR-041/FR-044）
-- [ ] T013 [P] 在 `backend/app/modules/agent/audit.py` 实现 `ExecutionRecord` 写入器，含脱敏函数（键名匹配 password/token/secret/api_key/cookie/authorization/private_key 及其连字符变体，值匹配 `eyJ` 前缀与 `Bearer ` 前缀 → `[redacted]`）
-- [ ] T014 [P] 在 `backend/app/modules/agent/service.py` 实现任务生命周期：创建 `AgentTask` + 配对 `AsyncJob` 于同一事务，**在任何模型调用之前提交**（Constitution I）
-- [ ] T015 在 `backend/app/modules/agent/schemas.py` 按 `contracts/openapi.yaml` 定义全部 Pydantic 模型（`AgentTask`/`AgentTaskDetail`/`AgentRun`/`Progress`/`ExecutionRecord`/`PendingWrite`/`ToolManifestEntry`）
-- [ ] T016 在 `backend/app/modules/agent/router.py` 注册 `/agent` 路由并挂载到 `backend/app/main.py`，写方法依赖 `require_csrf`
-- [ ] T017 在 `backend/app/workers/tasks/agent.py` 创建 Celery 任务族骨架（路由至既有 `llm` 队列，不新增 worker）
+- [X] T011 [P] 在 `backend/app/modules/agent/intents.py` 实现可扩展意图注册表：装饰器或注册函数登记 `intent_key` → handler，**禁止 if/elif 硬编码分支**（FR-001/FR-048）
+- [X] T012 [P] 在 `backend/app/modules/agent/registry.py` 实现类型化工具注册表：只暴露 `agent-tool-manifest.v1.json` 允许的安全清单字段，未注册工具调用抛领域错误（FR-041/FR-044）
+- [X] T013 [P] 在 `backend/app/modules/agent/audit.py` 实现 `ExecutionRecord` 写入器，含脱敏函数（键名匹配 password/token/secret/api_key/cookie/authorization/private_key 及其连字符变体，值匹配 `eyJ` 前缀与 `Bearer ` 前缀 → `[redacted]`）
+- [X] T014 [P] 在 `backend/app/modules/agent/service.py` 实现任务生命周期：创建 `AgentTask` + 配对 `AsyncJob` 于同一事务，**在任何模型调用之前提交**（Constitution I）
+- [X] T015 在 `backend/app/modules/agent/schemas.py` 按 `contracts/openapi.yaml` 定义全部 Pydantic 模型（`AgentTask`/`AgentTaskDetail`/`AgentRun`/`Progress`/`ExecutionRecord`/`PendingWrite`/`ToolManifestEntry`）
+- [X] T016 在 `backend/app/modules/agent/router.py` 注册 `/agent` 路由并挂载到 `backend/app/main.py`，写方法依赖 `require_csrf`
+- [X] T017 在 `backend/app/workers/tasks/agent.py` 创建 Celery 任务族骨架（路由至既有 `llm` 队列，不新增 worker）
 
 ### 基础测试
 
-- [ ] T018 [P] 单元测试 `backend/tests/unit/test_agent_intents.py`：新增意图无需修改调度代码即可被识别（FR-048）
-- [ ] T019 [P] 安全测试 `backend/tests/security/test_agent_redaction.py`：含各类凭据的参数经脱敏后写入，记录全文无凭据（FR-031/FR-042/SC-006）
-- [ ] T020 [P] 集成测试 `backend/tests/integration/test_agent_cascade.py`：`clear_completed_jobs()` 后 Agent 四表级联清空，**且 posts 表记录数不变**（硬约束 1）
+- [X] T018 [P] 单元测试 `backend/tests/unit/test_agent_intents.py`：新增意图无需修改调度代码即可被识别（FR-048）
+- [X] T019 [P] 安全测试 `backend/tests/security/test_agent_redaction.py`：含各类凭据的参数经脱敏后写入，记录全文无凭据（FR-031/FR-042/SC-006）
+- [X] T020 [P] 集成测试 `backend/tests/integration/test_agent_cascade.py`：`clear_completed_jobs()` 后 Agent 四表级联清空，**且 posts 表记录数不变**（硬约束 1）
 
 **Checkpoint**: 基础设施就绪 —— 用户故事可以开工
 
@@ -88,25 +88,25 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 > **NOTE: 先写测试并确认其失败，再写实现**
 
-- [ ] T021 [P] [US1] 契约测试 `backend/tests/contract/test_agent_task_contract.py`：`POST /agent/tasks` 返回 202 与 `AgentTask` schema，`GET /agent/tasks/{id}` 返回 `AgentTaskDetail`
-- [ ] T022 [P] [US1] 集成测试 `backend/tests/integration/test_agent_query_minimal.py`：查询任务完成后执行记录中**无** `operation_type=analyze` 条目，返回字段不含正文（SC-001/FR-009）
-- [ ] T023 [P] [US1] 集成测试 `backend/tests/integration/test_agent_aggregate.py`：分类统计走聚合接口，不逐篇拉取（FR-011）
-- [ ] T024 [P] [US1] 单元测试 `backend/tests/unit/test_agent_data_cleaning.py`：去空值、去重、名称格式统一、异常标记（FR-018）
-- [ ] T025 [P] [US1] 安全测试 `backend/tests/security/test_agent_ownership.py`：跨用户访问他人任务返回 404（FR-043）
+- [X] T021 [P] [US1] 契约测试 `backend/tests/contract/test_agent_task_contract.py`：`POST /agent/tasks` 返回 202 与 `AgentTask` schema，`GET /agent/tasks/{id}` 返回 `AgentTaskDetail`
+- [X] T022 [P] [US1] 集成测试 `backend/tests/integration/test_agent_query_minimal.py`：查询任务完成后执行记录中**无** `operation_type=analyze` 条目，返回字段不含正文（SC-001/FR-009）
+- [X] T023 [P] [US1] 集成测试 `backend/tests/integration/test_agent_aggregate.py`：分类统计走聚合接口，不逐篇拉取（FR-011）
+- [X] T024 [P] [US1] 单元测试 `backend/tests/unit/test_agent_data_cleaning.py`：去空值、去重、名称格式统一、异常标记（FR-018）
+- [X] T025 [P] [US1] 安全测试 `backend/tests/security/test_agent_ownership.py`：跨用户访问他人任务返回 404（FR-043）
 
 ### Implementation for User Story 1
 
-- [ ] T026 [US1] 在 `backend/app/modules/agent/registry.py` 登记只读查询工具（文章列表检索、分类/标签统计、时间线），复用既有 `/blog/search`、`/blog/taxonomy` 等服务层函数，`type=read`
-- [ ] T027 [US1] 在 `backend/app/modules/agent/intents.py` 注册查询类意图 handler：文章列表、分类统计、标签检索
-- [ ] T028 [US1] 在 `backend/app/modules/agent/service.py` 实现澄清提问判定：需求可由上下文确定时不追问；仅当关键条件缺失且无法从工具或上下文获得时提问，且只问必要项（FR-002/FR-003）
-- [ ] T029 [US1] 在 `backend/app/modules/agent/service.py` 实现工具选择：最少工具组合，禁止调用无关接口、禁止重复取数（FR-004/FR-005）
-- [ ] T030 [US1] 在 `backend/app/modules/agent/service.py` 实现字段裁剪，列表类请求只返回 data-model 允许的轻量字段（FR-008）
-- [ ] T031 [US1] 在 `backend/app/modules/agent/service.py` 实现结果整理：去空、去重、格式统一、异常标记（FR-018/FR-019）
-- [ ] T032 [US1] 在 `backend/app/modules/agent/service.py` 实现查询类回复组装：处理结果 / 执行记录 / 局限说明三段结构，且不输出正文、数据库字段、完整接口响应或工具内部参数（FR-038/FR-040/FR-020）
-- [ ] T033 [US1] 在 `backend/app/modules/agent/router.py` 实现 `POST /agent/tasks`、`GET /agent/tasks`、`GET /agent/tasks/{task_id}`
-- [ ] T034 [US1] 在 `backend/app/workers/tasks/agent.py` 实现查询任务执行体，逐步写 `ExecutionRecord`
-- [ ] T035 [P] [US1] 前端 `frontend/src/api/agent.ts` 封装上述三个端点
-- [ ] T036 [US1] 前端 `frontend/src/modules/agent/AgentPage.vue` 自然语言输入框与轻量结果列表（标题、链接、标签）
+- [X] T026 [US1] 在 `backend/app/modules/agent/registry.py` 登记只读查询工具（文章列表检索、分类/标签统计、时间线），复用既有 `/blog/search`、`/blog/taxonomy` 等服务层函数，`type=read`
+- [X] T027 [US1] 在 `backend/app/modules/agent/intents.py` 注册查询类意图 handler：文章列表、分类统计、标签检索
+- [X] T028 [US1] 在 `backend/app/modules/agent/service.py` 实现澄清提问判定：需求可由上下文确定时不追问；仅当关键条件缺失且无法从工具或上下文获得时提问，且只问必要项（FR-002/FR-003）
+- [X] T029 [US1] 在 `backend/app/modules/agent/service.py` 实现工具选择：最少工具组合，禁止调用无关接口、禁止重复取数（FR-004/FR-005）
+- [X] T030 [US1] 在 `backend/app/modules/agent/service.py` 实现字段裁剪，列表类请求只返回 data-model 允许的轻量字段（FR-008）
+- [X] T031 [US1] 在 `backend/app/modules/agent/service.py` 实现结果整理：去空、去重、格式统一、异常标记（FR-018/FR-019）
+- [X] T032 [US1] 在 `backend/app/modules/agent/service.py` 实现查询类回复组装：处理结果 / 执行记录 / 局限说明三段结构，且不输出正文、数据库字段、完整接口响应或工具内部参数（FR-038/FR-040/FR-020）
+- [X] T033 [US1] 在 `backend/app/modules/agent/router.py` 实现 `POST /agent/tasks`、`GET /agent/tasks`、`GET /agent/tasks/{task_id}`
+- [X] T034 [US1] 在 `backend/app/workers/tasks/agent.py` 实现查询任务执行体，逐步写 `ExecutionRecord`
+- [X] T035 [P] [US1] 前端 `frontend/src/api/agent.ts` 封装上述三个端点
+- [X] T036 [US1] 前端 `frontend/src/modules/agent/AgentPage.vue` 自然语言输入框与轻量结果列表（标题、链接、标签）
 
 **Checkpoint**: US1 独立可用 —— 自然语言查询已可交付
 
@@ -120,18 +120,18 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### Tests for User Story 2 (REQUIRED; write first) ⚠️
 
-- [ ] T037 [P] [US2] 契约测试 `backend/tests/contract/test_agent_status_event.py`：事件负载符合 `agent-status-event.v1.json`，`status` 落在七值枚举，`event_type` 字符串 ≤ 40 字符（`async_job_events.event_type` 限长）（FR-025/FR-026）
-- [ ] T038 [P] [US2] 集成测试 `backend/tests/integration/test_agent_sse.py`：任务全程事件序列完整；重连带 `Last-Event-ID` 不丢事件；游标失效时快照含在跑的 Agent
-- [ ] T039 [P] [US2] 安全测试 `backend/tests/security/test_agent_event_leakage.py`：事件中无系统提示词、无模型推理、无凭据（FR-028）
-- [ ] T040 [P] [US2] 单元测试 `backend/tests/unit/test_agent_progress.py`：总量不可知时 `progress` 为 null 且 `stage_label` 有值，**不伪造进度数字**（FR-027）
+- [X] T037 [P] [US2] 契约测试 `backend/tests/contract/test_agent_status_event.py`：事件负载符合 `agent-status-event.v1.json`，`status` 落在七值枚举，`event_type` 字符串 ≤ 40 字符（`async_job_events.event_type` 限长）（FR-025/FR-026）
+- [X] T038 [P] [US2] 集成测试 `backend/tests/integration/test_agent_sse.py`：任务全程事件序列完整；重连带 `Last-Event-ID` 不丢事件；游标失效时快照含在跑的 Agent
+- [X] T039 [P] [US2] 安全测试 `backend/tests/security/test_agent_event_leakage.py`：事件中无系统提示词、无模型推理、无凭据（FR-028）
+- [X] T040 [P] [US2] 单元测试 `backend/tests/unit/test_agent_progress.py`：总量不可知时 `progress` 为 null 且 `stage_label` 有值，**不伪造进度数字**（FR-027）
 
 ### Implementation for User Story 2
 
-- [ ] T041 [US2] 在 `backend/app/modules/agent/status.py` 实现 `agent.status_changed` 事件构造与发布，**与业务变更同事务**写入 `async_job_events`（沿用既有约定）
-- [ ] T042 [US2] 在 `backend/app/modules/agent/service.py` 的 Agent 生命周期各转换点接入状态发布
-- [ ] T043 [US2] 扩展 `backend/app/modules/jobs/sse.py` 的 `_snapshot_payload()`，加入当前在跑的 Agent 运行实例，避免重连后面板空白（R-003 唯一新增工作量）
-- [ ] T044 [P] [US2] 前端 `frontend/src/stores/agent.ts` 在既有 `/events/jobs` 连接上按 `event_type` 分流 `agent.status_changed`（参考 `frontend/src/stores/jobs.ts:138` 的 addEventListener 模式）
-- [ ] T045 [US2] 前端 `frontend/src/components/agent/AgentStatusPanel.vue` 展示名称、职责、当前任务、工具、状态、进度；多 Agent 并行时各自独立呈现
+- [X] T041 [US2] 在 `backend/app/modules/agent/status.py` 实现 `agent.status_changed` 事件构造与发布，**与业务变更同事务**写入 `async_job_events`（沿用既有约定）
+- [X] T042 [US2] 在 `backend/app/modules/agent/service.py` 的 Agent 生命周期各转换点接入状态发布
+- [X] T043 [US2] 扩展 `backend/app/modules/jobs/sse.py` 的 `_snapshot_payload()`，加入当前在跑的 Agent 运行实例，避免重连后面板空白（R-003 唯一新增工作量）
+- [X] T044 [P] [US2] 前端 `frontend/src/stores/agent.ts` 在既有 `/events/jobs` 连接上按 `event_type` 分流 `agent.status_changed`（参考 `frontend/src/stores/jobs.ts:138` 的 addEventListener 模式）
+- [X] T045 [US2] 前端 `frontend/src/components/agent/AgentStatusPanel.vue` 展示名称、职责、当前任务、工具、状态、进度；多 Agent 并行时各自独立呈现
 
 **Checkpoint**: US1 与 US2 均独立可用
 
@@ -145,22 +145,22 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### Tests for User Story 3 (REQUIRED; write first) ⚠️
 
-- [ ] T046 [P] [US3] 集成测试 `backend/tests/integration/test_agent_body_on_demand.py`：分析类请求读正文、列表类请求不读（FR-010/FR-002）
-- [ ] T047 [P] [US3] 集成测试 `backend/tests/integration/test_agent_parallel.py`：多 `AgentRun` 的 `input_scope` 互不重叠（FR-015）；25 对象任务并行相较串行耗时下降 ≥ 50%（SC-010）
-- [ ] T048 [P] [US3] 集成测试 `backend/tests/integration/test_agent_partial_failure.py`：5/25 失败时已成功项保留、终态 `partial_success`、失败项与原因单列（FR-034/SC-008）
-- [ ] T049 [P] [US3] 集成测试 `backend/tests/integration/test_agent_llm_unavailable.py`：LLM 网关不可用时用户文章完好可访问、任务可重试、**不以模拟数据填充**（Constitution VII 数据存活）
-- [ ] T050 [P] [US3] 单元测试 `backend/tests/unit/test_agent_batch_limits.py`：超过 `AGENT_MAX_BATCH_OBJECTS` 时说明实际处理范围并要求收窄
+- [X] T046 [P] [US3] 集成测试 `backend/tests/integration/test_agent_body_on_demand.py`：分析类请求读正文、列表类请求不读（FR-010/FR-002）
+- [X] T047 [P] [US3] 集成测试 `backend/tests/integration/test_agent_parallel.py`：多 `AgentRun` 的 `input_scope` 互不重叠（FR-015）；25 对象任务并行相较串行耗时下降 ≥ 50%（SC-010）
+- [X] T048 [P] [US3] 集成测试 `backend/tests/integration/test_agent_partial_failure.py`：5/25 失败时已成功项保留、终态 `partial_success`、失败项与原因单列（FR-034/SC-008）
+- [X] T049 [P] [US3] 集成测试 `backend/tests/integration/test_agent_llm_unavailable.py`：LLM 网关不可用时用户文章完好可访问、任务可重试、**不以模拟数据填充**（Constitution VII 数据存活）
+- [X] T050 [P] [US3] 单元测试 `backend/tests/unit/test_agent_batch_limits.py`：超过 `AGENT_MAX_BATCH_OBJECTS` 时说明实际处理范围并要求收窄
 
 ### Implementation for User Story 3
 
-- [ ] T051 [US3] 在 `backend/app/modules/agent/runner.py` 实现有界线程池扇出执行器（并发取自 `AGENT_MAX_CONCURRENCY`，运行在单个 Celery 任务内，见 R-001 方案 C）
-- [ ] T052 [US3] 在 `backend/app/modules/agent/service.py` 复用 `backend/app/modules/posts/orchestrator.py` 的**选择与门控逻辑**（价值评分、能力可用性、跳过原因码）—— 不复用其提示词组合方式（R-000）（FR-017）
-- [ ] T053 [US3] 在 `backend/app/modules/agent/service.py` 实现单/多 Agent 判定：单接口可完成或数据量小时用单 Agent（FR-012/FR-013）
-- [ ] T054 [US3] 在 `backend/app/modules/agent/service.py` 实现子 Agent 创建，绑定 spec 006 的当时生效版本至 `agent_version`（FR-014/FR-045/FR-046）
-- [ ] T055 [US3] 在 `backend/app/modules/agent/registry.py` 登记正文读取与内容分析工具
-- [ ] T056 [US3] 在 `backend/app/modules/agent/service.py` 实现主控汇总：去重、格式统一、质量检查、区分已生成未保存/已保存/失败/未处理（FR-016/FR-006）
-- [ ] T057 [US3] 在 `backend/app/modules/agent/service.py` 实现任务执行类回复组装：执行计划 / 当前运行 Agent / 执行结果 / 执行记录 四段结构（FR-039）
-- [ ] T058 [US3] 在 `backend/app/modules/agent/runner.py` 实现失败隔离：判定失败类型、安全时重试一次、失败不影响其他独立 Agent（FR-032/FR-033）
+- [X] T051 [US3] 在 `backend/app/modules/agent/runner.py` 实现有界线程池扇出执行器（并发取自 `AGENT_MAX_CONCURRENCY`，运行在单个 Celery 任务内，见 R-001 方案 C）
+- [X] T052 [US3] 在 `backend/app/modules/agent/service.py` 复用 `backend/app/modules/posts/orchestrator.py` 的**选择与门控逻辑**（价值评分、能力可用性、跳过原因码）—— 不复用其提示词组合方式（R-000）（FR-017）
+- [X] T053 [US3] 在 `backend/app/modules/agent/service.py` 实现单/多 Agent 判定：单接口可完成或数据量小时用单 Agent（FR-012/FR-013）
+- [X] T054 [US3] 在 `backend/app/modules/agent/service.py` 实现子 Agent 创建，绑定 spec 006 的当时生效版本至 `agent_version`（FR-014/FR-045/FR-046）
+- [X] T055 [US3] 在 `backend/app/modules/agent/registry.py` 登记正文读取与内容分析工具
+- [X] T056 [US3] 在 `backend/app/modules/agent/service.py` 实现主控汇总：去重、格式统一、质量检查、区分已生成未保存/已保存/失败/未处理（FR-016/FR-006）
+- [X] T057 [US3] 在 `backend/app/modules/agent/service.py` 实现任务执行类回复组装：执行计划 / 当前运行 Agent / 执行结果 / 执行记录 四段结构（FR-039）
+- [X] T058 [US3] 在 `backend/app/modules/agent/runner.py` 实现失败隔离：判定失败类型、安全时重试一次、失败不影响其他独立 Agent（FR-032/FR-033）
 
 **Checkpoint**: US1–US3 均独立可用
 

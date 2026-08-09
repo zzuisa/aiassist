@@ -1,8 +1,14 @@
+.git/
+.dockerignore
+Dockerfile*
+.env*
 node_modules/
 dist/
 dev-dist/
+build/
 coverage/
 test-results/
 playwright-report/
+*.log*
 .vite/
 tests/e2e/

@@ -17,7 +17,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.observability import get_logger, get_trace_id
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
-log = get_logger("api.error")
+
+
+def _api_log() -> Any:
+    """Resolve lazily so Celery/test logging reconfiguration cannot stale it."""
+    return get_logger("api.error")
 
 
 class AppError(Exception):
@@ -140,7 +144,8 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
-        logger = log.error if exc.status >= 500 else log.warning
+        active_log = _api_log()
+        logger = active_log.error if exc.status >= 500 else active_log.warning
         logger(
             exc.log_context.get("event", "api_request_failed"),
             # Keep the event stable for aggregations but make Kibana's
@@ -167,7 +172,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             {"loc": list(e.get("loc", [])), "msg": e.get("msg", ""), "type": e.get("type", "")}
             for e in exc.errors()
         ]
-        log.warning(
+        _api_log().warning(
             "api_request_validation_failed",
             status_code=422,
             error_code="validation_error",
@@ -183,7 +188,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         code = {401: "authentication_required", 403: "forbidden", 404: "not_found"}.get(
             exc.status_code, "http_error"
         )
-        logger = log.error if exc.status_code >= 500 else log.warning
+        active_log = _api_log()
+        logger = active_log.error if exc.status_code >= 500 else active_log.warning
         logger(
             "api_http_error",
             status_code=exc.status_code,
@@ -195,7 +201,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-        log.exception(
+        _api_log().exception(
             "api_unhandled_exception",
             status_code=500,
             error_code="internal_error",

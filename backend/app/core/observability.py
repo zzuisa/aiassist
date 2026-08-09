@@ -336,6 +336,14 @@ def configure_logging(level: str = "INFO", service: str = "backend") -> None:
 
 
 def get_logger(name: str = "aiassist") -> structlog.stdlib.BoundLogger:
+    # Celery's logging bootstrap may disable stdlib loggers that were created
+    # earlier during module import. Application loggers must recover whenever
+    # they are requested so later API/worker events still reach the managed
+    # root handlers (and test capture handlers).
+    stdlib_logger = logging.getLogger(name)
+    stdlib_logger.disabled = False
+    if not name.startswith(("uvicorn", "celery")):
+        stdlib_logger.propagate = True
     return structlog.get_logger(name)
 
 

@@ -62,6 +62,7 @@ TASK_ROUTES = {
     "app.workers.tasks.blog.extract": {"queue": "search"},
     "app.workers.tasks.blog.*": {"queue": "llm"},
     "app.workers.tasks.assistant.*": {"queue": "llm"},
+    "app.workers.tasks.agent.*": {"queue": "llm"},
     "app.workers.tasks.maintenance.*": {"queue": "maintenance"},
 }
 
@@ -88,6 +89,7 @@ celery.conf.update(
 
 # Register task modules explicitly (autodiscover expects an app-per-package).
 celery.conf.imports = (
+    "app.workers.tasks.agent",
     "app.workers.tasks.notifications",
     "app.workers.tasks.habits",
     "app.workers.tasks.maintenance",

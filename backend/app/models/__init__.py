@@ -5,6 +5,7 @@ Every feature module's models are imported here as they are added. Importing
 """
 
 from app.db.base import Base
+from app.models import agent as agent
 from app.models import blog as blog
 from app.models import captures as captures
 from app.models import foundation as foundation
@@ -16,7 +17,15 @@ from app.models import scheduling as scheduling
 from app.models import search as search
 from app.models import tasks as tasks
 from app.models import voice as voice
+from app.models.agent import AgentRun, AgentTask, ExecutionRecord, PendingWrite
 
 metadata = Base.metadata
 
-__all__ = ["Base", "metadata"]
+__all__ = [
+    "AgentRun",
+    "AgentTask",
+    "Base",
+    "ExecutionRecord",
+    "PendingWrite",
+    "metadata",
+]

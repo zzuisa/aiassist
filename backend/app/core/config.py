@@ -131,6 +131,10 @@ class Settings(BaseSettings):
     blog_capabilities_json: str = ""
     blog_allow_retrieved_images: bool = False
     blog_allow_generated_images: bool = False
+    # Agent fan-out runs inside the single worker-heavy process. Keep both
+    # dimensions bounded so one batch cannot monopolize voice/image workloads.
+    agent_max_batch_objects: int = Field(default=200, ge=1, le=500)
+    agent_max_concurrency: int = Field(default=4, ge=1, le=8)
     speech_provider: str = "none"
     speech_default_model: str = ""
     llm_provider_key_file: str | None = None
