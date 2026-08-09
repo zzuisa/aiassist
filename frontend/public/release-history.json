@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "id": "2026.08.09.124240-38d45ff",
+      "version": "2026.08.09.124240",
+      "commit": "38d45ff41a1b631ffc2e5a1169e8a318add9f28e",
+      "commit_short": "38d45ff",
+      "message": "deploy(agent): phase 5 parallel analysis",
+      "changes": [
+        "deploy(agent): phase 5 parallel analysis",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T12:42:40Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.01.194446-a15f1a0",
       "version": "2026.08.01.194446",
       "commit": "a15f1a07c090caddfd6720c7ef3fd6c9021294fe",
