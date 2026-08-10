@@ -1,0 +1,1209 @@
+{
+  "releases": [
+    {
+      "id": "2026.08.10.161403-2728299",
+      "version": "2026.08.10.161403",
+      "commit": "27282996070577da14f906201a51bb79724cae94",
+      "commit_short": "2728299",
+      "message": "✨ feat: 部署自助 Agent 完整功能",
+      "changes": [
+        "✨ feat: 部署自助 Agent 完整功能",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-10T16:14:03Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.10.160325-a4e0233",
+      "version": "2026.08.10.160325",
+      "commit": "a4e0233b65014f712c3721f28fbeba7997b4459b",
+      "commit_short": "a4e0233",
+      "message": "deploy: update 2026.08.10.160325",
+      "changes": [
+        "deploy: update 2026.08.10.160325",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        ".agents/skills/speckit-git-commit/SKILL.md",
+        ".specify/extensions/git/git-config.yml",
+        ".specify/extensions/git/scripts/bash/auto-commit.sh",
+        ".specify/extensions/git/scripts/powershell/auto-commit.ps1",
+        "backend/app/modules/agent/audit.py",
+        "backend/app/modules/agent/intents.py",
+        "backend/app/modules/agent/registry.py",
+        "backend/app/modules/agent/router.py",
+        "backend/app/modules/agent/runner.py",
+        "backend/app/modules/agent/schemas.py",
+        "backend/app/modules/agent/service.py",
+        "backend/app/modules/agent/status.py",
+        "backend/app/modules/assistant/service.py",
+        "backend/app/workers/tasks/agent.py",
+        "backend/tests/contract/test_agent_records_contract.py",
+        "backend/tests/contract/test_agent_tools_manifest.py",
+        "backend/tests/contract/test_assistant_compat.py",
+        "backend/tests/integration/test_agent_capability_gap.py",
+        "backend/tests/integration/test_agent_latency.py",
+        "backend/tests/integration/test_agent_no_fabrication.py",
+        "backend/tests/integration/test_agent_record_completeness.py",
+        "backend/tests/integration/test_agent_restart_recovery.py",
+        "backend/tests/integration/test_agent_scope_inheritance.py",
+        "backend/tests/integration/test_agent_scope_staleness.py",
+        "backend/tests/integration/test_agent_single_agent_ratio.py",
+        "backend/tests/integration/test_agent_trace.py",
+        "backend/tests/integration/test_agent_unavailable_agent.py",
+        "backend/tests/integration/test_assistant_migrated.py",
+        "backend/tests/performance/test_agent_worker_fairness.py",
+        "backend/tests/unit/test_agent_scope.py",
+        "docs/operations.md",
+        "frontend/src/api/agent.ts",
+        "frontend/src/components/agent/CapabilityGapNotice.vue",
+        "frontend/src/components/agent/ExecutionRecordList.vue",
+        "frontend/src/modules/agent/AgentPage.vue",
+        "specs/007-self-service-agent/contracts/schemas/agent-status-event.v1.json",
+        "specs/007-self-service-agent/tasks.md"
+      ],
+      "deployed_at": "2026-08-10T16:03:25Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.09.144435-33a3c9a",
+      "version": "2026.08.09.144435",
+      "commit": "33a3c9af76a39cb83ec61ddb96fc48971873ec4f",
+      "commit_short": "33a3c9a",
+      "message": "deploy(agent): expose visual confirmation entry",
+      "changes": [
+        "deploy(agent): expose visual confirmation entry",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T14:44:35Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.09.143516-59e7ae8",
+      "version": "2026.08.09.143516",
+      "commit": "59e7ae8e4d9ef4d0f5552d8c69c1c0a26e6995a6",
+      "commit_short": "59e7ae8",
+      "message": "deploy(agent): confirmed write workflow",
+      "changes": [
+        "deploy(agent): confirmed write workflow",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T14:35:16Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.09.135807-72b5c00",
+      "version": "2026.08.09.135807",
+      "commit": "72b5c005c4da9d39602e842243ccedc98ba4f5e4",
+      "commit_short": "72b5c00",
+      "message": "deploy(ops): postgres recovery report",
+      "changes": [
+        "deploy(ops): postgres recovery report",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T13:58:07Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.09.131751-550f27c",
+      "version": "2026.08.09.131751",
+      "commit": "550f27cfc1109cf4b6fc3f5fc474db97e5f83f29",
+      "commit_short": "550f27c",
+      "message": "deploy(agent): one-click visual validation",
+      "changes": [
+        "deploy(agent): one-click visual validation",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T13:17:51Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.09.124515-eab3e9f",
+      "version": "2026.08.09.124515",
+      "commit": "eab3e9f5edfe52f1ae49eb4fcf1d7c7b51e8f88d",
+      "commit_short": "eab3e9f",
+      "message": "deploy(agent): phase 5 parallel analysis format fix",
+      "changes": [
+        "deploy(agent): phase 5 parallel analysis format fix",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T12:45:15Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.09.124240-38d45ff",
+      "version": "2026.08.09.124240",
+      "commit": "38d45ff41a1b631ffc2e5a1169e8a318add9f28e",
+      "commit_short": "38d45ff",
+      "message": "deploy(agent): phase 5 parallel analysis",
+      "changes": [
+        "deploy(agent): phase 5 parallel analysis",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-09T12:42:40Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "failed_ci",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.194446-a15f1a0",
+      "version": "2026.08.01.194446",
+      "commit": "a15f1a07c090caddfd6720c7ef3fd6c9021294fe",
+      "commit_short": "a15f1a0",
+      "message": "deploy: update 2026.08.01.194446",
+      "changes": [
+        "deploy: update 2026.08.01.194446",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T19:44:46Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.192923-21f134b",
+      "version": "2026.08.01.192923",
+      "commit": "21f134b61af6a64db724223043434365497abf7b",
+      "commit_short": "21f134b",
+      "message": "deploy: update 2026.08.01.192923",
+      "changes": [
+        "deploy: update 2026.08.01.192923",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T19:29:23Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.192427-12ca66d",
+      "version": "2026.08.01.192427",
+      "commit": "12ca66da25fca3a0ef6b3733f8d25bc9d7e0c75a",
+      "commit_short": "12ca66d",
+      "message": "deploy: update 2026.08.01.192427",
+      "changes": [
+        "deploy: update 2026.08.01.192427",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T19:24:27Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.185901-df1b909",
+      "version": "2026.08.01.185901",
+      "commit": "df1b9098f221c66f58e658487d5da738dba79b92",
+      "commit_short": "df1b909",
+      "message": "deploy: update 2026.08.01.185901",
+      "changes": [
+        "deploy: update 2026.08.01.185901",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T18:59:01Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.184821-0f7ad74",
+      "version": "2026.08.01.184821",
+      "commit": "0f7ad74a69d442d71bea8beffa9f02dca3315cc1",
+      "commit_short": "0f7ad74",
+      "message": "deploy: update 2026.08.01.184821",
+      "changes": [
+        "deploy: update 2026.08.01.184821",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T18:48:21Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.183751-30979a2",
+      "version": "2026.08.01.183751",
+      "commit": "30979a222b5252ad0261717d4dac902ff7223fe1",
+      "commit_short": "30979a2",
+      "message": "deploy: update 2026.08.01.183751",
+      "changes": [
+        "deploy: update 2026.08.01.183751",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T18:37:51Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.182401-66b9511",
+      "version": "2026.08.01.182401",
+      "commit": "66b9511e55f6b65f5b89209a31a93989d795f2c4",
+      "commit_short": "66b9511",
+      "message": "deploy: update 2026.08.01.182401",
+      "changes": [
+        "deploy: update 2026.08.01.182401",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/main.py",
+        "backend/app/modules/posts/settings_router.py",
+        "backend/app/modules/posts/settings_service.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "frontend/src/api/blogSettings.ts",
+        "frontend/src/modules/posts/BlogSettingsPage.vue",
+        "frontend/src/modules/posts/WordCloudPage.vue",
+        "frontend/tests/component/blog-discovery.spec.ts",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T18:24:01Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.180529-2207dd6",
+      "version": "2026.08.01.180529",
+      "commit": "2207dd6bd33bdbf4f57dd44a2052f9da33ab8813",
+      "commit_short": "2207dd6",
+      "message": "deploy: update 2026.08.01.180529",
+      "changes": [
+        "deploy: update 2026.08.01.180529",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/models/blog.py",
+        "backend/app/modules/posts/query_router.py",
+        "backend/app/modules/posts/query_service.py",
+        "backend/app/modules/posts/schemas.py",
+        "backend/app/services/outbox/publisher.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "backend/tests/integration/test_blog_word_cloud.py",
+        "backend/tests/reliability/test_blog_failure_matrix.py",
+        "frontend/src/api/blogQueries.ts",
+        "frontend/src/modules/posts/BlogModuleLayout.vue",
+        "frontend/src/modules/posts/BlogSettingsPage.vue",
+        "frontend/src/modules/posts/PostListPage.vue",
+        "frontend/src/modules/posts/WordCloudPage.vue",
+        "frontend/src/modules/posts/WordCloudView.vue",
+        "frontend/src/router/index.ts",
+        "frontend/tests/component/blog-discovery.spec.ts",
+        "frontend/tests/component/blog-mobile.spec.ts",
+        "specs/005-blog-content-management/contracts/openapi.yaml",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T18:05:29Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.173431-294f4a3",
+      "version": "2026.08.01.173431",
+      "commit": "294f4a3711b87773a07bc947f245025eff962fe6",
+      "commit_short": "294f4a3",
+      "message": "deploy: update 2026.08.01.173431",
+      "changes": [
+        "deploy: update 2026.08.01.173431",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/alembic/versions/0017_taxonomy_alias_governance.py",
+        "backend/app/main.py",
+        "backend/app/models/blog.py",
+        "backend/app/modules/jobs/schemas.py",
+        "backend/app/modules/posts/router.py",
+        "backend/app/modules/posts/schemas.py",
+        "backend/app/modules/posts/taxonomy_router.py",
+        "backend/app/modules/posts/taxonomy_service.py",
+        "backend/app/services/outbox/publisher.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "backend/tests/integration/test_blog_taxonomy.py",
+        "backend/tests/reliability/test_blog_failure_matrix.py",
+        "frontend/src/api/blogTaxonomy.ts",
+        "frontend/src/modules/posts/PostPropertySidebar.vue",
+        "frontend/src/modules/posts/TaxonomyEditDrawer.vue",
+        "frontend/src/modules/posts/TaxonomyMergeDialog.vue",
+        "frontend/src/modules/posts/TaxonomyPage.vue",
+        "frontend/tests/component/blog-editor.spec.ts",
+        "frontend/tests/component/blog-management.spec.ts",
+        "frontend/tests/component/blog-taxonomy.spec.ts",
+        "specs/005-blog-content-management/contracts/openapi.yaml",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T17:34:31Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.165714-262b854",
+      "version": "2026.08.01.165714",
+      "commit": "262b85447c87f243bf50d81b4b7ca83a3d1517dd",
+      "commit_short": "262b854",
+      "message": "deploy: update 2026.08.01.165714",
+      "changes": [
+        "deploy: update 2026.08.01.165714",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T16:57:14Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.141548-f6f0f94",
+      "version": "2026.08.01.141548",
+      "commit": "f6f0f94471cfb81699565ba8f731140a0fe7e5e4",
+      "commit_short": "f6f0f94",
+      "message": "deploy: update 2026.08.01.141548",
+      "changes": [
+        "deploy: update 2026.08.01.141548",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T14:15:48Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.140919-fdc73e6",
+      "version": "2026.08.01.140919",
+      "commit": "fdc73e63028eb8ce7ab84705bdcc0d8f524527ca",
+      "commit_short": "fdc73e6",
+      "message": "deploy: update 2026.08.01.140919",
+      "changes": [
+        "deploy: update 2026.08.01.140919",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/capture_router.py",
+        "backend/tests/contract/test_blog_content_api.py"
+      ],
+      "deployed_at": "2026-08-01T14:09:19Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.140350-88ba2bf",
+      "version": "2026.08.01.140350",
+      "commit": "88ba2bfc729bedb83a4a92d553acb56a37488b82",
+      "commit_short": "88ba2bf",
+      "message": "deploy: update 2026.08.01.140350",
+      "changes": [
+        "deploy: update 2026.08.01.140350",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T14:03:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.135815-333a054",
+      "version": "2026.08.01.135815",
+      "commit": "333a054562edb99ffe322fd15432f01e8e33ab8b",
+      "commit_short": "333a054",
+      "message": "deploy: update 2026.08.01.135815",
+      "changes": [
+        "deploy: update 2026.08.01.135815",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:58:15Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.135259-dcf7ab4",
+      "version": "2026.08.01.135259",
+      "commit": "dcf7ab49fdf5f5c109cb624d6bae13d2f9e033b3",
+      "commit_short": "dcf7ab4",
+      "message": "deploy: update 2026.08.01.135259",
+      "changes": [
+        "deploy: update 2026.08.01.135259",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:52:59Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.134630-67a2385",
+      "version": "2026.08.01.134630",
+      "commit": "67a2385c36f52fb905e74fd2a7b6e1b198ca2492",
+      "commit_short": "67a2385",
+      "message": "deploy: update 2026.08.01.134630",
+      "changes": [
+        "deploy: update 2026.08.01.134630",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/auth/service.py",
+        "backend/tests/integration/test_auth.py",
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:46:30Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.133832-3176cc6",
+      "version": "2026.08.01.133832",
+      "commit": "3176cc65d7795eba9b38634e5fea68ddc4a60336",
+      "commit_short": "3176cc6",
+      "message": "deploy: update 2026.08.01.133832",
+      "changes": [
+        "deploy: update 2026.08.01.133832",
+        "后端接口与业务逻辑更新",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        ".github/workflows/ci.yml",
+        "backend/tests/contract/test_ci_workflow.py",
+        "deploy/scripts/deploy.sh"
+      ],
+      "deployed_at": "2026-08-01T13:38:32Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.133307-51d2df5",
+      "version": "2026.08.01.133307",
+      "commit": "51d2df52c69e4c90515fa0be204d52914a104828",
+      "commit_short": "51d2df5",
+      "message": "deploy: update 2026.08.01.133307",
+      "changes": [
+        "deploy: update 2026.08.01.133307",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/core/observability.py",
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:33:07Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.132425-69e98fd",
+      "version": "2026.08.01.132425",
+      "commit": "69e98fd8c3987c2009cf9083e9cc44f86b34f24d",
+      "commit_short": "69e98fd",
+      "message": "deploy: update 2026.08.01.132425",
+      "changes": [
+        "deploy: update 2026.08.01.132425",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/api/dependencies.py",
+        "backend/app/core/observability.py",
+        "backend/app/modules/auth/router.py",
+        "backend/app/modules/auth/service.py",
+        "backend/app/modules/jobs/router.py",
+        "backend/tests/integration/test_auth.py",
+        "backend/tests/security/test_security.py"
+      ],
+      "deployed_at": "2026-08-01T13:24:25Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.131539-d95b323",
+      "version": "2026.08.01.131539",
+      "commit": "d95b323502f254e700d0fc6cebae1b344f9a2a83",
+      "commit_short": "d95b323",
+      "message": "deploy: update 2026.08.01.131539",
+      "changes": [
+        "deploy: update 2026.08.01.131539",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        ".github/workflows/ci.yml",
+        "backend/app/core/observability.py",
+        "backend/app/modules/jobs/service.py",
+        "backend/app/modules/posts/ai_router.py",
+        "backend/app/modules/posts/capture_router.py",
+        "backend/app/modules/posts/radio_migration.py",
+        "backend/app/modules/posts/schemas.py",
+        "backend/app/modules/posts/service.py",
+        "backend/app/modules/posts/taxonomy_service.py",
+        "backend/app/modules/posts/url_extractor.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/modules/tasks/note_service.py",
+        "backend/app/modules/tasks/plan_service.py",
+        "backend/app/modules/voice/service.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/pyproject.toml",
+        "frontend/tests/component/ai-provider-settings.spec.ts",
+        "frontend/tests/component/blog-editor.spec.ts",
+        "frontend/tests/e2e/blog-content-management.spec.ts"
+      ],
+      "deployed_at": "2026-08-01T13:15:39Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.130107-74d876c",
+      "version": "2026.08.01.130107",
+      "commit": "74d876cb48648bbefec2185bd2d8c40270751fa7",
+      "commit_short": "74d876c",
+      "message": "deploy: update 2026.08.01.130107",
+      "changes": [
+        "deploy: update 2026.08.01.130107",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        ".github/workflows/ci.yml",
+        "backend/app/cli/main.py",
+        "backend/app/main.py",
+        "backend/app/models/blog.py",
+        "backend/app/models/posts.py",
+        "backend/app/models/scheduling.py",
+        "backend/app/models/tasks.py",
+        "backend/app/modules/posts/ai_router.py",
+        "backend/app/modules/posts/ai_service.py",
+        "backend/app/modules/posts/capture_router.py",
+        "backend/app/modules/posts/capture_service.py",
+        "backend/app/modules/posts/content_types.py",
+        "backend/app/modules/posts/diffing.py",
+        "backend/app/modules/posts/normalization.py",
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/protected_content.py",
+        "backend/app/modules/posts/query_router.py",
+        "backend/app/modules/posts/query_service.py",
+        "backend/app/modules/posts/radio_migration.py",
+        "backend/app/modules/posts/schemas.py",
+        "backend/app/modules/posts/service.py",
+        "backend/app/modules/posts/settings_service.py",
+        "backend/app/modules/posts/skill_router.py",
+        "backend/app/modules/posts/skill_service.py",
+        "backend/app/modules/posts/url_extractor.py",
+        "backend/app/modules/settings/router.py",
+        "backend/app/modules/settings/service.py",
+        "backend/app/modules/tasks/note_router.py",
+        "backend/app/modules/tasks/note_service.py",
+        "backend/app/modules/tasks/plan_router.py",
+        "backend/app/modules/tasks/plan_service.py",
+        "backend/app/modules/voice/service.py",
+        "backend/app/services/radio/client.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/app/workers/tasks/maintenance.py",
+        "backend/tests/contract/test_blog_ai_schema.py",
+        "backend/tests/contract/test_blog_content_api.py",
+        "backend/tests/contract/test_blog_content_contracts.py",
+        "backend/tests/contract/test_settings_api.py",
+        "backend/tests/integration/test_blog_ai_pipeline.py",
+        "backend/tests/integration/test_blog_candidate_merge.py",
+        "backend/tests/integration/test_blog_capture.py",
+        "backend/tests/integration/test_blog_content_migration.py",
+        "backend/tests/integration/test_blog_editor_versions.py",
+        "backend/tests/integration/test_blog_management.py",
+        "backend/tests/integration/test_blog_skills.py",
+        "backend/tests/integration/test_calendar_event_actions.py",
+        "backend/tests/integration/test_plan_async.py",
+        "backend/tests/integration/test_quick_plan.py",
+        "backend/tests/integration/test_task_note_assets.py",
+        "backend/tests/integration/test_voice_pipeline.py",
+        "backend/tests/reliability/test_blog_failure_matrix.py",
+        "backend/tests/security/test_blog_url_and_ownership.py",
+        "backend/tests/security/test_security.py",
+        "backend/tests/unit/test_blog_field_policy.py",
+        "backend/tests/unit/test_blog_models.py",
+        "backend/tests/unit/test_blog_normalization.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "backend/tests/unit/test_blog_protected_tokens.py",
+        "backend/tests/unit/test_blog_skill_matching.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/eslint.config.ts",
+        "frontend/src/components/jobs/TaskCenterDrawer.vue",
+        "frontend/src/modules/calendar/CalendarEventNoteEditor.vue",
+        "frontend/src/modules/calendar/CalendarEventPopover.vue",
+        "frontend/src/modules/calendar/NoteAttachmentViewer.vue",
+        "frontend/src/modules/calendar/TimeDayPicker.vue",
+        "frontend/src/modules/posts/BlogJobsPage.vue",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/PostOptimizationProgress.vue",
+        "frontend/src/modules/posts/RichMarkdownEditor.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "frontend/src/modules/settings/MemorySettings.vue",
+        "frontend/src/modules/today/TodayPage.vue"
+      ],
+      "deployed_at": "2026-08-01T13:01:07Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.125223-12c69ed",
+      "version": "2026.08.01.125223",
+      "commit": "12c69edd5ca132c19e202c2f9775046e6792d5f3",
+      "commit_short": "12c69ed",
+      "message": "deploy: update 2026.08.01.125223",
+      "changes": [
+        "deploy: update 2026.08.01.125223",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        ".github/workflows/ci.yml",
+        "backend/tests/contract/test_ci_workflow.py",
+        "deploy/scripts/deploy.sh",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-08-01T12:52:23Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.121621-19c2229",
+      "version": "2026.08.01.121621",
+      "commit": "19c2229e6060de8f02fab2724d9493a5bdb5609a",
+      "commit_short": "19c2229",
+      "message": "deploy: update 2026.08.01.121621",
+      "changes": [
+        "deploy: update 2026.08.01.121621",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T12:16:21Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.114926-cf8ef1d",
+      "version": "2026.08.01.114926",
+      "commit": "cf8ef1d0ee4911c4b86b04f5ff5275eb444f8969",
+      "commit_short": "cf8ef1d",
+      "message": "deploy: update 2026.08.01.114926",
+      "changes": [
+        "deploy: update 2026.08.01.114926",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-01T11:49:26Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.114902-80f25f2",
+      "version": "2026.08.01.114902",
+      "commit": "80f25f2134617e6d146c4489601e5ed9af147ce8",
+      "commit_short": "80f25f2",
+      "message": "deploy: update 2026.08.01.114902",
+      "changes": [
+        "deploy: update 2026.08.01.114902",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/tests/unit/test_blog_visuals.py"
+      ],
+      "deployed_at": "2026-08-01T11:49:02Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.114621-db10210",
+      "version": "2026.08.01.114621",
+      "commit": "db1021092b58e49569c82013e6d03565931c25e1",
+      "commit_short": "db10210",
+      "message": "deploy: update 2026.08.01.114621",
+      "changes": [
+        "deploy: update 2026.08.01.114621",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json"
+      ],
+      "deployed_at": "2026-08-01T11:46:21Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.112503-28d7054",
+      "version": "2026.08.01.112503",
+      "commit": "28d705493f08d0d0c6c744daa94f1a5566750020",
+      "commit_short": "28d7054",
+      "message": "deploy: update 2026.08.01.112503",
+      "changes": [
+        "deploy: update 2026.08.01.112503",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/integration/test_blog_ai_pipeline.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/src/modules/posts/OptimizePostDialog.vue"
+      ],
+      "deployed_at": "2026-08-01T11:25:03Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.104808-a360578",
+      "version": "2026.08.01.104808",
+      "commit": "a360578747bcd723a37dd874c8f67ee02867d3f0",
+      "commit_short": "a360578",
+      "message": "deploy: update 2026.08.01.104808",
+      "changes": [
+        "deploy: update 2026.08.01.104808",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/jobs/router.py",
+        "backend/app/modules/jobs/schemas.py",
+        "backend/app/modules/jobs/service.py",
+        "backend/tests/integration/test_job_controls.py",
+        "frontend/src/components/jobs/TaskCenterDrawer.vue",
+        "frontend/src/stores/jobs.ts",
+        "frontend/tests/component/task_center.spec.ts",
+        "specs/001-personal-life-os/contracts/openapi.yaml",
+        "specs/005-blog-content-management/contracts/openapi.yaml"
+      ],
+      "deployed_at": "2026-08-01T10:48:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.002050-568488d",
+      "version": "2026.08.01.002050",
+      "commit": "568488d456813e9f1f3f1913802ca28a7230d2f5",
+      "commit_short": "568488d",
+      "message": "fix: fallback reader visual to source structure",
+      "changes": [
+        "fix: fallback reader visual to source structure",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/workers/tasks/blog.py"
+      ],
+      "deployed_at": "2026-08-01T00:20:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.001408-3fb9cfd",
+      "version": "2026.08.01.001408",
+      "commit": "3fb9cfdfb72abbd7e23e7abe572b9a2343203ea8",
+      "commit_short": "3fb9cfd",
+      "message": "fix: avoid duplicate reader visuals",
+      "changes": [
+        "fix: avoid duplicate reader visuals",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/workers/tasks/blog.py"
+      ],
+      "deployed_at": "2026-08-01T00:14:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.08.01.000755-0c57c4b",
+      "version": "2026.08.01.000755",
+      "commit": "0c57c4b73b964a36901b38097d6dbd6b9ccd45a6",
+      "commit_short": "0c57c4b",
+      "message": "feat: auto-detect reader-friendly blog enhancements",
+      "changes": [
+        "feat: auto-detect reader-friendly blog enhancements",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_orchestrator.py"
+      ],
+      "deployed_at": "2026-08-01T00:07:55Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.234900-2dbaf9d",
+      "version": "2026.07.31.234900",
+      "commit": "2dbaf9dc4bb25303bf7a78bdbe4946b27611bb78",
+      "commit_short": "2dbaf9d",
+      "message": "fix: recover stale CSRF token on optimize",
+      "changes": [
+        "fix: recover stale CSRF token on optimize",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/src/api/client.ts",
+        "frontend/tests/unit/api-client.spec.ts"
+      ],
+      "deployed_at": "2026-07-31T23:49:00Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.233804-a55dc1f",
+      "version": "2026.07.31.233804",
+      "commit": "a55dc1ffaa39bd6fc47bb2867177f7cc1c69c54b",
+      "commit_short": "a55dc1f",
+      "message": "fix: resolve CJK regular font path in production",
+      "changes": [
+        "fix: resolve CJK regular font path in production",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/visuals.py"
+      ],
+      "deployed_at": "2026-07-31T23:38:04Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.233550-3f21d23",
+      "version": "2026.07.31.233550",
+      "commit": "3f21d234e38a79da050c3691c95929a584b0644f",
+      "commit_short": "3f21d23",
+      "message": "fix: include CJK fonts in PNG renderer image",
+      "changes": [
+        "fix: include CJK fonts in PNG renderer image",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/Dockerfile"
+      ],
+      "deployed_at": "2026-07-31T23:35:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.233252-0365dbf",
+      "version": "2026.07.31.233252",
+      "commit": "0365dbf28a17e9ff0ae05cbb6673d72485babe9d",
+      "commit_short": "0365dbf",
+      "message": "fix: use simplified Chinese font for visual PNGs",
+      "changes": [
+        "fix: use simplified Chinese font for visual PNGs",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/visuals.py"
+      ],
+      "deployed_at": "2026-07-31T23:32:52Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.232546-55922dd",
+      "version": "2026.07.31.232546",
+      "commit": "55922ddef1adc93db13ef0e052b66c980eaadf34",
+      "commit_short": "55922dd",
+      "message": "fix: generate and embed readable blog visual PNGs",
+      "changes": [
+        "fix: generate and embed readable blog visual PNGs",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/router.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/contracts/openapi.yaml",
+        "specs/005-blog-content-management/plan.md",
+        "specs/005-blog-content-management/quickstart.md"
+      ],
+      "deployed_at": "2026-07-31T23:25:46Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.230516-376f62d",
+      "version": "2026.07.31.230516",
+      "commit": "376f62dedecd1ac6d149135e8ad1403f97b961ff",
+      "commit_short": "376f62d",
+      "message": "feat: complete compact PNG visual article pipeline",
+      "changes": [
+        "feat: complete compact PNG visual article pipeline",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json",
+        "specs/005-blog-content-management/plan.md",
+        "specs/005-blog-content-management/quickstart.md"
+      ],
+      "deployed_at": "2026-07-31T23:05:16Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.170242-dbf8a33",
+      "version": "2026.07.31.170242",
+      "commit": "dbf8a33b2f3d60d1482489d444550cb23292aa94",
+      "commit_short": "dbf8a33",
+      "message": "feat: support board-style visual reasoning for blog articles",
+      "changes": [
+        "feat: support board-style visual reasoning for blog articles",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_orchestrator.py"
+      ],
+      "deployed_at": "2026-07-31T17:02:42Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.160124-5632ab6",
+      "version": "2026.07.31.160124",
+      "commit": "5632ab6d2c23b8e7a4de9db7bab7637f76c4e89e",
+      "commit_short": "5632ab6",
+      "message": "feat: add blog visual generation capabilities",
+      "changes": [
+        "feat: add blog visual generation capabilities",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        ".env.example",
+        "backend/app/core/config.py",
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/modules/posts/visuals.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/unit/test_blog_visuals.py",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/src/modules/posts/MarkdownPreview.vue",
+        "frontend/src/modules/posts/VisualBlock.vue",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-07-31T16:01:24Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.151939-3603e2d",
+      "version": "2026.07.31.151939",
+      "commit": "3603e2d15e5e86c0f299bb230135ef66a7e1d975",
+      "commit_short": "3603e2d",
+      "message": "feat: add blog enhancement orchestrator",
+      "changes": [
+        "feat: add blog enhancement orchestrator",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/core/config.py",
+        "backend/app/modules/posts/orchestrator.py",
+        "backend/app/services/llm/schemas.py",
+        "backend/app/workers/tasks/blog.py",
+        "backend/tests/contract/test_blog_ai_schema.py",
+        "backend/tests/unit/test_blog_orchestrator.py",
+        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json",
+        "specs/005-blog-content-management/plan.md",
+        "specs/005-blog-content-management/quickstart.md",
+        "specs/005-blog-content-management/spec.md",
+        "specs/005-blog-content-management/tasks.md"
+      ],
+      "deployed_at": "2026-07-31T15:19:39Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.130836-a59e1a3",
+      "version": "2026.07.31.130836",
+      "commit": "a59e1a3caab75629a9b4859eadfb192992ccda41",
+      "commit_short": "a59e1a3",
+      "message": "fix: refine desktop blog swipe actions",
+      "changes": [
+        "fix: refine desktop blog swipe actions",
+        "前端界面与交互更新"
+      ],
+      "changed_files": [
+        "frontend/src/modules/posts/PostListPage.vue"
+      ],
+      "deployed_at": "2026-07-31T13:08:36Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
+      "id": "2026.07.31.125508-07ed9d0",
+      "version": "2026.07.31.125508",
+      "commit": "07ed9d043b96f00dbc44a75edebca72e126eacd1",
+      "commit_short": "07ed9d0",
+      "message": "fix: serve release history metadata",
+      "changes": [
+        "fix: serve release history metadata",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        "deploy/scripts/deploy.sh"
+      ],
+      "deployed_at": "2026-07-31T12:55:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    }
+  ]
+}

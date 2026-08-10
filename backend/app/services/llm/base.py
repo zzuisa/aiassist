@@ -7,7 +7,7 @@ provider response against a strict, versioned Pydantic model.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Protocol, TypeVar
+from typing import Any, ClassVar, Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -19,9 +19,16 @@ class LLMError(Exception):
 
     RETRYABLE: ClassVar[set[str]] = {"provider_unavailable", "timeout", "rate_limited"}
 
-    def __init__(self, code: str, message: str = "") -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str = "",
+        *,
+        diagnostic: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
         self.message = message or code
+        self.diagnostic = diagnostic or {}
         super().__init__(self.message)
 
     @property

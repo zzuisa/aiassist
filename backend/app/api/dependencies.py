@@ -22,7 +22,8 @@ class CurrentUser:
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> CurrentUser:
-    token = request.cookies.get(auth_service.ACCESS_COOKIE)
+    access_cookie, _ = auth_service.auth_cookie_names()
+    token = request.cookies.get(access_cookie)
     if not token:
         raise AuthenticationError("Authentication required")
     claims = auth_service.decode_access_token(token)

@@ -1,0 +1,271 @@
+openapi: 3.1.0
+info:
+  title: Calendar Event Actions API Delta
+  version: 1.0.0
+  description: Contract additions and modified responses for feature 004.
+servers:
+  - url: /api/v1
+paths:
+  /calendar/week:
+    get:
+      summary: Return scheduled todo, in-progress, and completed events for a week
+      parameters:
+        - in: query
+          name: starts_on
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Calendar week with completed events retained
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalendarWeek' }
+  /tasks/{task_id}:
+    patch:
+      summary: Toggle completion or importance using optimistic concurrency
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventStatePatch' }
+      responses:
+        '200':
+          description: Updated event and derived important-reminder state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalendarTask' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /tasks/{task_id}/note:
+    get:
+      summary: Get the owned event note and its image attachments
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Envelope whose note is null when none exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskNoteEnvelope' }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      summary: Create or update event note and optionally attach the first image batch
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskNotePut' }
+      responses:
+        '200':
+          description: Persisted note
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskNote' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /tasks/{task_id}/note/assets:
+    post:
+      summary: Append one completed image upload to the event note
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [upload_id]
+              properties:
+                upload_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Durable attachment record; preview may still be processing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskNoteAsset' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /tasks/{task_id}/note/assets/{asset_id}/access:
+    get:
+      summary: Authorize access to a note image preview or explicit original download
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - in: path
+          name: asset_id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: variant
+          required: false
+          schema: { type: string, enum: [preview, original], default: preview }
+      responses:
+        '200':
+          description: Short-lived or same-origin protected access reference
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssetAccess' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /uploads:
+    post:
+      summary: Create upload session; task_note_image is an allowed image purpose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose, filename, media_type, byte_size]
+              properties:
+                purpose:
+                  type: string
+                  enum: [capture, voice, post_cover, attachment, task_note_image]
+                filename: { type: string, maxLength: 255 }
+                media_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+                byte_size: { type: integer, minimum: 1 }
+                sha256: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '201':
+          description: Created private upload session
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+  parameters:
+    TaskId:
+      in: path
+      name: task_id
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    EventStatePatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        status: { type: string, enum: [todo, in_progress, completed, cancelled] }
+        importance: { type: integer, minimum: 0, maximum: 4 }
+      anyOf:
+        - required: [status]
+        - required: [importance]
+    ImportantReminderSummary:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [scheduled, sending, sent, failed, unconfigured, missing_start, not_applicable]
+        trigger_at: { type: [string, 'null'], format: date-time }
+        error_code: { type: [string, 'null'] }
+    CalendarTask:
+      type: object
+      required: [id, title, status, importance, version]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        status: { type: string, enum: [todo, in_progress, completed, cancelled] }
+        importance: { type: integer, minimum: 0, maximum: 4 }
+        start_at: { type: [string, 'null'], format: date-time }
+        due_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+        important_reminder:
+          anyOf:
+            - $ref: '#/components/schemas/ImportantReminderSummary'
+            - type: 'null'
+    CalendarWeek:
+      type: object
+      required: [starts_on, events, unscheduled, conflicts]
+      properties:
+        starts_on: { type: string, format: date }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/CalendarTask' }
+        unscheduled:
+          type: array
+          items: { $ref: '#/components/schemas/CalendarTask' }
+        conflicts: { type: array, items: { type: object } }
+    TaskNotePut:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content: { type: string, maxLength: 20000 }
+        version: { type: [integer, 'null'], minimum: 1 }
+        upload_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    TaskNoteEnvelope:
+      type: object
+      required: [note]
+      properties:
+        note:
+          anyOf:
+            - $ref: '#/components/schemas/TaskNote'
+            - type: 'null'
+    TaskNote:
+      type: object
+      required: [id, task_id, content, version, assets, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        content: { type: string }
+        version: { type: integer, minimum: 1 }
+        assets:
+          type: array
+          items: { $ref: '#/components/schemas/TaskNoteAsset' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TaskNoteAsset:
+      type: object
+      required: [id, filename, media_type, byte_size, position, processing_status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        filename: { type: string }
+        media_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        byte_size: { type: integer, minimum: 1 }
+        width: { type: [integer, 'null'], minimum: 1 }
+        height: { type: [integer, 'null'], minimum: 1 }
+        position: { type: integer, minimum: 0 }
+        processing_status: { type: string, enum: [pending, processing, ready, failed] }
+        error_code: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    AssetAccess:
+      type: object
+      required: [url, expires_at, variant]
+      properties:
+        url: { type: string }
+        expires_at: { type: string, format: date-time }
+        variant: { type: string, enum: [preview, original] }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        trace_id: { type: string }
+security:
+  - sessionCookie: []

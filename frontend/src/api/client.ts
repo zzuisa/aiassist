@@ -1,5 +1,6 @@
 // Typed fetch wrapper: same-origin cookies, CSRF header on unsafe methods,
-// automatic one-shot refresh on 401, and RFC 9457 Problem Details mapping.
+// automatic one-shot refresh on authentication/CSRF failures, and RFC 9457
+// Problem Details mapping.
 
 export interface ProblemDetails {
   type: string
@@ -8,6 +9,8 @@ export interface ProblemDetails {
   detail?: string
   code?: string
   trace_id?: string
+  /** Current resource state supplied for a recoverable state conflict. */
+  job_status?: 'completed' | 'failed' | 'cancelled'
   errors?: Array<Record<string, unknown>>
 }
 
@@ -119,7 +122,23 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!resp.ok) {
-    throw new ApiError(await toProblem(resp))
+    const problem = await toProblem(resp)
+    // A refresh rotates the session-bound CSRF token. This can happen between
+    // requests (for example in another tab), leaving the in-memory token stale
+    // while the access cookie is still valid. Recover exactly once, just like
+    // the access-token 401 path above; never retry arbitrary 403 responses.
+    if (
+      resp.status === 403 &&
+      problem.code === 'csrf_failed' &&
+      !options._retried &&
+      path !== '/auth/login'
+    ) {
+      const refreshed = await tryRefresh()
+      if (refreshed) {
+        return apiRequest<T>(path, { ...options, _retried: true })
+      }
+    }
+    throw new ApiError(problem)
   }
 
   if (resp.status === 204) return undefined as T
@@ -133,6 +152,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 export const api = {
   get: <T>(path: string, query?: RequestOptions['query']) => apiRequest<T>(path, { query }),
   post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'POST', body }),
+  put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PATCH', body }),
   del: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),
 }

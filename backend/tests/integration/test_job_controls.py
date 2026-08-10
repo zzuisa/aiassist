@@ -39,6 +39,8 @@ def _make_job(user_id, status="failed", retryable=True):
             )
         elif status == "processing":
             jobs_service.transition(s, job, status="processing", progress=50)
+        elif status == "completed":
+            jobs_service.transition(s, job, status="completed", progress=100)
         return job.id
 
 
@@ -80,6 +82,26 @@ def test_cancel_preserves_job_record(client, make_user):
     assert client.get(f"/api/v1/jobs/{job_id}").status_code == 200
 
 
+def test_repeated_cancel_is_idempotent(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    job_id = _make_job(user.id, status="processing")
+    assert client.post(f"/api/v1/jobs/{job_id}/cancel", headers=h).status_code == 202
+    repeated = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=h)
+    assert repeated.status_code == 202
+    assert repeated.json()["status"] == "cancelled"
+
+
+def test_cancel_finished_job_exposes_current_status(client, make_user):
+    user = make_user()
+    h = _login(client, user.email)
+    job_id = _make_job(user.id, status="failed", retryable=True)
+    rejected = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=h)
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "job_finished"
+    assert rejected.json()["job_status"] == "failed"
+
+
 def test_stale_worker_result_after_cancel_is_ignored(make_user):
     """A worker finishing after cancellation must not resurrect the job."""
     from app.db.session import session_scope
@@ -118,3 +140,31 @@ def test_progress_monotonic_via_api(client, make_user):
         jobs_service.transition(s, job, progress=20)  # cannot go backwards
     resp = client.get(f"/api/v1/jobs/{jid}", headers=h)
     assert resp.json()["progress"] == 80
+
+
+def test_clear_completed_jobs_deletes_only_owned_completed_records(client, make_user):
+    owner = make_user()
+    other = make_user()
+    h = _login(client, owner.email)
+    completed_id = _make_job(owner.id, status="completed")
+    retained_id = _make_job(owner.id, status="processing")
+    other_completed_id = _make_job(other.id, status="completed")
+
+    response = client.delete("/api/v1/jobs/completed", headers=h)
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted_count": 1}
+    assert client.get(f"/api/v1/jobs/{completed_id}").status_code == 404
+    assert client.get(f"/api/v1/jobs/{retained_id}").status_code == 200
+    _login(client, other.email)
+    assert client.get(f"/api/v1/jobs/{other_completed_id}").status_code == 200
+
+
+def test_clear_completed_jobs_requires_csrf(client, make_user):
+    user = make_user()
+    _make_job(user.id, status="completed")
+    _login(client, user.email)
+
+    response = client.delete("/api/v1/jobs/completed")
+
+    assert response.status_code == 403

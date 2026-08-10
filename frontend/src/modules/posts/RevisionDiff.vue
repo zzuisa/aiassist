@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-// Renders a unified diff with add/remove line coloring. Apply/ignore/regenerate
-// are explicit; AI text is never auto-applied to the draft.
-const props = defineProps<{ unifiedDiff: string }>()
+// Renders a unified diff with add/remove line coloring. Reused for base/current/
+// candidate body comparisons (US4): pass `hideActions` for a read-only compare.
+// Apply/ignore/regenerate are explicit; AI text is never auto-applied.
+const props = defineProps<{ unifiedDiff: string; hideActions?: boolean }>()
 defineEmits<{ (e: 'apply'): void; (e: 'ignore'): void; (e: 'regenerate'): void }>()
 
 interface Line {
@@ -31,7 +32,10 @@ const lines = computed<Line[]>(() =>
       :class="line.kind"
     >{{ line.text }}
 </span></code></pre>
-    <div class="actions">
+    <div
+      v-if="!hideActions"
+      class="actions"
+    >
       <button
         type="button"
         class="apply"

@@ -100,11 +100,19 @@ class TaskOut(BaseModel):
     tag_ids: list[uuid.UUID] = Field(default_factory=list)
     version: int
     completed_at: datetime | None = None
+    important_reminder: dict | None = None
+    has_note: bool = False
     created_at: datetime
     updated_at: datetime
 
     @classmethod
-    def from_model(cls, task: Task, tag_ids: list[uuid.UUID] | None = None) -> TaskOut:
+    def from_model(
+        cls,
+        task: Task,
+        tag_ids: list[uuid.UUID] | None = None,
+        important_reminder: dict | None = None,
+        has_note: bool = False,
+    ) -> TaskOut:
         data = {
             c: getattr(task, c)
             for c in (
@@ -133,7 +141,12 @@ class TaskOut(BaseModel):
                 "updated_at",
             )
         }
-        return cls(**data, tag_ids=tag_ids or [])
+        return cls(
+            **data,
+            tag_ids=tag_ids or [],
+            important_reminder=important_reminder,
+            has_note=has_note,
+        )
 
 
 class TaskPage(BaseModel):

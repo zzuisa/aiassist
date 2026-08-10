@@ -1,0 +1,169 @@
+asyncapi: 3.0.0
+info:
+  title: Blog Content Management Commands
+  version: 1.0.0
+  description: >-
+    Versioned compact commands emitted only after blog business records and jobs are
+    durably committed. No message contains article bodies, raw HTML, Skill configs,
+    credentials, object bytes, or private storage paths.
+channels:
+  blogSourceExtract:
+    address: blog.parse
+    messages:
+      extractBlogSource:
+        $ref: '#/components/messages/ExtractBlogSource'
+  blogOptimize:
+    address: blog.optimize
+    messages:
+      optimizeBlogPost:
+        $ref: '#/components/messages/OptimizeBlogPost'
+  blogSearchRefresh:
+    address: search.index.post.updated
+    messages:
+      refreshBlogSearch:
+        $ref: '#/components/messages/RefreshBlogSearch'
+  blogKeywordRebuild:
+    address: blog.keyword.recompute
+    messages:
+      rebuildBlogKeywords:
+        $ref: '#/components/messages/RebuildBlogKeywords'
+  blogWordCloudRebuild:
+    address: blog.wordcloud.rebuild
+    messages:
+      rebuildBlogWordCloud:
+        $ref: '#/components/messages/RebuildBlogWordCloud'
+operations:
+  requestBlogSourceExtraction:
+    action: send
+    channel:
+      $ref: '#/channels/blogSourceExtract'
+    messages:
+      - $ref: '#/channels/blogSourceExtract/messages/extractBlogSource'
+  requestBlogOptimization:
+    action: send
+    channel:
+      $ref: '#/channels/blogOptimize'
+    messages:
+      - $ref: '#/channels/blogOptimize/messages/optimizeBlogPost'
+  requestBlogSearchRefresh:
+    action: send
+    channel:
+      $ref: '#/channels/blogSearchRefresh'
+    messages:
+      - $ref: '#/channels/blogSearchRefresh/messages/refreshBlogSearch'
+  requestBlogKeywordRebuild:
+    action: send
+    channel:
+      $ref: '#/channels/blogKeywordRebuild'
+    messages:
+      - $ref: '#/channels/blogKeywordRebuild/messages/rebuildBlogKeywords'
+  requestBlogWordCloudRebuild:
+    action: send
+    channel:
+      $ref: '#/channels/blogWordCloudRebuild'
+    messages:
+      - $ref: '#/channels/blogWordCloudRebuild/messages/rebuildBlogWordCloud'
+components:
+  messages:
+    ExtractBlogSource:
+      name: blog.parse
+      title: Fetch and extract one durably saved URL source
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SourceCommand'
+    OptimizeBlogPost:
+      name: blog.optimize
+      title: Run one fixed blog optimization request
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/OptimizeCommand'
+    RefreshBlogSearch:
+      name: post.updated
+      title: Refresh derived search data for one current Post revision
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PostRevisionCommand'
+    RebuildBlogKeywords:
+      name: blog.keyword_recompute
+      title: Recompute keywords for one Post revision
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PostRevisionJobCommand'
+    RebuildBlogWordCloud:
+      name: blog.wordcloud
+      title: Rebuild one saved word-cloud filter snapshot
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WordCloudCommand'
+  schemas:
+    Envelope:
+      type: object
+      required: [event_id, event_version, trace_id, user_id, job_id]
+      properties:
+        event_id: { type: string, format: uuid }
+        event_version: { type: integer, const: 1 }
+        trace_id: { type: string, minLength: 16, maxLength: 64 }
+        user_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+    SourceCommand:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          additionalProperties: false
+          required: [event_id, event_version, trace_id, user_id, job_id, source_id]
+          properties:
+            event_id: { type: string, format: uuid }
+            event_version: { type: integer, const: 1 }
+            trace_id: { type: string }
+            user_id: { type: string, format: uuid }
+            job_id: { type: string, format: uuid }
+            source_id: { type: string, format: uuid }
+    OptimizeCommand:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          additionalProperties: false
+          required: [event_id, event_version, trace_id, user_id, job_id, run_id]
+          properties:
+            event_id: { type: string, format: uuid }
+            event_version: { type: integer, const: 1 }
+            trace_id: { type: string }
+            user_id: { type: string, format: uuid }
+            job_id: { type: string, format: uuid }
+            run_id: { type: string, format: uuid }
+    PostRevisionCommand:
+      type: object
+      additionalProperties: false
+      required: [event_id, event_version, trace_id, user_id, post_id, revision_id]
+      properties:
+        event_id: { type: string, format: uuid }
+        event_version: { type: integer, const: 1 }
+        trace_id: { type: string }
+        user_id: { type: string, format: uuid }
+        post_id: { type: string, format: uuid }
+        revision_id: { type: string, format: uuid }
+    PostRevisionJobCommand:
+      type: object
+      additionalProperties: false
+      required: [event_id, event_version, trace_id, user_id, job_id, post_id, revision_id]
+      properties:
+        event_id: { type: string, format: uuid }
+        event_version: { type: integer, const: 1 }
+        trace_id: { type: string }
+        user_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+        post_id: { type: string, format: uuid }
+        revision_id: { type: string, format: uuid }
+    WordCloudCommand:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          additionalProperties: false
+          required: [event_id, event_version, trace_id, user_id, job_id, snapshot_id]
+          properties:
+            event_id: { type: string, format: uuid }
+            event_version: { type: integer, const: 1 }
+            trace_id: { type: string }
+            user_id: { type: string, format: uuid }
+            job_id: { type: string, format: uuid }
+            snapshot_id: { type: string, format: uuid }

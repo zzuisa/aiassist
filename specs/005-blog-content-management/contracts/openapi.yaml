@@ -1,0 +1,1228 @@
+openapi: 3.1.0
+info:
+  title: Blog Content Management API Delta
+  version: 1.0.0
+  description: >-
+    Private blog-module additions for feature 005. Existing public post and RSS
+    contracts remain unchanged and are intentionally not expanded here.
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /posts:
+    get:
+      summary: List owned posts with blog filters
+      parameters:
+        - { $ref: '#/components/parameters/SearchQuery' }
+        - { $ref: '#/components/parameters/ContentClass' }
+        - { $ref: '#/components/parameters/ContentTypeId' }
+        - { $ref: '#/components/parameters/ContentStatus' }
+        - { $ref: '#/components/parameters/AiDisplayStatus' }
+        - { $ref: '#/components/parameters/SourceType' }
+        - { $ref: '#/components/parameters/CategoryId' }
+        - { $ref: '#/components/parameters/TagId' }
+        - { $ref: '#/components/parameters/KeywordId' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: Cursor page of owned posts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostPage' }
+    post:
+      summary: Create an empty owned draft and first revision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostCreate' }
+      responses:
+        '201':
+          description: Durably saved draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}:
+    get:
+      summary: Get one owned current article and its organization summary
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      responses:
+        '200':
+          description: Current article
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      summary: Save user edits with optimistic concurrency and create a revision
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostPatch' }
+      responses:
+        '200':
+          description: Saved current article
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      summary: Soft-delete an owned non-published article
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}/visual-assets/{asset_id}.png:
+    get:
+      summary: Stream an owned generated visual PNG for an article
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - name: asset_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Private generated visual asset
+          content:
+            image/png: {}
+        '404': { $ref: '#/components/responses/Problem' }
+  /posts/captures/clipboard:
+    post:
+      summary: Save original clipboard content and create a draft before AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClipboardCapture' }
+      responses:
+        '201':
+          description: Source and article are durably saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaptureResult' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /posts/captures/url:
+    post:
+      summary: Save a URL source, pending article and extraction job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UrlCapture' }
+      responses:
+        '202':
+          description: Source and article are saved; extraction is asynchronous
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaptureResult' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /posts/captures/quick:
+    post:
+      summary: Save a minimal quick record into triage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuickCapture' }
+      responses:
+        '201':
+          description: Quick record saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaptureResult' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /post-sources/{source_id}:
+    get:
+      summary: Get owned source metadata and bounded original content
+      parameters: [{ $ref: '#/components/parameters/SourceId' }]
+      responses:
+        '200':
+          description: Source detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostSource' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /post-sources/{source_id}/retry:
+    post:
+      summary: Create a new extraction attempt for a failed or partial URL source
+      parameters: [{ $ref: '#/components/parameters/SourceId' }]
+      responses:
+        '202':
+          description: New extraction job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlogJob' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /post-sources/{source_id}/snapshot-access:
+    get:
+      summary: Authorize access to an owned private source snapshot
+      parameters: [{ $ref: '#/components/parameters/SourceId' }]
+      responses:
+        '200':
+          description: Same-origin or short-lived access reference
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssetAccess' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}/optimize:
+    post:
+      summary: Submit AI work bound to the current revision and fixed Skill version
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OptimizationRequest' }
+      responses:
+        '202':
+          description: Durable job and run binding
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlogJob' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}/candidates:
+    get:
+      summary: List AI candidates for an owned Post
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, merge_required, applied, rejected, copied] }
+      responses:
+        '200':
+          description: Candidate summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AiCandidate' }
+  /blog/ai/candidates/{candidate_id}:
+    get:
+      summary: Get three-way candidate comparison data
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - { $ref: '#/components/parameters/CandidateId' }
+      responses:
+        '200':
+          description: Base, current and candidate snapshots with field diffs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CandidateComparison' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /blog/ai/candidates/{candidate_id}/decide:
+    post:
+      summary: Apply selected fields, reject, keep current or copy candidate
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - { $ref: '#/components/parameters/CandidateId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CandidateDecision' }
+      responses:
+        '200':
+          description: Decision and optional new current revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CandidateDecisionResult' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}/revisions:
+    get:
+      summary: List immutable versions
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: Version page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevisionPage' }
+  /posts/{post_id}/revisions/{revision_id}:
+    get:
+      summary: Get one complete owned revision snapshot
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - { $ref: '#/components/parameters/RevisionId' }
+      responses:
+        '200':
+          description: Revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostRevision' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /posts/{post_id}/revisions/compare:
+    get:
+      summary: Compare two owned revision snapshots
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - in: query
+          name: left
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: right
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Body and field diff
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevisionDiff' }
+  /posts/{post_id}/revisions/{revision_id}/restore:
+    post:
+      summary: Create a new current revision from a historical snapshot
+      parameters:
+        - { $ref: '#/components/parameters/PostId' }
+        - { $ref: '#/components/parameters/RevisionId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [post_version]
+              properties:
+                post_version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Restored as a new revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /blog/triage:
+    get:
+      summary: List Posts derived into the triage work queue
+      parameters:
+        - { $ref: '#/components/parameters/SourceType' }
+        - { $ref: '#/components/parameters/ContentClass' }
+        - { $ref: '#/components/parameters/AiDisplayStatus' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: Triage Post page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostPage' }
+  /blog/articles/merge:
+    post:
+      summary: Merge ordered source Posts into a new draft without deleting sources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TriageMerge' }
+      responses:
+        '201':
+          description: New merged draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /blog/content-types:
+    get:
+      summary: List owned enabled and historical content types
+      responses:
+        '200':
+          description: Content types
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ContentType' }
+    post:
+      summary: Create a configurable content type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContentTypeWrite' }
+      responses:
+        '201':
+          description: Created content type
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContentType' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /blog/skills:
+    get:
+      summary: List owned Skill identities and current versions
+      parameters:
+        - in: query
+          name: enabled
+          schema: { type: boolean }
+        - { $ref: '#/components/parameters/ContentClass' }
+      responses:
+        '200':
+          description: Skills
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Skill' }
+    post:
+      summary: Create a Skill identity and immutable first version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkillWrite' }
+      responses:
+        '201':
+          description: Created Skill
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Skill' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /blog/skills/{skill_id}:
+    get:
+      summary: Get one owned Skill and current configuration
+      parameters: [{ $ref: '#/components/parameters/SkillId' }]
+      responses:
+        '200':
+          description: Skill
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Skill' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      summary: Change Skill identity fields and optionally create a new version
+      parameters: [{ $ref: '#/components/parameters/SkillId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkillWrite' }
+      responses:
+        '200':
+          description: Updated Skill with immutable new version when config changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Skill' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /blog/skills/{skill_id}/versions:
+    get:
+      summary: List immutable Skill versions
+      parameters: [{ $ref: '#/components/parameters/SkillId' }]
+      responses:
+        '200':
+          description: Versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SkillVersion' }
+  /blog/skills/{skill_id}/versions/{version_id}/restore:
+    post:
+      summary: Copy a historical config into a new current version
+      parameters:
+        - { $ref: '#/components/parameters/SkillId' }
+        - { $ref: '#/components/parameters/SkillVersionId' }
+      responses:
+        '201':
+          description: New current version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkillVersion' }
+  /blog/skills/defaults/list:
+    get:
+      summary: List current global, class and type Skill defaults
+      responses:
+        '200':
+          description: Defaults
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SkillDefault' }
+  /blog/skills/defaults:
+    put:
+      summary: Set or replace one unique Skill default scope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkillDefaultWrite' }
+      responses:
+        '200':
+          description: Effective default and replaced binding if any
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkillDefault' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /blog/taxonomy/{kind}:
+    get:
+      summary: List categories, tags or keywords with usage counts
+      parameters:
+        - { $ref: '#/components/parameters/TaxonomyKind' }
+        - in: query
+          name: enabled
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Taxonomy items
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaxonomyItem' }
+    post:
+      summary: Create a category, tag or keyword
+      parameters: [{ $ref: '#/components/parameters/TaxonomyKind' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaxonomyWrite' }
+      responses:
+        '201':
+          description: Created item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaxonomyItem' }
+  /blog/taxonomy/{kind}/{item_id}:
+    patch:
+      summary: Update a taxonomy item while preserving disabled historical values
+      parameters:
+        - { $ref: '#/components/parameters/TaxonomyKind' }
+        - in: path
+          name: item_id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaxonomyPatch' }
+      responses:
+        '200':
+          description: Updated item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaxonomyItem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /blog/taxonomy/keyword/recompute:
+    post:
+      summary: Recompute automatic keyword links without replacing manual links
+      responses:
+        '202':
+          description: Durable recomputation job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlogJob' }
+  /blog/taxonomy/{kind}/merge:
+    post:
+      summary: Merge one taxonomy item into another and preserve an audit mapping
+      parameters: [{ $ref: '#/components/parameters/TaxonomyKind' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [source_id, target_id]
+              properties:
+                source_id: { type: string, format: uuid }
+                target_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Completed merge or durable background job
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/TaxonomyItem' }
+                  - { $ref: '#/components/schemas/BlogJob' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /blog/search:
+    get:
+      summary: Search owned blog title, body, code, source and structured fields
+      parameters:
+        - { $ref: '#/components/parameters/SearchQueryRequired' }
+        - { $ref: '#/components/parameters/ContentClass' }
+        - { $ref: '#/components/parameters/ContentTypeId' }
+        - { $ref: '#/components/parameters/CategoryId' }
+        - { $ref: '#/components/parameters/TagId' }
+        - { $ref: '#/components/parameters/KeywordId' }
+        - { $ref: '#/components/parameters/AiDisplayStatus' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: Search page with match fields and safe highlights
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchPage' }
+  /blog/timeline:
+    get:
+      summary: Return owned articles grouped by occurrence or creation time
+      parameters:
+        - in: query
+          name: time_basis
+          schema: { type: string, enum: [occurred_at, created_at], default: occurred_at }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - { $ref: '#/components/parameters/ContentClass' }
+        - { $ref: '#/components/parameters/ContentTypeId' }
+        - { $ref: '#/components/parameters/CategoryId' }
+        - { $ref: '#/components/parameters/TagId' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: Timeline page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimelinePage' }
+  /blog/word-cloud:
+    get:
+      summary: Get the last successful word-cloud snapshot for normalized filters
+      parameters:
+        - in: query
+          name: source_kind
+          required: true
+          schema: { type: string, enum: [tag, keyword] }
+        - in: query
+          name: filter
+          schema: { type: string, description: Canonical encoded filter JSON }
+      responses:
+        '200':
+          description: Last successful snapshot or empty state
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/WordCloudSnapshot' }
+                  - { type: 'null' }
+    post:
+      summary: Create or rebuild one word-cloud snapshot asynchronously
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WordCloudRequest' }
+      responses:
+        '202':
+          description: Rebuild job plus previous snapshot when available
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job, previous]
+                properties:
+                  job: { $ref: '#/components/schemas/BlogJob' }
+                  previous: { oneOf: [{ $ref: '#/components/schemas/WordCloudSnapshot' }, { type: 'null' }] }
+  /blog/settings:
+    get:
+      summary: Get effective blog settings, safe defaults and warnings
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlogSettings' }
+    put:
+      summary: Replace blog settings with optimistic concurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BlogSettingsWrite' }
+      responses:
+        '200':
+          description: Validated effective settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlogSettings' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /jobs:
+    get:
+      summary: Existing job list extended with optional blog scope and display status
+      parameters:
+        - in: query
+          name: scope
+          schema: { type: string, enum: [blog] }
+        - in: query
+          name: status
+          schema:
+            type: array
+            items: { type: string }
+      responses:
+        '200':
+          description: Owned jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BlogJob' }
+  /jobs/completed:
+    delete:
+      security:
+        - sessionCookie: []
+      summary: Clear the current user's completed job history
+      responses:
+        '200':
+          description: Number of deleted jobs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClearCompletedJobs' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+  parameters:
+    PostId: { in: path, name: post_id, required: true, schema: { type: string, format: uuid } }
+    SourceId: { in: path, name: source_id, required: true, schema: { type: string, format: uuid } }
+    CandidateId: { in: path, name: candidate_id, required: true, schema: { type: string, format: uuid } }
+    RevisionId: { in: path, name: revision_id, required: true, schema: { type: string, format: uuid } }
+    SkillId: { in: path, name: skill_id, required: true, schema: { type: string, format: uuid } }
+    SkillVersionId: { in: path, name: skill_version_id, required: true, schema: { type: string, format: uuid } }
+    TaxonomyKind: { in: path, name: kind, required: true, schema: { type: string, enum: [category, tag, keyword] } }
+    SearchQuery: { in: query, name: q, schema: { type: string, maxLength: 500 } }
+    SearchQueryRequired: { in: query, name: q, required: true, schema: { type: string, minLength: 1, maxLength: 500 } }
+    ContentClass: { in: query, name: content_class, schema: { type: string, maxLength: 32 } }
+    ContentTypeId: { in: query, name: content_type_id, schema: { type: string, format: uuid } }
+    ContentStatus: { in: query, name: content_status, schema: { type: string, maxLength: 32 } }
+    AiDisplayStatus: { in: query, name: ai_status, schema: { type: string, maxLength: 32 } }
+    SourceType: { in: query, name: source_type, schema: { type: string, maxLength: 24 } }
+    CategoryId: { in: query, name: category_id, schema: { type: string, format: uuid } }
+    TagId: { in: query, name: tag_id, schema: { type: string, format: uuid } }
+    KeywordId: { in: query, name: keyword_id, schema: { type: string, format: uuid } }
+    Cursor: { in: query, name: cursor, schema: { type: string, maxLength: 500 } }
+  responses:
+    Problem:
+      description: RFC 9457 problem details; never contains private raw content
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Post:
+      type: object
+      additionalProperties: false
+      required: [id, title, markdown, status, content_status, content_class, language, structured_data, version, current_revision_id, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, maxLength: 240 }
+        subtitle: { type: [string, 'null'], maxLength: 240 }
+        summary: { type: [string, 'null'], maxLength: 2000 }
+        markdown: { type: string, maxLength: 200000 }
+        status: { type: string, enum: [draft, private, published] }
+        content_status: { $ref: '#/components/schemas/ContentStatus' }
+        content_class: { type: string, maxLength: 32 }
+        content_type_id: { type: [string, 'null'], format: uuid }
+        category_id: { type: [string, 'null'], format: uuid }
+        tag_ids: { type: array, items: { type: string, format: uuid }, maxItems: 50 }
+        keyword_ids: { type: array, items: { type: string, format: uuid }, maxItems: 100 }
+        language: { type: string, maxLength: 16 }
+        editor_mode: { type: string, enum: [markdown, rich, split] }
+        occurred_at: { type: [string, 'null'], format: date-time }
+        location: { type: [string, 'null'], maxLength: 240 }
+        project: { type: [string, 'null'], maxLength: 240 }
+        structured_data: { type: object, maxProperties: 100 }
+        source_summary: { type: array, items: { $ref: '#/components/schemas/PostSourceSummary' } }
+        ai_summary: { $ref: '#/components/schemas/PostAiSummary' }
+        version: { type: integer, minimum: 1 }
+        current_revision_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PostCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, default: 未命名文章, maxLength: 240 }
+        markdown: { type: string, default: '', maxLength: 200000 }
+        content_class: { type: string, default: essay }
+        content_type_id: { type: [string, 'null'], format: uuid }
+        ai_enabled: { type: boolean, default: false }
+        skill_id: { type: [string, 'null'], format: uuid }
+        save_as_defaults: { type: boolean, default: false }
+    PostPatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        title: { type: string, maxLength: 240 }
+        subtitle: { type: [string, 'null'], maxLength: 240 }
+        summary: { type: [string, 'null'], maxLength: 2000 }
+        markdown: { type: string, maxLength: 200000 }
+        content_status: { $ref: '#/components/schemas/ContentStatus' }
+        content_class: { type: string, maxLength: 32 }
+        content_type_id: { type: [string, 'null'], format: uuid }
+        category_id: { type: [string, 'null'], format: uuid }
+        tag_ids: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        keyword_ids: { type: array, maxItems: 100, items: { type: string, format: uuid } }
+        language: { type: string, maxLength: 16 }
+        editor_mode: { type: string, enum: [markdown, rich, split] }
+        occurred_at: { type: [string, 'null'], format: date-time }
+        location: { type: [string, 'null'], maxLength: 240 }
+        project: { type: [string, 'null'], maxLength: 240 }
+        structured_data: { type: object, maxProperties: 100 }
+      minProperties: 2
+    ContentStatus:
+      type: string
+      enum: [pending_capture, pending_parse, triage, draft, ai_queued, ai_processing, ai_review, merge_required, completed, archived, discarded]
+    ClipboardCapture:
+      type: object
+      additionalProperties: false
+      required: [raw_content, detected_format]
+      properties:
+        raw_content: { type: string, minLength: 1, maxLength: 2097152 }
+        normalized_markdown: { type: [string, 'null'], maxLength: 200000 }
+        detected_format: { type: string, enum: [plain, markdown, html, rich, url, code, image, mixed] }
+        content_class: { type: string, maxLength: 32 }
+        content_type_id: { type: [string, 'null'], format: uuid }
+        ai_enabled: { type: boolean, default: false }
+        skill_id: { type: [string, 'null'], format: uuid }
+        save_as_defaults: { type: boolean, default: false }
+    UrlCapture:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url: { type: string, format: uri, maxLength: 4096 }
+        note: { type: [string, 'null'], maxLength: 10000 }
+        usage: { type: string, enum: [bookmark, summary_note, reading_note, technical_material, travel_material, personal_article, triage], default: triage }
+        content_class: { type: string, default: bookmark }
+        content_type_id: { type: [string, 'null'], format: uuid }
+        ai_enabled: { type: boolean, default: false }
+        skill_id: { type: [string, 'null'], format: uuid }
+        save_as_defaults: { type: boolean, default: false }
+    QuickCapture:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 20000 }
+        content_class: { type: string, default: quick }
+        ai_enabled: { type: boolean, default: false }
+        save_and_continue: { type: boolean, default: false }
+    CaptureResult:
+      type: object
+      required: [post, source, job, warnings]
+      properties:
+        post: { $ref: '#/components/schemas/Post' }
+        source: { $ref: '#/components/schemas/PostSource' }
+        job: { oneOf: [{ $ref: '#/components/schemas/BlogJob' }, { type: 'null' }] }
+        warnings: { type: array, items: { type: string } }
+    PostSourceSummary:
+      type: object
+      required: [id, source_type, status, captured_at]
+      properties:
+        id: { type: string, format: uuid }
+        source_type: { type: string }
+        status: { type: string }
+        original_url: { type: [string, 'null'], format: uri }
+        original_title: { type: [string, 'null'] }
+        captured_at: { type: string, format: date-time }
+    PostSource:
+      allOf:
+        - $ref: '#/components/schemas/PostSourceSummary'
+        - type: object
+          required: [post_id, detected_format, original_text, normalized_markdown, metadata, attempt_count]
+          properties:
+            post_id: { type: string, format: uuid }
+            detected_format: { type: [string, 'null'] }
+            source_site: { type: [string, 'null'] }
+            source_author: { type: [string, 'null'] }
+            source_published_at: { type: [string, 'null'], format: date-time }
+            original_text: { type: [string, 'null'] }
+            normalized_markdown: { type: [string, 'null'] }
+            user_note: { type: [string, 'null'] }
+            metadata: { type: object }
+            external_system: { type: [string, 'null'], maxLength: 32 }
+            external_record_id: { type: [string, 'null'], maxLength: 128 }
+            external_task_id: { type: [string, 'null'], maxLength: 128 }
+            has_snapshot: { type: boolean }
+            attempt_count: { type: integer, minimum: 0 }
+            error: { oneOf: [{ $ref: '#/components/schemas/JobError' }, { type: 'null' }] }
+    OptimizationRequest:
+      type: object
+      additionalProperties: false
+      required: [post_version, optimization_type]
+      properties:
+        post_version: { type: integer, minimum: 1 }
+        optimization_type: { type: string, enum: [full, language, structure, metadata, check, reoptimize] }
+        scope: { type: string, enum: [all, body, metadata, selected_fields], default: all }
+        selected_fields: { type: array, maxItems: 200, uniqueItems: true, items: { type: string, maxLength: 128 } }
+        skill_id: { type: [string, 'null'], format: uuid }
+        provider_key: { type: [string, 'null'], enum: [radio, aiassist, null] }
+        model_key: { type: [string, 'null'], maxLength: 120 }
+        instruction: { type: [string, 'null'], maxLength: 2000 }
+        request_nonce: { type: [string, 'null'], maxLength: 64 }
+    AiCandidate:
+      type: object
+      required: [id, post_id, run_id, base_revision_id, candidate_revision_id, status, validation, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        post_id: { type: string, format: uuid }
+        run_id: { type: string, format: uuid }
+        base_revision_id: { type: string, format: uuid }
+        candidate_revision_id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, merge_required, applied, rejected, copied] }
+        field_diff: { type: object }
+        validation: { type: object }
+        created_at: { type: string, format: date-time }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+    CandidateComparison:
+      type: object
+      required: [candidate, base, current, proposed, body_diff, field_diffs]
+      properties:
+        candidate: { $ref: '#/components/schemas/AiCandidate' }
+        base: { $ref: '#/components/schemas/PostRevision' }
+        current: { $ref: '#/components/schemas/PostRevision' }
+        proposed: { $ref: '#/components/schemas/PostRevision' }
+        body_diff: { type: string }
+        field_diffs: { type: array, items: { $ref: '#/components/schemas/FieldDiff' } }
+    CandidateDecision:
+      type: object
+      additionalProperties: false
+      required: [action, current_post_version]
+      properties:
+        action: { type: string, enum: [apply_all, apply_body, apply_metadata, apply_fields, keep_current, reject, copy] }
+        current_post_version: { type: integer, minimum: 1 }
+        selected_fields: { type: array, maxItems: 200, uniqueItems: true, items: { type: string, maxLength: 128 } }
+        rejected_fields: { type: array, maxItems: 200, uniqueItems: true, items: { type: string, maxLength: 128 } }
+    CandidateDecisionResult:
+      type: object
+      required: [candidate, post, result_revision_id]
+      properties:
+        candidate: { $ref: '#/components/schemas/AiCandidate' }
+        post: { oneOf: [{ $ref: '#/components/schemas/Post' }, { type: 'null' }] }
+        result_revision_id: { type: [string, 'null'], format: uuid }
+    PostRevision:
+      type: object
+      required: [id, post_id, revision_number, source, markdown, snapshot, schema_version, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        post_id: { type: string, format: uuid }
+        revision_number: { type: integer, minimum: 1 }
+        parent_revision_id: { type: [string, 'null'], format: uuid }
+        base_revision_id: { type: [string, 'null'], format: uuid }
+        source: { type: string, enum: [capture, user_edit, ai_candidate, ai_applied, restore, import, merge] }
+        markdown: { type: string, maxLength: 200000 }
+        snapshot: { type: object }
+        change_summary: { type: [string, 'null'], maxLength: 500 }
+        async_job_id: { type: [string, 'null'], format: uuid }
+        skill_version_id: { type: [string, 'null'], format: uuid }
+        schema_version: { type: string }
+        applied_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    RevisionPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/PostRevision' } }
+        next_cursor: { type: [string, 'null'] }
+    RevisionDiff:
+      type: object
+      required: [left_revision_id, right_revision_id, body_diff, field_diffs]
+      properties:
+        left_revision_id: { type: string, format: uuid }
+        right_revision_id: { type: string, format: uuid }
+        body_diff: { type: string }
+        field_diffs: { type: array, items: { $ref: '#/components/schemas/FieldDiff' } }
+    FieldDiff:
+      type: object
+      required: [path, before, after, policy, validation]
+      properties:
+        path: { type: string, maxLength: 128 }
+        before: {}
+        after: {}
+        policy: { type: string }
+        validation: { type: object }
+    PostAiSummary:
+      type: object
+      required: [display_status, optimization_count]
+      properties:
+        display_status: { type: [string, 'null'] }
+        optimization_count: { type: integer, minimum: 0 }
+        first_optimized_at: { type: [string, 'null'], format: date-time }
+        last_optimized_at: { type: [string, 'null'], format: date-time }
+        latest_job_id: { type: [string, 'null'], format: uuid }
+        pending_candidate_id: { type: [string, 'null'], format: uuid }
+    BlogJob:
+      type: object
+      required: [id, job_type, status, display_status, progress, retry_count, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        job_type: { type: string }
+        entity_type: { type: [string, 'null'] }
+        entity_id: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [pending, queued, processing, waiting_user, completed, failed, cancelled] }
+        display_status: { type: string }
+        current_stage: { type: [string, 'null'] }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        retry_count: { type: integer, minimum: 0 }
+        result: { type: [object, 'null'] }
+        error: { oneOf: [{ $ref: '#/components/schemas/JobError' }, { type: 'null' }] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+    ClearCompletedJobs:
+      type: object
+      required: [deleted_count]
+      properties:
+        deleted_count: { type: integer, minimum: 0 }
+    JobError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: { type: string, maxLength: 64 }
+        message: { type: string, maxLength: 500 }
+        retryable: { type: boolean }
+    TriageMerge:
+      type: object
+      additionalProperties: false
+      required: [post_ids, title]
+      properties:
+        post_ids: { type: array, minItems: 2, maxItems: 50, uniqueItems: true, items: { type: string, format: uuid } }
+        title: { type: string, minLength: 1, maxLength: 240 }
+        mark_sources_completed: { type: boolean, default: false }
+    ContentType:
+      type: object
+      additionalProperties: false
+      required: [id, content_class, key, name, field_schema, enabled, schema_version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        content_class: { type: string, maxLength: 32 }
+        key: { type: string, pattern: '^[a-z][a-z0-9_-]{0,63}$' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        field_schema: { type: object, maxProperties: 100 }
+        sort_order: { type: integer, default: 0 }
+        enabled: { type: boolean }
+        schema_version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ContentTypeWrite:
+      type: object
+      additionalProperties: false
+      required: [content_class, key, name, field_schema, enabled]
+      properties:
+        content_class: { type: string, maxLength: 32 }
+        key: { type: string, pattern: '^[a-z][a-z0-9_-]{0,63}$' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        field_schema: { type: object, maxProperties: 100 }
+        sort_order: { type: integer, default: 0 }
+        enabled: { type: boolean }
+    Skill:
+      type: object
+      required: [id, name, enabled, current_version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        enabled: { type: boolean }
+        current_version: { $ref: '#/components/schemas/SkillVersion' }
+        default_scopes: { type: array, items: { type: string } }
+        recent_execution: { type: object }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SkillWrite:
+      type: object
+      additionalProperties: false
+      required: [name, enabled, config, change_summary]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        enabled: { type: boolean }
+        config: { type: object, description: Must validate blog-skill-config.v1 }
+        change_summary: { type: [string, 'null'], maxLength: 500 }
+    SkillVersion:
+      type: object
+      required: [id, skill_id, version_number, schema_version, config, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        skill_id: { type: string, format: uuid }
+        version_number: { type: integer, minimum: 1 }
+        schema_version: { const: blog-skill-config.v1 }
+        config: { type: object }
+        change_summary: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    SkillDefault:
+      type: object
+      required: [id, scope_type, scope_key, skill_id, skill_version_id]
+      properties:
+        id: { type: string, format: uuid }
+        scope_type: { type: string, enum: [global, content_class, content_type] }
+        scope_key: { type: string }
+        skill_id: { type: string, format: uuid }
+        skill_version_id: { type: string, format: uuid }
+    SkillDefaultWrite:
+      type: object
+      additionalProperties: false
+      required: [scope_type, scope_key, skill_id]
+      properties:
+        scope_type: { type: string, enum: [global, content_class, content_type] }
+        scope_key: { type: string, maxLength: 64 }
+        skill_id: { type: string, format: uuid }
+    TaxonomyItem:
+      type: object
+      required: [id, kind, name, enabled, usage_count]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [category, tag, keyword] }
+        name: { type: string, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        parent_id: { type: [string, 'null'], format: uuid }
+        aliases: { type: array, items: { type: string } }
+        color: { type: [string, 'null'] }
+        enabled: { type: boolean }
+        stop_word: { type: boolean, default: false }
+        usage_count: { type: integer, minimum: 0 }
+    TaxonomyWrite:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        parent_id: { type: [string, 'null'], format: uuid }
+        aliases: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, maxLength: 120 } }
+        color: { type: [string, 'null'], maxLength: 32 }
+        enabled: { type: boolean, default: true }
+        stop_word: { type: boolean, default: false }
+    TaxonomyPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        parent_id: { type: [string, 'null'], format: uuid }
+        aliases: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, maxLength: 120 } }
+        color: { type: [string, 'null'], maxLength: 32 }
+        enabled: { type: boolean }
+        stop_word: { type: boolean }
+    PostPage:
+      type: object
+      required: [items, next_cursor, applied_filters]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Post' } }
+        next_cursor: { type: [string, 'null'] }
+        applied_filters: { type: object }
+    SearchPage:
+      type: object
+      required: [query, items, next_cursor, applied_filters, index_pending_count]
+      properties:
+        query: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [post, matched_fields, highlights]
+            properties:
+              post: { $ref: '#/components/schemas/Post' }
+              matched_fields: { type: array, items: { type: string } }
+              highlights: { type: array, items: { type: string } }
+        next_cursor: { type: [string, 'null'] }
+        applied_filters: { type: object }
+        index_pending_count: { type: integer, minimum: 0 }
+    TimelinePage:
+      type: object
+      required: [items, next_cursor, time_basis]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [post, display_time, time_basis]
+            properties:
+              post: { $ref: '#/components/schemas/Post' }
+              display_time: { type: string, format: date-time }
+              time_basis: { type: string, enum: [occurred_at, created_at] }
+        next_cursor: { type: [string, 'null'] }
+        time_basis: { type: string, enum: [occurred_at, created_at] }
+    WordCloudRequest:
+      type: object
+      additionalProperties: false
+      required: [source_kind, filter]
+      properties:
+        source_kind: { type: string, enum: [tag, keyword] }
+        filter: { type: object }
+        min_frequency: { type: integer, minimum: 1, maximum: 100000 }
+        max_terms: { type: integer, minimum: 1, maximum: 500 }
+    WordCloudSnapshot:
+      type: object
+      required: [id, source_kind, filter, terms, article_count, status, generated_at]
+      properties:
+        id: { type: string, format: uuid }
+        source_kind: { type: string, enum: [tag, keyword] }
+        filter: { type: object }
+        terms:
+          type: array
+          items:
+            type: object
+            required: [id, term, count]
+            properties:
+              id: { type: string, format: uuid }
+              term: { type: string }
+              count: { type: integer, minimum: 1 }
+        article_count: { type: integer, minimum: 0 }
+        status: { type: string, enum: [ready, stale, failed] }
+        generated_at: { type: [string, 'null'], format: date-time }
+        error_code: { type: [string, 'null'] }
+    BlogSettings:
+      type: object
+      required: [schema_version, create_defaults, clipboard, url_capture, ai_apply, word_cloud, version, warnings]
+      properties:
+        schema_version: { const: blog-settings.v1 }
+        create_defaults: { type: object }
+        clipboard: { type: object }
+        url_capture: { type: object }
+        ai_apply: { type: object }
+        word_cloud: { type: object }
+        version: { type: integer, minimum: 1 }
+        warnings: { type: array, items: { type: string } }
+    BlogSettingsWrite:
+      type: object
+      additionalProperties: false
+      required: [schema_version, create_defaults, clipboard, url_capture, ai_apply, word_cloud, version]
+      properties:
+        schema_version: { const: blog-settings.v1 }
+        create_defaults: { type: object }
+        clipboard: { type: object }
+        url_capture: { type: object }
+        ai_apply: { type: object }
+        word_cloud: { type: object }
+        version: { type: integer, minimum: 1 }
+    AssetAccess:
+      type: object
+      required: [url, expires_at]
+      properties:
+        url: { type: string, format: uri-reference }
+        expires_at: { type: [string, 'null'], format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        trace_id: { type: string }

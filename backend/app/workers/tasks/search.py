@@ -12,6 +12,9 @@ import uuid
 from sqlalchemy import select, text
 
 from app.db.session import session_scope
+from app.models.blog import PostKeyword, PostKeywordLink
+from app.models.foundation import Category, Tag
+from app.models.posts import Post, PostTag
 from app.models.search import SearchDocument
 from app.workers.celery_app import celery
 
@@ -24,6 +27,7 @@ def _upsert_document(
     body: str,
     tags_text: str = "",
     category_text: str = "",
+    metadata_text: str = "",
 ) -> None:
     with session_scope() as s:
         doc = s.scalar(
@@ -45,13 +49,15 @@ def _upsert_document(
         doc.body = body
         doc.tags_text = tags_text
         doc.category_text = category_text
+        doc.metadata_text = metadata_text
         s.flush()
         # Recompute tsvector from the text columns.
         s.execute(
             text(
                 "UPDATE search_documents SET document_tsv = "
                 "to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(body,'') "
-                "|| ' ' || coalesce(tags_text,'') || ' ' || coalesce(category_text,'')), "
+                "|| ' ' || coalesce(tags_text,'') || ' ' || coalesce(category_text,'') "
+                "|| ' ' || coalesce(metadata_text,'')), "
                 "indexed_at = now() WHERE id = :id"
             ),
             {"id": doc.id},
@@ -63,6 +69,61 @@ def refresh_document(
     user_id: str, entity_type: str, entity_id: str, title: str, body: str = ""
 ) -> str:
     _upsert_document(uuid.UUID(user_id), entity_type, uuid.UUID(entity_id), title, body)
+    return "refreshed"
+
+
+@celery.task(name="app.workers.tasks.search.refresh_post_document")
+def refresh_post_document(user_id: str, post_id: str) -> str:
+    """Rebuild a Post search document from committed owner-scoped data."""
+    uid, pid = uuid.UUID(user_id), uuid.UUID(post_id)
+    with session_scope() as s:
+        post = s.scalar(
+            select(Post).where(
+                Post.id == pid,
+                Post.user_id == uid,
+                Post.deleted_at.is_(None),
+            )
+        )
+        if post is None:
+            return delete_document(user_id, "post", post_id)
+        tags = s.scalars(
+            select(Tag.name)
+            .join(PostTag, PostTag.tag_id == Tag.id)
+            .where(PostTag.post_id == pid, PostTag.user_id == uid, Tag.user_id == uid)
+        ).all()
+        category = (
+            s.scalar(
+                select(Category.name).where(
+                    Category.id == post.category_id, Category.user_id == uid
+                )
+            )
+            if post.category_id
+            else ""
+        )
+        keywords = s.scalars(
+            select(PostKeyword.canonical_text)
+            .join(PostKeywordLink, PostKeywordLink.keyword_id == PostKeyword.id)
+            .where(
+                PostKeywordLink.post_id == pid,
+                PostKeywordLink.user_id == uid,
+                PostKeyword.user_id == uid,
+            )
+        ).all()
+        body = "\n".join(filter(None, (post.summary, post.markdown)))
+        metadata = " ".join(
+            filter(
+                None,
+                (
+                    post.subtitle,
+                    post.location_text,
+                    post.project_text,
+                    str(post.structured_data_json or {}),
+                    " ".join(keywords),
+                ),
+            )
+        )
+        title = post.title
+    _upsert_document(uid, "post", pid, title, body, " ".join(tags), category or "", metadata)
     return "refreshed"
 
 

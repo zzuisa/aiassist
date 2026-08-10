@@ -37,6 +37,60 @@ Check current states (admin): `GET /api/v1/settings` → `dependencies`, or
   docker compose run --rm backend python -m app.cli.dlq replay voice --limit 10
   ```
 
+## Agent batch and concurrency tuning
+
+Agent fan-out runs inside one `worker-heavy` Celery task and shares that queue
+with speech transcription and image processing. Tune these two settings
+together:
+
+| Setting | Default | Hard limit | Guidance |
+|---|---:|---:|---|
+| `AGENT_MAX_BATCH_OBJECTS` | 200 | 500 | Maximum objects accepted by one Agent batch; require the user to narrow larger requests. |
+| `AGENT_MAX_CONCURRENCY` | 4 | 8 | Threads used inside one Agent task; start at 4 and raise only after measuring provider and database headroom. |
+
+The bounded thread pool prevents one Agent task from creating unlimited local
+work, but it does not create another Celery slot. A long Agent batch still
+occupies the single `worker-heavy` slot, so queued voice and image jobs can wait
+until that Celery task returns. Monitor queue wait time separately from task
+runtime for all three workloads. If voice or image wait time grows, reduce the
+Agent batch size or concurrency and split requests into smaller batches. Do not
+configure concurrency above 8. If sustained workloads cannot meet their queue
+latency target at conservative settings, move Agent work to a dedicated worker
+in a separate deployment change instead of increasing the in-task thread count.
+
+## One-click Agent API validation
+
+Use the dedicated Playwright flow to watch and verify the production-safe,
+read-only Agent lifecycle. It checks readiness, unauthenticated rejection,
+Cookie + CSRF authentication, task submission, the shared SSE stream, and the
+durable terminal result.
+
+```bash
+cd frontend
+npm run verify:agent:ui
+```
+
+The command securely prompts for the validation account and targets
+`https://llm.roguelife.de` by default. Override the target for an isolated
+stack without changing the test:
+
+```bash
+BASE_URL=http://127.0.0.1:18080 npm run verify:agent:ui
+```
+
+For a headless run and a desensitized HTML report:
+
+```bash
+npm run verify:agent
+npm run verify:agent:report
+```
+
+The operator profile persists no Playwright trace, video, password, Cookie,
+CSRF value, or article content. Its report contains only lifecycle status,
+timing, Agent identity/version, event count, and necessary task/job IDs. CI
+runs the same scenario against its isolated throwaway account and uploads the
+HTML dashboard with the existing E2E diagnostics artifact.
+
 ## Storage migration (local → S3)
 
 1. Set `STORAGE_PROVIDER=s3` + `S3_ENDPOINT_URL/S3_BUCKET/S3_REGION` and the

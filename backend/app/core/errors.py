@@ -14,9 +14,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.observability import get_trace_id
+from app.core.observability import get_logger, get_trace_id
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
+
+
+def _api_log() -> Any:
+    """Resolve lazily so Celery/test logging reconfiguration cannot stale it."""
+    return get_logger("api.error")
 
 
 class AppError(Exception):
@@ -31,12 +36,21 @@ class AppError(Exception):
         detail: str | None = None,
         *,
         errors: list[dict[str, Any]] | None = None,
+        extensions: dict[str, Any] | None = None,
+        log_context: dict[str, Any] | None = None,
         code: str | None = None,
         title: str | None = None,
         status: int | None = None,
     ) -> None:
         self.detail = detail
         self.errors = errors
+        # Extensions are deliberate, safe Problem Details fields.  They are
+        # never populated from request bodies and let clients recover from a
+        # state race without parsing a human-readable detail string.
+        self.extensions = extensions or {}
+        # Logging context is similarly explicit: domain code may add stable
+        # identifiers and outcomes, but not arbitrary request data.
+        self.log_context = log_context or {}
         if code:
             self.code = code
         if title:
@@ -100,6 +114,7 @@ def problem_response(
     *,
     detail: str | None = None,
     errors: list[dict[str, Any]] | None = None,
+    extensions: dict[str, Any] | None = None,
     trace_id: str | None = None,
 ) -> JSONResponse:
     body: dict[str, Any] = {
@@ -113,6 +128,8 @@ def problem_response(
         body["detail"] = detail
     if errors:
         body["errors"] = errors
+    if extensions:
+        body.update(extensions)
     return JSONResponse(
         status_code=status,
         content=body,
@@ -122,23 +139,73 @@ def problem_response(
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    def _request_fields(request: Request) -> dict[str, str]:
+        return {"method": request.method, "path": request.url.path}
+
     @app.exception_handler(AppError)
-    async def _app_error(_: Request, exc: AppError) -> JSONResponse:
+    async def _app_error(request: Request, exc: AppError) -> JSONResponse:
+        active_log = _api_log()
+        logger = active_log.error if exc.status >= 500 else active_log.warning
+        logger(
+            exc.log_context.get("event", "api_request_failed"),
+            # Keep the event stable for aggregations but make Kibana's
+            # default message column explain what actually happened.
+            message=exc.detail or exc.title,
+            status_code=exc.status,
+            error_code=exc.code,
+            error_type=type(exc).__name__,
+            **_request_fields(request),
+            **{key: value for key, value in exc.log_context.items() if key != "event"},
+        )
         return problem_response(
-            exc.status, exc.code, exc.title, detail=exc.detail, errors=exc.errors
+            exc.status,
+            exc.code,
+            exc.title,
+            detail=exc.detail,
+            errors=exc.errors,
+            extensions=exc.extensions,
         )
 
     @app.exception_handler(RequestValidationError)
-    async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
+    async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
         errors = [
             {"loc": list(e.get("loc", [])), "msg": e.get("msg", ""), "type": e.get("type", "")}
             for e in exc.errors()
         ]
+        _api_log().warning(
+            "api_request_validation_failed",
+            status_code=422,
+            error_code="validation_error",
+            error_type=type(exc).__name__,
+            error_count=len(errors),
+            error_locations=[".".join(str(part) for part in item["loc"]) for item in errors[:20]],
+            **_request_fields(request),
+        )
         return problem_response(422, "validation_error", "Unprocessable Entity", errors=errors)
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = {401: "authentication_required", 403: "forbidden", 404: "not_found"}.get(
             exc.status_code, "http_error"
         )
+        active_log = _api_log()
+        logger = active_log.error if exc.status_code >= 500 else active_log.warning
+        logger(
+            "api_http_error",
+            status_code=exc.status_code,
+            error_code=code,
+            error_type=type(exc).__name__,
+            **_request_fields(request),
+        )
         return problem_response(exc.status_code, code, str(exc.detail or "HTTP Error"))
+
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        _api_log().exception(
+            "api_unhandled_exception",
+            status_code=500,
+            error_code="internal_error",
+            error_type=type(exc).__name__,
+            **_request_fields(request),
+        )
+        return problem_response(500, "internal_error", "Internal Server Error")

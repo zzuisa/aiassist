@@ -7,7 +7,7 @@ contracts.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -52,6 +52,20 @@ class VoiceTasksV1(BaseModel):
     tasks: list[VoiceTaskV1] = Field(min_length=1, max_length=20)
 
 
+class QuickPlanV1(BaseModel):
+    """quick-plan.v1: analysis of a quick-add line into scheduled task candidates.
+
+    The model splits the input into tasks with concrete times/importance, may ask a
+    few (bounded) clarifying questions, and explains its plan in one line. Nothing is
+    created here — the user reviews, optionally answers, or saves as-is.
+    """
+
+    model_config = _STRICT
+    tasks: list[VoiceTaskV1] = Field(max_length=20)
+    questions: list[str] = Field(max_length=2)
+    summary: str = Field(max_length=500)
+
+
 class CaptureCategory(BaseModel):
     model_config = _STRICT
     name: str = Field(max_length=120)
@@ -94,3 +108,223 @@ class CaptureAnalysisV1(BaseModel):
     tags: list[CaptureTag] = Field(max_length=12)
     facts: list[CaptureFact] = Field(max_length=20)
     needs_user_input: list[str] = Field(max_length=8)
+
+
+# ---------------------------------------------------------------------------
+# Blog content-management (spec 005, T023)
+# ---------------------------------------------------------------------------
+
+_CONTENT_CLASS_LITERAL = Literal[
+    "technical",
+    "project",
+    "learning",
+    "life",
+    "travel",
+    "diary",
+    "essay",
+    "bookmark",
+    "media",
+    "item",
+    "quick",
+]
+
+
+class BlogSuggestion(BaseModel):
+    """A scored suggestion (category / tag / keyword)."""
+
+    model_config = _STRICT
+    name: str = Field(min_length=1, max_length=120)
+    confidence: float = Field(ge=0, le=1)
+    reason: str = Field(max_length=300)
+
+
+class BlogStructuredField(BaseModel):
+    model_config = _STRICT
+    value: str | float | int | bool | list[str | float | int | bool] | None
+    confidence: float = Field(ge=0, le=1)
+    evidence_summary: str = Field(max_length=500)
+
+
+class BlogRelatedPostSuggestion(BaseModel):
+    model_config = _STRICT
+    post_id: str = Field(description="uuid")
+    reason: str = Field(max_length=300)
+
+
+class BlogClaim(BaseModel):
+    model_config = _STRICT
+    statement: str = Field(max_length=500)
+    support: Literal["source", "user_text", "inference", "unknown"]
+    evidence_summary: str = Field(max_length=500)
+
+
+class BlogWarning(BaseModel):
+    model_config = _STRICT
+    code: Literal[
+        "possible_new_fact",
+        "protected_token_changed",
+        "privacy_risk",
+        "missing_required_field",
+        "truncated_input",
+        "uncertain_classification",
+        "source_attribution_required",
+        "other",
+    ]
+    field: str | None = Field(max_length=128)
+    message: str = Field(max_length=500)
+    severity: Literal["info", "warning", "blocking"]
+
+
+class BlogOptimizationV1(BaseModel):
+    """blog-optimization.v1: full AI optimization candidate for a post.
+
+    Every field is required (mirrors the contract ``required`` set); nullable
+    fields express "unknown" without inventing data.
+    """
+
+    model_config = _STRICT
+    schema_version: Literal["blog-optimization.v1"]
+    title: str | None = Field(max_length=240)
+    subtitle: str | None = Field(max_length=240)
+    summary: str | None = Field(max_length=2000)
+    markdown: str | None = Field(max_length=200_000)
+    content_class_suggestion: _CONTENT_CLASS_LITERAL | None
+    content_type_suggestion: str | None = Field(max_length=120)
+    category_suggestions: list[BlogSuggestion] = Field(max_length=5)
+    tag_suggestions: list[BlogSuggestion] = Field(max_length=20)
+    keyword_suggestions: list[BlogSuggestion] = Field(max_length=30)
+    occurred_at: str | None
+    location: str | None = Field(max_length=240)
+    project: str | None = Field(max_length=240)
+    source_summary: str | None = Field(max_length=2000)
+    structured_fields: dict[str, BlogStructuredField] = Field(max_length=100)
+    related_post_suggestions: list[BlogRelatedPostSuggestion] = Field(max_length=10)
+    claims: list[BlogClaim] = Field(max_length=100)
+    warnings: list[BlogWarning] = Field(max_length=100)
+
+
+class BlogBodyOptimizationV1(BaseModel):
+    """Lean response for body-only rewriting.
+
+    Requiring the full metadata schema for a language-only body pass caused
+    long-form model responses to omit unrelated nullable/list fields and fail
+    validation. This contract asks only for the artifact the operation needs.
+    """
+
+    model_config = _STRICT
+    schema_version: Literal["blog-body-optimization.v1"]
+    markdown: str = Field(min_length=1, max_length=200_000)
+
+
+class BlogAssessmentV1(BaseModel):
+    """Shared value diagnosis emitted by the blog enhancement orchestrator."""
+
+    model_config = _STRICT
+    information_density: int = Field(ge=0, le=3)
+    logical_complexity: int = Field(ge=0, le=3)
+    data_richness: int = Field(ge=0, le=3)
+    scene_relevance: int = Field(ge=0, le=3)
+    visual_potential: int = Field(ge=0, le=3)
+    rewrite_value: int = Field(ge=0, le=3)
+    evidence_quality: int = Field(ge=0, le=3)
+
+
+class BlogSkippedAgentV1(BaseModel):
+    model_config = _STRICT
+    agent: str = Field(min_length=1, max_length=80)
+    reason_code: str = Field(min_length=1, max_length=80)
+    reason: str = Field(max_length=500)
+
+
+class BlogDecisionV1(BaseModel):
+    model_config = _STRICT
+    should_optimize: bool
+    reason: str = Field(max_length=1000)
+    selected_agents: list[str] = Field(max_length=8)
+    skipped_agents: list[BlogSkippedAgentV1] = Field(max_length=8)
+
+
+class BlogOptimizedArticleV1(BaseModel):
+    model_config = _STRICT
+    title: str = Field(max_length=240)
+    summary: str = Field(max_length=2000)
+    content_markdown: str = Field(max_length=200_000)
+
+
+class BlogEnhancementV1(BaseModel):
+    model_config = _STRICT
+    id: str = Field(min_length=1, max_length=120)
+    agent: str = Field(min_length=1, max_length=80)
+    capability: str = Field(max_length=80)
+    status: Literal["executed", "skipped", "unavailable", "failed"]
+    insert_after: str = Field(max_length=240)
+    reason: str = Field(max_length=1000)
+    content: dict[str, Any]
+    caption: str = Field(max_length=500)
+    alt_text: str = Field(max_length=500)
+
+
+class BlogQualityReportV1(BaseModel):
+    model_config = _STRICT
+    author_intent_preserved: bool
+    unsupported_claims: list[str] = Field(max_length=100)
+    removed_low_value_enhancements: list[str] = Field(max_length=100)
+    warnings: list[str] = Field(max_length=100)
+
+
+class BlogUsageV1(BaseModel):
+    model_config = _STRICT
+    agents_called: int = Field(ge=0, le=8)
+    skills_called: list[str] = Field(max_length=8)
+    visual_items_created: int = Field(ge=0, le=10)
+    estimated_input_tokens: int = Field(ge=0)
+    estimated_output_tokens: int = Field(ge=0)
+    estimated_cost: float = Field(ge=0)
+
+
+class BlogEnhancementResultV1(BaseModel):
+    """The total-controller envelope supplied by Blog Enhancement Orchestrator."""
+
+    model_config = _STRICT
+    status: Literal["optimized", "unchanged", "partially_optimized", "rejected"]
+    article_assessment: BlogAssessmentV1
+    decision: BlogDecisionV1
+    optimized_article: BlogOptimizedArticleV1
+    enhancements: list[BlogEnhancementV1] = Field(max_length=10)
+    quality_report: BlogQualityReportV1
+    usage: BlogUsageV1
+
+
+class BlogSkillConfigV1(BaseModel):
+    """blog-skill-config.v1: the persisted configuration of a skill version."""
+
+    model_config = _STRICT
+    schema_version: Literal["blog-skill-config.v1"]
+    applicable_content_classes: list[_CONTENT_CLASS_LITERAL] = Field(min_length=1)
+    applicable_content_type_ids: list[str] = Field(max_length=100)
+    processing_goal: str = Field(min_length=1, max_length=4000)
+    content_rules: list[str] = Field(max_length=100)
+    title_rules: list[str] = Field(max_length=100)
+    summary_rules: list[str] = Field(max_length=100)
+    body_structure: list[str] = Field(max_length=100)
+    taxonomy_rules: list[str] = Field(max_length=100)
+    keyword_rules: list[str] = Field(max_length=100)
+    prohibitions: list[str] = Field(min_length=1, max_length=100)
+    field_policies: dict[
+        str,
+        Literal[
+            "forbid",
+            "suggest_only",
+            "require_confirmation",
+            "fill_if_empty",
+            "auto_fill",
+            "allow_overwrite",
+            "keep_both_on_conflict",
+        ],
+    ] = Field(max_length=200)
+    output_fields: list[str] = Field(min_length=1, max_length=200)
+    output_schema: Literal["blog-optimization.v1"]
+    validation_rules: list[str] = Field(max_length=100)
+    recommended_model: str | None = Field(max_length=120)
+    max_content_chars: int = Field(ge=1000, le=200_000)
+    long_content_strategy: Literal["reject", "chunk", "summarize_then_process"]

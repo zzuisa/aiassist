@@ -44,27 +44,23 @@ def cleanup_stale_jobs() -> int:
     cleaned = 0
     now = datetime.now(UTC)
     with session_scope() as s:
-        jobs = list(
-            s.scalars(select(AsyncJob).where(AsyncJob.status.in_(_NON_TERMINAL))).all()
-        )
+        jobs = list(s.scalars(select(AsyncJob).where(AsyncJob.status.in_(_NON_TERMINAL))).all())
         for job in jobs:
             # Case 1: reconcile voice jobs against their record.
             if job.job_type == "voice.transcribe" and job.entity_id is not None:
                 record = s.get(VoiceRecord, job.entity_id)
                 if record is not None and record.status in ("confirmed", "failed", "discarded"):
-                    target = "completed" if record.status == "confirmed" else (
-                        "failed" if record.status == "failed" else "cancelled"
+                    target = (
+                        "completed"
+                        if record.status == "confirmed"
+                        else ("failed" if record.status == "failed" else "cancelled")
                     )
-                    jobs_service.transition(
-                        s, job, status=target, current_step="已同步识别结果"
-                    )
+                    jobs_service.transition(s, job, status=target, current_step="已同步识别结果")
                     cleaned += 1
                     continue
             # Case 2: expire anything non-terminal that has gone quiet.
             if job.updated_at is not None and now - job.updated_at > _STALE_AFTER:
-                jobs_service.transition(
-                    s, job, status="cancelled", current_step="已过期自动清理"
-                )
+                jobs_service.transition(s, job, status="cancelled", current_step="已过期自动清理")
                 cleaned += 1
     if cleaned:
         log.info("stale_jobs_cleaned", count=cleaned)

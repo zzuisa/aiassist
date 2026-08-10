@@ -38,6 +38,69 @@ class AsyncJobOut(BaseModel):
     started_at: datetime | None = None
     updated_at: datetime
     finished_at: datetime | None = None
+    # Derived (spec 005, T024). Presentation-only; never persisted as status.
+    scope: str | None = None
+    business_stage: str | None = None
+    display_status: str | None = None
+
+
+class ClearCompletedJobsOut(BaseModel):
+    deleted_count: int
+
+
+# ---------------------------------------------------------------------------
+# Blog job derivation (spec 005, T024)
+#
+# The generic job status ('pending'/'queued'/'processing'/'completed'/…) stays
+# the single stored truth. For blog jobs we additionally *derive* a scope, a
+# business stage and a user-facing display status purely from the job_type,
+# current_step and status — nothing is written back.
+# ---------------------------------------------------------------------------
+
+_BLOG_JOB_PREFIX = "blog."
+
+# job_type suffix → business stage.
+_BLOG_STAGE_BY_TYPE = {
+    "blog.capture": "capturing",
+    "blog.parse": "parsing",
+    "blog.bilibili_import": "transcribing",
+    "blog.generate": "optimizing",
+    "blog.optimize": "optimizing",
+    "blog.skill_test": "optimizing",
+    "blog.wordcloud": "aggregating",
+    "blog.taxonomy_merge": "merging",
+    "blog.keyword_recompute": "aggregating",
+}
+
+# (business_stage, generic status) → display status shown to the user.
+_DISPLAY_STATUS = {
+    ("capturing", "processing"): "capturing",
+    ("parsing", "processing"): "parsing",
+    ("transcribing", "queued"): "ai_queued",
+    ("transcribing", "pending"): "ai_queued",
+    ("transcribing", "processing"): "transcribing",
+    ("optimizing", "queued"): "ai_queued",
+    ("optimizing", "pending"): "ai_queued",
+    ("optimizing", "processing"): "ai_processing",
+    ("optimizing", "waiting_user"): "ai_review",
+    ("optimizing", "completed"): "ai_review",
+    ("aggregating", "processing"): "aggregating",
+    ("merging", "processing"): "merging",
+}
+
+
+def _derive_blog_fields(job: AsyncJob) -> tuple[str | None, str | None, str | None]:
+    if not job.job_type.startswith(_BLOG_JOB_PREFIX):
+        return None, None, None
+    scope = "blog"
+    stage = _BLOG_STAGE_BY_TYPE.get(job.job_type, "processing")
+    if job.status == "failed":
+        display = "failed"
+    elif job.status == "cancelled":
+        display = "cancelled"
+    else:
+        display = _DISPLAY_STATUS.get((stage, job.status), job.status)
+    return scope, stage, display
 
 
 def serialize_job(job: AsyncJob) -> AsyncJobOut:
@@ -51,6 +114,7 @@ def serialize_job(job: AsyncJob) -> AsyncJobOut:
             message=job.error_message or "",
             retryable=job.error_retryable,
         )
+    scope, business_stage, display_status = _derive_blog_fields(job)
     return AsyncJobOut(
         id=job.id,
         job_type=job.job_type,
@@ -67,4 +131,7 @@ def serialize_job(job: AsyncJob) -> AsyncJobOut:
         started_at=job.started_at,
         updated_at=job.updated_at,
         finished_at=job.finished_at,
+        scope=scope,
+        business_stage=business_stage,
+        display_status=display_status,
     )

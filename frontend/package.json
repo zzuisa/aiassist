@@ -14,7 +14,10 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify:agent": "bash scripts/verify-agent.sh run",
+    "verify:agent:ui": "bash scripts/verify-agent.sh ui",
+    "verify:agent:report": "playwright show-report playwright-report/agent-validation"
   },
   "dependencies": {
     "@fullcalendar/core": "6.1.21",
@@ -23,6 +26,11 @@
     "@fullcalendar/list": "6.1.21",
     "@fullcalendar/timegrid": "6.1.21",
     "@fullcalendar/vue3": "6.1.21",
+    "@milkdown/crepe": "^7.5.0",
+    "@milkdown/kit": "^7.5.0",
+    "@milkdown/vue": "^7.5.0",
+    "echarts": "6.0.0",
+    "mermaid": "11.12.2",
     "naive-ui": "2.44.1",
     "pinia": "4.0.2",
     "vue": "3.5.40",

@@ -25,7 +25,15 @@ router = APIRouter(tags=["tasks"])
 
 
 def _out(db: Session, t: Task) -> dict:
-    return TaskOut.from_model(t, task_service.get_tag_ids(db, t.id)).model_dump(mode="json")
+    from app.modules.notifications import reminder_service
+    from app.modules.tasks import note_service
+
+    return TaskOut.from_model(
+        t,
+        task_service.get_tag_ids(db, t.id),
+        important_reminder=reminder_service.important_reminder_summary(db, t),
+        has_note=note_service.note_exists(db, t.user_id, t.id),
+    ).model_dump(mode="json")
 
 
 @router.get("/calendar/week")

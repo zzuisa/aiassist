@@ -11,17 +11,28 @@ from app.core.config import ensure_dev_signing_key, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.observability import TraceContextMiddleware, configure_logging
 from app.db.session import get_db
+from app.modules.agent.router import router as agent_router
 from app.modules.assistant.router import router as assistant_router
 from app.modules.auth.router import router as auth_router
 from app.modules.captures.router import router as captures_router
 from app.modules.habits.router import router as habits_router
 from app.modules.jobs.router import router as jobs_router
 from app.modules.notifications.router import router as notifications_router
+from app.modules.posts.ai_router import ai_router as blog_ai_router
+from app.modules.posts.ai_router import optimize_router as blog_optimize_router
+from app.modules.posts.capture_router import captures_router as blog_captures_router
+from app.modules.posts.capture_router import sources_router as blog_sources_router
+from app.modules.posts.query_router import query_router as blog_query_router
 from app.modules.posts.router import private_router as posts_router
 from app.modules.posts.router import public_router as public_router
+from app.modules.posts.settings_router import router as blog_settings_router
+from app.modules.posts.skill_router import skill_router as blog_skill_router
+from app.modules.posts.taxonomy_router import router as blog_taxonomy_router
 from app.modules.search.router import router as search_router
 from app.modules.settings.router import router as settings_router
 from app.modules.tasks.calendar_router import router as calendar_router
+from app.modules.tasks.note_router import router as task_note_router
+from app.modules.tasks.plan_router import router as task_plan_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.tasks.today import router as today_router
 from app.modules.uploads.router import router as uploads_router
@@ -32,7 +43,7 @@ API_PREFIX = "/api/v1"
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, service="backend")
     ensure_dev_signing_key()
     settings.validate_startup()
 
@@ -67,6 +78,8 @@ def create_app() -> FastAPI:
     app.include_router(jobs_router, prefix=API_PREFIX)
     app.include_router(tasks_router, prefix=API_PREFIX)
     app.include_router(calendar_router, prefix=API_PREFIX)
+    app.include_router(task_note_router, prefix=API_PREFIX)
+    app.include_router(task_plan_router, prefix=API_PREFIX)
     app.include_router(habits_router, prefix=API_PREFIX)
     app.include_router(today_router, prefix=API_PREFIX)
     app.include_router(notifications_router, prefix=API_PREFIX)
@@ -76,6 +89,15 @@ def create_app() -> FastAPI:
     app.include_router(search_router, prefix=API_PREFIX)
     app.include_router(posts_router, prefix=API_PREFIX)
     app.include_router(public_router, prefix=API_PREFIX)
+    app.include_router(blog_captures_router, prefix=API_PREFIX)
+    app.include_router(blog_sources_router, prefix=API_PREFIX)
+    app.include_router(blog_skill_router, prefix=API_PREFIX)
+    app.include_router(blog_taxonomy_router, prefix=API_PREFIX)
+    app.include_router(blog_ai_router, prefix=API_PREFIX)
+    app.include_router(blog_optimize_router, prefix=API_PREFIX)
+    app.include_router(blog_query_router, prefix=API_PREFIX)
+    app.include_router(blog_settings_router, prefix=API_PREFIX)
+    app.include_router(agent_router, prefix=API_PREFIX)
     app.include_router(assistant_router, prefix=API_PREFIX)
     app.include_router(settings_router, prefix=API_PREFIX)
 

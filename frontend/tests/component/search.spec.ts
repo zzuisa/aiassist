@@ -77,4 +77,25 @@ describe('SearchResults', () => {
     })
     expect(wrapper.text()).toContain('搜索中')
   })
+
+  it('links Post results to the blog view and preserves query context', () => {
+    const wrapper = mount(SearchResults, {
+      props: {
+        results: response({
+          query: '事故 731',
+          groups: [{
+            type: 'post',
+            items: [{
+              entity: { type: 'post', id: 'post-1' }, title: '事故复盘', tags: [], highlights: [],
+            }],
+          }],
+        }),
+        loading: false,
+        pendingHint: false,
+      },
+    })
+    expect(wrapper.get('a.result-link').attributes('href')).toBe(
+      '/blog/post-1/view?q=%E4%BA%8B%E6%95%85+731&from=search',
+    )
+  })
 })

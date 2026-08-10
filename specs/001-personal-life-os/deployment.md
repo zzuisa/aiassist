@@ -269,12 +269,13 @@ cd /opt/aiassist
 
 1. 检查 Docker Compose V2、磁盘、目录权限、必需变量和 secret 文件。
 2. 运行 `docker compose config --quiet`。
-3. 拉取按版本和 digest 固定的中间件镜像，构建 frontend/backend 镜像。
-4. 启动 PostgreSQL、Redis、RabbitMQ 并等待真实 healthcheck。
-5. 运行一次性 `migrate` 服务；迁移失败立即停止，不启动新应用容器。
-6. 启动 frontend、backend、outbox-publisher、worker-fast、worker-heavy、celery-beat 和 Compose nginx。
-7. 验证 `/health/live`、`/health/ready`、数据库 migration head、Outbox Publisher heartbeat 和 Worker heartbeat。
-8. 输出域名、服务状态、镜像版本/digest、volume 和备份路径；不得输出 secret。
+3. 对当前工作区执行 `git diff --check`、commit 和当前分支 push；任一 Git 操作失败立即停止，不构建镜像。
+4. 拉取按版本和 digest 固定的中间件镜像，构建 frontend/backend 镜像。
+5. 启动 PostgreSQL、Redis、RabbitMQ 并等待真实 healthcheck。
+6. 运行一次性 `migrate` 服务；迁移失败立即停止，不启动新应用容器。
+7. 启动 frontend、backend、outbox-publisher、worker-fast、worker-heavy、celery-beat 和 Compose nginx。
+8. 验证 `/health/live`、`/health/ready`、数据库 migration head、Outbox Publisher heartbeat 和 Worker heartbeat。
+9. 输出域名、服务状态、镜像版本/digest、volume 和备份路径；不得输出 secret。
 
 手工等价命令仅用于排障：
 
@@ -336,6 +337,11 @@ git push -u origin 001-personal-life-os
 - 禁止 force push 已供部署或评审使用的分支。
 - migration、OpenAPI/AsyncAPI/LLM Schema、Compose 和 Nginx 变更必须与实现一起提交。
 - push 失败时停止进入下一 Phase，保留本地 commit，修复远程/认证问题后重试。
+
+`deploy.sh up` 会自动执行同样的安全门禁：先提交当前工作区并 push，再生成不含密钥和文章正文的
+`frontend/public/release-history.json`，提交并 push release metadata，最后才开始镜像构建。应用首次打开时
+会显示未查看版本的更新公告；设置中的“更新历史”面板展示当前版本、历史版本、部署状态、commit、push
+状态和变更文件。部署 metadata 更新失败或 Git push 失败时，脚本返回非零状态并停止后续构建。
 - commit message 示例：`feat(phase-4): add reliable voice capture confirmation flow`。
 
 ## 12. 发布与回滚

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { tasksApi, type Task, type TodayDashboard } from '@/api/tasks'
 import { voiceApi, type VoiceCandidate, type VoiceRecord } from '@/api/voice'
 import { useTasksStore } from '@/stores/tasks'
+import { planApi } from '@/api/plan'
+import { useJobsStore } from '@/stores/jobs'
 import QuickTaskInput from '@/modules/tasks/QuickTaskInput.vue'
 import TaskCard from '@/modules/tasks/TaskCard.vue'
 import VoiceRecorder from '@/modules/voice/VoiceRecorder.vue'
@@ -18,6 +20,14 @@ const voiceError = ref('')
 async function refresh(): Promise<void> {
   dashboard.value = await tasksApi.today()
 }
+
+// The daily list strictly follows the calendar: today's scheduled events,
+// time-ordered. Undated open tasks live in a separate "待安排" section and can
+// be swiped onto the calendar. Mutations sync both views via the store signal.
+const todayList = computed(() => dashboard.value?.timeline ?? [])
+const unscheduled = computed(() =>
+  (dashboard.value?.todos ?? []).filter((t) => !t.start_at && t.status !== 'completed'),
+)
 
 // Resolve a terminal voice status; returns true when nothing more to poll.
 async function settleVoice(rec: VoiceRecord): Promise<boolean> {
@@ -83,12 +93,21 @@ onMounted(async () => {
   }
 })
 
+// Quick-add is instant: it enqueues a background analysis job (splits the line
+// into scheduled tasks, may ask questions in the task center). Tasks appear here
+// once the job finishes — the jobs store's planTick triggers a refetch.
+const jobsStore = useJobsStore()
+const planNote = ref('')
 async function onCreate(title: string): Promise<void> {
-  await store.create({ title }) // store.changedAt bump triggers refresh
+  await planApi.create(title)
+  planNote.value = '已加入后台分析，稍后在「后台任务」查看或回答问题'
+  setTimeout(() => (planNote.value = ''), 6000)
 }
+watch(() => jobsStore.planTick, () => void refresh())
 
 async function onComplete(task: Task): Promise<void> {
   await store.complete(task)
+  await refresh()
 }
 
 // Left-swipe action: give an undated todo a concrete calendar slot (next full
@@ -108,6 +127,7 @@ async function onAddToCalendar(task: Task): Promise<void> {
     start_at: start.toISOString(),
     due_at: end.toISOString(),
   })
+  await refresh()
 }
 </script>
 
@@ -122,6 +142,13 @@ async function onAddToCalendar(task: Task): Promise<void> {
     </header>
 
     <QuickTaskInput @create="onCreate" />
+    <p
+      v-if="planNote"
+      class="plan-note"
+      role="status"
+    >
+      🧠 {{ planNote }}
+    </p>
 
     <div class="voice-row">
       <VoiceRecorder @created="onVoiceCreated" />
@@ -159,13 +186,13 @@ async function onAddToCalendar(task: Task): Promise<void> {
         />
       </section>
 
-      <section aria-label="待办">
-        <h2>待办 ({{ dashboard.todos.length }})</h2>
+      <section aria-label="今日日历">
+        <h2>今日日历 ({{ todayList.length }})</h2>
         <p
-          v-if="dashboard.todos.length === 0"
+          v-if="todayList.length === 0"
           class="muted"
         >
-          今天还没有待办。
+          今天日历上还没有安排。
         </p>
         <transition-group
           name="list"
@@ -173,12 +200,36 @@ async function onAddToCalendar(task: Task): Promise<void> {
           class="list"
         >
           <TaskCard
-            v-for="t in dashboard.todos"
+            v-for="t in todayList"
             :key="t.id"
             :task="t"
             @complete="onComplete"
             @open="() => {}"
-          @add-to-calendar="onAddToCalendar"
+            @add-to-calendar="onAddToCalendar"
+          />
+        </transition-group>
+      </section>
+
+      <section
+        v-if="unscheduled.length"
+        aria-label="待安排"
+      >
+        <h2>待安排 ({{ unscheduled.length }})</h2>
+        <p class="muted small">
+          左滑任务可加入日历
+        </p>
+        <transition-group
+          name="list"
+          tag="div"
+          class="list"
+        >
+          <TaskCard
+            v-for="t in unscheduled"
+            :key="t.id"
+            :task="t"
+            @complete="onComplete"
+            @open="() => {}"
+            @add-to-calendar="onAddToCalendar"
           />
         </transition-group>
       </section>
@@ -201,7 +252,7 @@ async function onAddToCalendar(task: Task): Promise<void> {
             :task="t"
             @complete="onComplete"
             @open="() => {}"
-          @add-to-calendar="onAddToCalendar"
+            @add-to-calendar="onAddToCalendar"
           />
         </transition-group>
       </section>
@@ -237,6 +288,11 @@ async function onAddToCalendar(task: Task): Promise<void> {
   gap: var(--space-3);
 }
 .voice-status {
+  color: var(--status-ai);
+  font-size: 0.85rem;
+}
+.plan-note {
+  margin: 0;
   color: var(--status-ai);
   font-size: 0.85rem;
 }

@@ -15,6 +15,9 @@
   --status-ai: #7c3aed; /* purple: AI suggestion */
   --status-normal: #2563eb; /* blue: normal task */
   --status-muted: #94a3b8; /* gray: fixed / cancelled / secondary */
+  --status-important-bg: #fdecec; /* soft red: important event background */
+  --status-important-text: #7f1d1d; /* readable text on soft-red */
+  --status-elapsed-bg: rgba(100, 116, 139, 0.12); /* gray: elapsed time grid */
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -25,6 +28,8 @@
   --space-4: 16px;
   --space-6: 24px;
   --tap-target: 44px;
+  --mobile-swipe-threshold: 72px;
+  --mobile-row-action-width: 76px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -33,6 +38,9 @@
   --color-bg: #0f172a;
   --color-surface: #1e293b;
   --color-surface-2: #334155;
+  --status-important-bg: #4c1d1d; /* soft red on dark */
+  --status-important-text: #fecaca;
+  --status-elapsed-bg: rgba(148, 163, 184, 0.14);
   --color-border: #334155;
   --color-text: #f1f5f9;
   --color-text-muted: #94a3b8;

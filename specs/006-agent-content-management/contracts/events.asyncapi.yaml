@@ -1,0 +1,37 @@
+asyncapi: 3.0.0
+info:
+  title: AI Assist Blog Agent Preview Events
+  version: 1.0.0
+  description: Identifier-only command for isolated Agent prompt preview.
+channels:
+  blogAgentPreview:
+    address: blog.agent.preview
+    messages:
+      previewRequested:
+        $ref: '#/components/messages/BlogAgentPreviewRequestedV1'
+operations:
+  requestBlogAgentPreview:
+    action: send
+    channel:
+      $ref: '#/channels/blogAgentPreview'
+    messages:
+      - $ref: '#/channels/blogAgentPreview/messages/previewRequested'
+components:
+  messages:
+    BlogAgentPreviewRequestedV1:
+      name: blog.agent_preview.v1
+      title: Run an isolated Agent version preview
+      payload:
+        $ref: '#/components/schemas/PreviewCommand'
+  schemas:
+    PreviewCommand:
+      type: object
+      additionalProperties: false
+      required: [schema_version, event_id, trace_id, user_id, job_id, preview_id]
+      properties:
+        schema_version: { const: blog.agent_preview.v1 }
+        event_id: { type: string, format: uuid }
+        trace_id: { type: string, minLength: 8, maxLength: 128 }
+        user_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+        preview_id: { type: string, format: uuid }

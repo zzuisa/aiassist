@@ -44,15 +44,119 @@ const routes: RouteRecordRaw[] = [
         name: 'post-editor',
         component: () => import('@/modules/posts/PostEditorPage.vue'),
       },
+      // Spec 005 blog module. Wraps the article views in a layout with child
+      // navigation; later user stories add triage/skills/taxonomy/settings
+      // children. The legacy /posts routes above stay for compatibility.
+      {
+        path: 'blog',
+        component: () => import('@/modules/posts/BlogModuleLayout.vue'),
+        children: [
+          {
+            path: '',
+            name: 'blog',
+            component: () => import('@/modules/posts/PostListPage.vue'),
+          },
+          {
+            path: 'triage',
+            name: 'blog-triage',
+            component: () => import('@/modules/posts/TriagePage.vue'),
+          },
+          {
+            path: 'taxonomy',
+            name: 'blog-taxonomy',
+            component: () => import('@/modules/posts/TaxonomyPage.vue'),
+          },
+          {
+            path: 'timeline',
+            name: 'blog-timeline',
+            component: () => import('@/modules/posts/TimelinePage.vue'),
+          },
+          {
+            path: 'word-cloud',
+            name: 'blog-word-cloud',
+            component: () => import('@/modules/posts/WordCloudPage.vue'),
+          },
+          {
+            path: 'settings',
+            name: 'blog-settings',
+            component: () => import('@/modules/posts/BlogSettingsPage.vue'),
+          },
+          {
+            path: 'jobs',
+            name: 'blog-jobs',
+            component: () => import('@/modules/posts/BlogJobsPage.vue'),
+          },
+          {
+            path: 'jobs/:id',
+            name: 'blog-job-detail',
+            component: () => import('@/modules/posts/BlogJobDetailPage.vue'),
+          },
+          {
+            path: 'skills',
+            name: 'blog-skills-list',
+            component: () => import('@/modules/posts/SkillListPage.vue'),
+          },
+          {
+            path: 'skills/new',
+            name: 'blog-skill-new',
+            component: () => import('@/modules/posts/SkillEditorPage.vue'),
+          },
+          {
+            path: 'skills/:skillId/edit',
+            name: 'blog-skill-edit',
+            component: () => import('@/modules/posts/SkillEditorPage.vue'),
+          },
+          {
+            path: 'skills/:skillId/versions',
+            name: 'blog-skill-versions',
+            component: () => import('@/modules/posts/SkillVersionsPage.vue'),
+          },
+          {
+            path: 'skills/:skillId/test',
+            name: 'blog-skill-test',
+            component: () => import('@/modules/posts/SkillTestPage.vue'),
+          },
+          {
+            path: ':id',
+            name: 'blog-post-editor',
+            component: () => import('@/modules/posts/PostEditorPage.vue'),
+          },
+          {
+            path: ':id/view',
+            name: 'blog-post-view',
+            component: () => import('@/modules/posts/PostViewPage.vue'),
+          },
+          {
+            path: ':id/versions',
+            name: 'blog-post-versions',
+            component: () => import('@/modules/posts/PostVersionsPage.vue'),
+          },
+          {
+            path: ':id/candidates/:candidateId',
+            name: 'blog-candidate-compare',
+            component: () => import('@/modules/posts/CandidateComparePage.vue'),
+          },
+        ],
+      },
       {
         path: 'assistant',
         name: 'assistant',
         component: () => import('@/modules/assistant/AssistantPage.vue'),
       },
       {
+        path: 'agent',
+        name: 'agent',
+        component: () => import('@/modules/agent/AgentPage.vue'),
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/modules/settings/SettingsPage.vue'),
+      },
+      {
+        path: 'settings/updates',
+        name: 'settings-updates',
+        component: () => import('@/modules/releases/ReleaseHistoryPage.vue'),
       },
     ],
   },

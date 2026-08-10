@@ -31,6 +31,15 @@ def dependency_states() -> dict:
             "state": s.llm_status(),
             "provider_key": s.llm_provider if s.llm_provider != "none" else None,
         },
+        "radio": {
+            "configured": bool(s.radio_service_base_url and s.resolved_radio_service_password),
+            "state": (
+                "ready"
+                if s.radio_service_base_url and s.resolved_radio_service_password
+                else "unconfigured"
+            ),
+            "provider_key": "radio",
+        },
         "speech": {
             "configured": s.speech_provider != "none",
             "state": s.speech_status(),
@@ -58,10 +67,15 @@ def update_settings(session: Session, user_id: uuid.UUID, data: dict) -> User:
     if "locale" in data:
         user.locale = data["locale"]
     if "notification_preferences" in data and data["notification_preferences"] is not None:
-        prefs = data["notification_preferences"]
+        prefs = dict(data["notification_preferences"])
         # Email cannot be enabled when SMTP is unconfigured.
         if prefs.get("email_enabled") and not get_settings().smtp_host:
             prefs = {**prefs, "email_enabled": False}
+        # Preserve internal namespaced keys (e.g. AI memory `_profile`) that the
+        # notification-preferences form does not carry.
+        for k, v in (user.notification_preferences or {}).items():
+            if k.startswith("_"):
+                prefs.setdefault(k, v)
         user.notification_preferences = prefs
     session.add(
         ActivityLog(

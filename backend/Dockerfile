@@ -8,6 +8,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
+# The server-side PNG renderer needs an actual CJK font in the production
+# image; otherwise Pillow silently falls back to tofu boxes for Chinese text.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
 
 FROM base AS builder
 COPY requirements.lock.txt ./
@@ -17,6 +22,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 RUN /opt/venv/bin/pip install --no-cache-dir --no-deps .
 
 FROM base AS runtime

@@ -47,14 +47,14 @@ def validate_image(data: bytes, declared_type: str) -> tuple[int, int]:
             "Declared type does not match content", code="mime_mismatch", status=415
         )
     try:
-        # Pillow's decompression-bomb guard: raise instead of warn.
-        Image.MAX_IMAGE_PIXELS = settings.upload_image_max_pixels
         with Image.open(io.BytesIO(data)) as img:
-            img.verify()  # structural check
-        with Image.open(io.BytesIO(data)) as img2:
-            width, height = img2.size
+            width, height = img.size
+            # Enforce the deployment limit explicitly. Mutating Pillow's
+            # process-global MAX_IMAGE_PIXELS here would leak across concurrent
+            # requests and unrelated renderers/tests.
             if width * height > settings.upload_image_max_pixels:
                 raise ValidationError("Image exceeds pixel limit", code="pixel_bomb", status=413)
+            img.verify()  # structural check
     except ValidationError:
         raise
     except Exception as exc:  # corrupt / malformed image

@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { settingsApi, type UserSettings } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import DependencyBadge from '@/modules/settings/DependencyBadge.vue'
+import MemorySettings from '@/modules/settings/MemorySettings.vue'
 import { ApiError } from '@/api/client'
 
 const auth = useAuthStore()
 const settings = ref<UserSettings | null>(null)
 const displayName = ref('')
 const timezone = ref('')
+const defaultAIProvider = ref<'radio' | 'aiassist'>('radio')
 const saved = ref('')
 
 // Common IANA timezones for the selector; the backend validates the full set.
@@ -24,6 +27,7 @@ async function load(): Promise<void> {
   settings.value = await settingsApi.get()
   displayName.value = settings.value.user.display_name
   timezone.value = settings.value.user.timezone
+  defaultAIProvider.value = settings.value.ai_optimization.default_provider
 }
 
 onMounted(load)
@@ -33,6 +37,7 @@ async function save(): Promise<void> {
   settings.value = await settingsApi.patch({
     display_name: displayName.value,
     timezone: timezone.value,
+    ai_optimization: { default_provider: defaultAIProvider.value },
   })
   saved.value = '已保存'
 }
@@ -66,6 +71,13 @@ async function onLogout(): Promise<void> {
     class="settings"
   >
     <h1>设置</h1>
+
+    <RouterLink
+      class="updates-link"
+      to="/settings/updates"
+    >
+      查看更新历史与版本状态 →
+    </RouterLink>
 
     <fieldset>
       <legend>账户</legend>
@@ -111,6 +123,40 @@ async function onLogout(): Promise<void> {
     </fieldset>
 
     <fieldset>
+      <legend>文章 AI 优化</legend>
+      <label>
+        <span>默认优化服务</span>
+        <select
+          v-model="defaultAIProvider"
+          aria-label="默认 AI 优化服务"
+        >
+          <option
+            v-for="provider in settings.ai_optimization.providers"
+            :key="provider.key"
+            :value="provider.key"
+            :disabled="!provider.configured"
+          >
+            {{ provider.label }}{{ provider.configured ? '' : '（未配置）' }}
+          </option>
+        </select>
+      </label>
+      <p class="msg">
+        Radio 默认进行轻量正文润色；AI Assist 支持标题、摘要、分类等完整候选。
+      </p>
+      <button
+        type="button"
+        class="primary"
+        @click="save"
+      >
+        保存默认优化服务
+      </button>
+      <span
+        v-if="saved"
+        class="ok"
+      >{{ saved }}</span>
+    </fieldset>
+
+    <fieldset>
       <legend>依赖状态</legend>
       <DependencyBadge
         label="邮件"
@@ -119,6 +165,10 @@ async function onLogout(): Promise<void> {
       <DependencyBadge
         label="AI 模型"
         :state="settings.dependencies.llm"
+      />
+      <DependencyBadge
+        label="Radio 文章优化"
+        :state="settings.dependencies.radio"
       />
       <DependencyBadge
         label="语音"
@@ -160,6 +210,8 @@ async function onLogout(): Promise<void> {
       >{{ pwMsg }}</span>
     </fieldset>
 
+    <MemorySettings />
+
     <button
       type="button"
       class="logout"
@@ -178,6 +230,10 @@ async function onLogout(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+.updates-link {
+  color: var(--status-normal);
+  text-decoration: none;
 }
 fieldset {
   border: 1px solid var(--color-border);

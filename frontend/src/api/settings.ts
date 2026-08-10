@@ -25,14 +25,32 @@ export interface UserSettings {
   dependencies: {
     mail: DependencyState
     llm: DependencyState
+    radio: DependencyState
     speech: DependencyState
     storage: DependencyState
   }
+  ai_optimization: {
+    default_provider: 'radio' | 'aiassist'
+    version: number
+    providers: Array<{
+      key: 'radio' | 'aiassist'
+      label: string
+      configured: boolean
+      state: DependencyState['state']
+    }>
+  }
+}
+
+export interface MemoryItem {
+  question: string
+  answer: string
 }
 
 export const settingsApi = {
   get: () => api.get<UserSettings>('/settings'),
   patch: (body: Record<string, unknown>) => api.patch<UserSettings>('/settings', body),
+  getMemory: () => api.get<{ items: MemoryItem[] }>('/settings/memory'),
+  putMemory: (items: MemoryItem[]) => api.put<{ items: MemoryItem[] }>('/settings/memory', { items }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<void>('/settings/password', {
       current_password: currentPassword,

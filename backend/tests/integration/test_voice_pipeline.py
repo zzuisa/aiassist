@@ -128,16 +128,28 @@ def test_pipeline_decomposes_message_into_multiple_tasks(make_user):
     user = make_user()
     items = [
         _candidate_dict(
-            title="买菜", content_type="task", local_date="2026-07-27",
-            local_time="09:00:00", duration_minutes=None, original_text="明天买菜",
+            title="买菜",
+            content_type="task",
+            local_date="2026-07-27",
+            local_time="09:00:00",
+            duration_minutes=None,
+            original_text="明天买菜",
         ),
         _candidate_dict(
-            title="交报告", content_type="task", local_date="2026-07-31",
-            local_time="18:00:00", duration_minutes=60, original_text="周五交报告",
+            title="交报告",
+            content_type="task",
+            local_date="2026-07-31",
+            local_time="18:00:00",
+            duration_minutes=60,
+            original_text="周五交报告",
         ),
         _candidate_dict(
-            title="缴房租", content_type="reminder", local_date=None,
-            local_time=None, duration_minutes=None, original_text="提醒我缴房租",
+            title="缴房租",
+            content_type="reminder",
+            local_date=None,
+            local_time=None,
+            duration_minutes=None,
+            original_text="提醒我缴房租",
         ),
     ]
     transcript = f"明天买菜、周五交报告、提醒我缴房租 <<JSON>>{_tasks_json(*items)}"

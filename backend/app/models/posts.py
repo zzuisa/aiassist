@@ -1,8 +1,9 @@
-"""Post, immutable revision, and post-tag models (US8).
+"""Post, immutable revision, and post-tag models.
 
 AI-generated revisions are created without changing ``current_revision_id``;
 applying a revision is an explicit user action. Public read is gated by
-``status == 'published'`` and a globally-unique slug.
+``status == 'published'`` and a globally-unique slug. Blog content-management
+(spec 005) adds additive projection columns and a full snapshot on each revision.
 """
 
 from __future__ import annotations
@@ -21,10 +22,16 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, uuid_pk
+
+_CONTENT_STATUS = (
+    "pending_capture,pending_parse,triage,draft,ai_queued,ai_processing,"
+    "ai_review,merge_required,completed,archived,discarded"
+)
+_CONTENT_CLASS = "technical,project,learning,life,travel,diary,essay,bookmark,media,item,quick"
 
 
 class Post(Base, TimestampMixin):
@@ -48,9 +55,41 @@ class Post(Base, TimestampMixin):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # --- spec 005: additive blog content-management projection ---
+    subtitle: Mapped[str | None] = mapped_column(String(240))
+    summary: Mapped[str | None] = mapped_column(Text)
+    content_status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    content_class: Mapped[str] = mapped_column(String(16), nullable=False, default="essay")
+    content_type_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    language: Mapped[str] = mapped_column(String(16), nullable=False, default="zh-CN")
+    editor_mode: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="rich", server_default="rich"
+    )
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    location_text: Mapped[str | None] = mapped_column(String(240))
+    project_text: Mapped[str | None] = mapped_column(String(240))
+    structured_data_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    latest_ai_status: Mapped[str | None] = mapped_column(String(24))
+    first_ai_optimized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_ai_optimized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ai_optimization_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_skill_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
     __table_args__ = (
         CheckConstraint("status in ('draft','private','published')", name="post_status"),
-        # A slug is unique only among published posts (partial unique index).
+        CheckConstraint(
+            "content_status in ('pending_capture','pending_parse','triage','draft',"
+            "'ai_queued','ai_processing','ai_review','merge_required','completed',"
+            "'archived','discarded')",
+            name="post_content_status",
+        ),
+        CheckConstraint(
+            "content_class in ('technical','project','learning','life','travel',"
+            "'diary','essay','bookmark','media','item','quick')",
+            name="post_content_class",
+        ),
+        CheckConstraint("editor_mode in ('markdown','rich','split')", name="post_editor_mode"),
+        CheckConstraint("ai_optimization_count >= 0", name="post_ai_count_nonneg"),
         Index(
             "uq_posts_published_slug",
             "slug",
@@ -58,6 +97,37 @@ class Post(Base, TimestampMixin):
             postgresql_where=text("status = 'published' AND deleted_at IS NULL"),
         ),
         Index("ix_posts_user_id_status", "user_id", "status"),
+        Index("ix_posts_user_content_status", "user_id", "content_status", "updated_at"),
+        Index("ix_posts_user_content_class", "user_id", "content_class", "content_type_id"),
+        Index(
+            "ix_posts_user_timeline",
+            "user_id",
+            text("COALESCE(occurred_at, created_at) DESC"),
+            text("id DESC"),
+        ),
+        Index(
+            "ix_posts_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_posts_markdown_trgm",
+            "markdown",
+            postgresql_using="gin",
+            postgresql_ops={"markdown": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_posts_summary_trgm",
+            "summary",
+            postgresql_using="gin",
+            postgresql_ops={"summary": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_posts_structured_data_trgm",
+            text("(structured_data_json::text) gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
     )
 
 
@@ -72,18 +142,37 @@ class PostRevision(Base):
         ForeignKey("posts.id", ondelete="CASCADE"), nullable=False
     )
     parent_revision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    source: Mapped[str] = mapped_column(String(8), nullable=False, default="user")
+    base_revision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="user_edit")
+    revision_number: Mapped[int | None] = mapped_column(Integer)
     markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    snapshot_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     change_summary: Mapped[str | None] = mapped_column(String(500))
     llm_log_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    async_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    skill_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    schema_version: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="post-revision.v1"
+    )
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     __table_args__ = (
-        CheckConstraint("source in ('user','ai')", name="post_revision_source"),
+        CheckConstraint(
+            "source in ('user','ai','capture','user_edit','ai_candidate',"
+            "'ai_applied','restore','import','merge')",
+            name="post_revision_source",
+        ),
         Index("ix_post_revisions_post_id", "post_id", "created_at"),
+        Index(
+            "uq_post_revisions_number",
+            "post_id",
+            "revision_number",
+            unique=True,
+            postgresql_where=text("revision_number IS NOT NULL"),
+        ),
     )
 
 

@@ -1,0 +1,328 @@
+openapi: 3.1.0
+info:
+  title: AI Assist Self-Service Agent API
+  version: 1.0.0
+  description: >-
+    Natural-language entry point for querying, analyzing and acting on owned data.
+    Private operations use same-origin HttpOnly access cookies; unsafe methods also
+    require the X-CSRF-Token header. Agent status is delivered over the existing
+    GET /events/jobs SSE stream as agent.status_changed events — this specification
+    adds no second realtime channel.
+servers:
+  - url: /api/v1
+security:
+  - cookieAuth: []
+tags:
+  - name: agent
+    description: Self-service Q&A and task execution
+paths:
+  /agent/tasks:
+    post:
+      tags: [agent]
+      operationId: createAgentTask
+      summary: Submit a natural-language request and start an agent task
+      description: >-
+        Creates the task and its paired async job durably before any model call,
+        then returns immediately. Progress arrives as agent.status_changed events
+        on GET /events/jobs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_text]
+              additionalProperties: false
+              properties:
+                request_text:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                previous_task_id:
+                  type: [string, 'null']
+                  format: uuid
+                  description: >-
+                    Inherit the prior turn's object scope so pronouns like
+                    "these articles" resolve to that result set.
+      responses:
+        '202':
+          description: Task accepted and persisted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentTask' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    get:
+      tags: [agent]
+      operationId: listAgentTasks
+      summary: List owned agent tasks
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/TaskStatus' } }
+      responses:
+        '200':
+          description: Owned tasks, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AgentTask' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /agent/tasks/{task_id}:
+    get:
+      tags: [agent]
+      operationId: getAgentTask
+      summary: Get one owned task with its agent runs
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Task detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentTaskDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /agent/tasks/{task_id}/records:
+    get:
+      tags: [agent]
+      operationId: listAgentExecutionRecords
+      summary: List the audit trail for one owned task
+      description: Parameter digests are desensitized at write time; no credential ever appears here.
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Execution records in execution order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ExecutionRecord' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /agent/tasks/{task_id}/confirmations:
+    get:
+      tags: [agent]
+      operationId: listPendingWrites
+      summary: List write operations awaiting the owner's decision
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Pending writes with impact preview
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PendingWrite' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /agent/tasks/{task_id}/confirmations/{confirmation_id}:
+    post:
+      tags: [agent]
+      operationId: decidePendingWrite
+      summary: Approve or reject one pending write
+      description: >-
+        Structured confirmation rather than a conversational reply, so the decision is
+        auditable and cannot be triggered by the word "confirm" appearing in quoted
+        content. Approval alone does not bypass domain checks: ownership, optimistic
+        version and fixed-event protection are re-run inside the existing domain service.
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: confirmation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+      responses:
+        '200':
+          description: Decision recorded; approved writes are dispatched
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PendingWrite' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: Already decided, expired, or the task is not awaiting confirmation
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /agent/tools:
+    get:
+      tags: [agent]
+      operationId: listAgentTools
+      summary: List the registered tool manifest available to agents
+      description: >-
+        Safe manifest only — name, type, responsibility, required permission,
+        availability. Endpoints, credentials, tokens and connection strings are never
+        returned (constitution 1.1.0 agent tool invocation rule).
+      responses:
+        '200':
+          description: Registered tools
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ToolManifestEntry' }
+        '401': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-aiassist_access
+  responses:
+    Problem:
+      description: Problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+    TaskStatus:
+      type: string
+      enum: [pending, running, waiting_confirmation, success, partial_success, failed]
+    AgentRunStatus:
+      type: string
+      enum: [pending, running, waiting_confirmation, success, partial_success, failed, skipped]
+    OperationType:
+      type: string
+      enum: [query, analyze, create, update, delete, publish, rollback]
+    AgentTask:
+      type: object
+      required: [task_id, job_id, request_text, intent_key, status, created_at]
+      properties:
+        task_id: { type: string, format: uuid }
+        job_id:
+          type: string
+          format: uuid
+          description: Paired async job; agent.status_changed events carry this id.
+        request_text: { type: string }
+        intent_key:
+          type: string
+          description: Key from the extensible intent registry, not a closed enum.
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        result_summary: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+    AgentTaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/AgentTask'
+        - type: object
+          required: [runs]
+          properties:
+            runs:
+              type: array
+              items: { $ref: '#/components/schemas/AgentRun' }
+    AgentRun:
+      type: object
+      required:
+        [agent_id, agent_key, agent_version, agent_name, responsibility,
+         current_task, status, allow_write]
+      properties:
+        agent_id: { type: string, format: uuid }
+        parent_agent_id: { type: [string, 'null'], format: uuid }
+        agent_key: { type: string }
+        agent_version:
+          type: string
+          description: >-
+            The spec-006 agent version bound at submission time. Later 006 edits do
+            not affect a run already in flight.
+        agent_name: { type: string }
+        responsibility: { type: string }
+        current_task: { type: string }
+        status: { $ref: '#/components/schemas/AgentRunStatus' }
+        current_tool: { type: [string, 'null'] }
+        allow_write: { type: boolean, default: false }
+        progress: { $ref: '#/components/schemas/Progress' }
+        result_summary: { type: [string, 'null'] }
+        error_message: { type: [string, 'null'] }
+        started_at: { type: [string, 'null'], format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+    Progress:
+      type: [object, 'null']
+      description: >-
+        Null when the total cannot be determined; stage_label carries a phase
+        description instead. A fabricated total is never returned.
+      properties:
+        current: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        stage_label: { type: [string, 'null'] }
+    ExecutionRecord:
+      type: object
+      required:
+        [step_id, agent_name, step_label, tool_name, operation_type, status, started_at]
+      properties:
+        step_id: { type: string }
+        agent_id: { type: [string, 'null'], format: uuid }
+        agent_name: { type: string }
+        step_label: { type: string }
+        tool_name: { type: string }
+        operation_type: { $ref: '#/components/schemas/OperationType' }
+        params_digest:
+          type: object
+          additionalProperties: true
+          description: Desensitized parameter summary; secret-like values are replaced with "[redacted]".
+        result_summary: { type: [string, 'null'] }
+        status: { type: string, enum: [success, failed, skipped] }
+        error_reason: { type: [string, 'null'] }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+        duration_ms: { type: [integer, 'null'] }
+    PendingWrite:
+      type: object
+      required:
+        [confirmation_id, operation_type, target_type, affected_count,
+         reversible, high_risk, decision]
+      properties:
+        confirmation_id: { type: string, format: uuid }
+        operation_type: { $ref: '#/components/schemas/OperationType' }
+        target_type: { type: string }
+        targets:
+          type: array
+          description: Target object ids with the optimistic version each change was built against.
+          items:
+            type: object
+            required: [id]
+            properties:
+              id: { type: string, format: uuid }
+              version: { type: [integer, 'null'] }
+        preview:
+          type: object
+          additionalProperties: true
+          description: Change preview so the owner can inspect before approving.
+        affected_count: { type: integer, minimum: 0 }
+        reversible: { type: boolean }
+        high_risk:
+          type: boolean
+          description: Delete, overwrite and bulk update require confirmation even when the original request asked to proceed.
+        decision: { type: string, enum: [pending, approved, rejected, expired] }
+        decided_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    ToolManifestEntry:
+      type: object
+      required: [name, type, responsibility, available]
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [read, write] }
+        responsibility: { type: string }
+        required_permission: { type: [string, 'null'] }
+        available: { type: boolean }
+        unavailable_reason:
+          type: [string, 'null']
+          description: Present when available is false, so capability gaps are explicit rather than silently hidden.

@@ -34,10 +34,25 @@ def _sse(event: str, data: dict, event_id: int | None = None) -> str:
 
 def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
     with session_scope() as s:
+        from sqlalchemy import select
+
+        from app.models.agent import AgentRun, AgentTask
+        from app.modules.agent.status import build_status_payload
+
         jobs = jobs_service.list_jobs(
             s, user_id, statuses=["pending", "queued", "processing", "waiting_user"], limit=100
         )
         cursor = jobs_service.latest_event_id(s, user_id)
+        active_agents = s.execute(
+            select(AgentTask, AgentRun)
+            .join(AgentRun, AgentRun.task_id == AgentTask.id)
+            .where(
+                AgentTask.user_id == user_id,
+                AgentTask.status.in_(("pending", "running", "waiting_confirmation")),
+                AgentRun.status.in_(("pending", "running", "waiting_confirmation")),
+            )
+            .order_by(AgentTask.created_at, AgentRun.started_at, AgentRun.id)
+        ).all()
         payload = {
             "snapshot_at": datetime.now(UTC).isoformat(),
             "jobs": [
@@ -71,6 +86,7 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
                 }
                 for j in jobs
             ],
+            "agents": [build_status_payload(task, run) for task, run in active_agents],
             "notifications": _unread_notifications(s, user_id),
         }
         return payload, cursor

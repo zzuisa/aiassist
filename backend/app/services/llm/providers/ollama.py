@@ -6,6 +6,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.services.llm.base import LLMError
+from app.services.llm.providers.http import llm_http_timeout
 
 
 class OllamaProvider:
@@ -26,7 +27,7 @@ class OllamaProvider:
                         {"role": "user", "content": user},
                     ],
                 },
-                timeout=120,
+                timeout=llm_http_timeout(),
             )
         except httpx.TimeoutException as exc:
             raise LLMError("timeout", str(exc)) from exc

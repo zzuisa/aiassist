@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { useJobsStore } from '@/stores/jobs'
 import { jobLabel, formatTime, formatDuration } from '@/api/jobs'
+import { planApi } from '@/api/plan'
 import type { AsyncJob } from '@/api/types'
+import { jobContext, providerLabel } from '@/modules/posts/blogJobStatus'
 
 // Global task center: active / waiting / failed sections with business copy,
 // a labelled progress bar, start/finish times, and clear failure reasons.
 // Progress updates in place — never as repeated toasts.
-defineProps<{ open: boolean }>()
+const props = defineProps<{ open: boolean }>()
 defineEmits<{ (e: 'close'): void }>()
 
 const jobs = useJobsStore()
@@ -17,14 +19,81 @@ const waiting = computed(() =>
   [...jobs.jobs.values()].filter((j) => j.status === 'waiting_user'),
 )
 const active = computed(() =>
-  jobs.activeJobs.filter((j) => j.status !== 'waiting_user'),
+  jobs.activeJobs
+    .filter((j) => j.status !== 'waiting_user')
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+)
+const completed = computed(() =>
+  [...jobs.jobs.values()]
+    .filter((j) => j.status === 'completed')
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+)
+const clearingCompleted = ref(false)
+const closeButton = ref<HTMLButtonElement | null>(null)
+let previousFocus: HTMLElement | null = null
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      previousFocus = document.activeElement as HTMLElement | null
+      void jobs.refreshFromRest().catch(() => undefined)
+      void nextTick(() => closeButton.value?.focus())
+    } else {
+      previousFocus?.focus()
+      previousFocus = null
+    }
+  },
+  { immediate: true },
 )
 
 async function retry(job: AsyncJob): Promise<void> {
   await api.post(`/jobs/${job.id}/retry`)
 }
-async function cancel(job: AsyncJob): Promise<void> {
-  await api.post(`/jobs/${job.id}/cancel`)
+
+async function clearCompleted(): Promise<void> {
+  if (!completed.value.length || clearingCompleted.value) return
+  if (!window.confirm(`确定清空 ${completed.value.length} 个已完成任务吗？`)) return
+  clearingCompleted.value = true
+  try {
+    await jobs.clearCompleted()
+  } finally {
+    clearingCompleted.value = false
+  }
+}
+
+// --- Quick-add plan Q&A (answered right here in the task center) ---
+function planQuestions(job: AsyncJob): string[] {
+  return ((job.result?.questions as string[]) ?? []) as string[]
+}
+const answers = ref<Record<string, string>>({})
+const planBusy = ref<Record<string, boolean>>({})
+function aKey(jobId: string, i: number): string {
+  return `${jobId}:${i}`
+}
+async function submitAnswers(job: AsyncJob): Promise<void> {
+  const qs = planQuestions(job)
+  const payload = qs
+    .map((q, i) => ({ question: q, answer: (answers.value[aKey(job.id, i)] ?? '').trim() }))
+    .filter((x) => x.answer)
+  if (!payload.length) {
+    await skipPlan(job)
+    return
+  }
+  planBusy.value[job.id] = true
+  try {
+    await planApi.answer(job.id, payload)
+  } finally {
+    planBusy.value[job.id] = false
+  }
+}
+async function skipPlan(job: AsyncJob): Promise<void> {
+  planBusy.value[job.id] = true
+  try {
+    await planApi.skip(job.id)
+  } finally {
+    planBusy.value[job.id] = false
+  }
 }
 </script>
 
@@ -39,6 +108,7 @@ async function cancel(job: AsyncJob): Promise<void> {
       <header>
         <h2>后台任务</h2>
         <button
+          ref="closeButton"
           class="close"
           aria-label="关闭"
           @click="$emit('close')"
@@ -59,7 +129,7 @@ async function cancel(job: AsyncJob): Promise<void> {
         v-if="active.length"
         aria-label="进行中"
       >
-        <h3>进行中</h3>
+        <h3>进行中（{{ active.length }}）</h3>
         <transition-group
           name="job"
           tag="div"
@@ -73,6 +143,14 @@ async function cancel(job: AsyncJob): Promise<void> {
               <span class="name">{{ jobLabel(job) }}</span>
               <span class="pct">{{ job.progress }}%</span>
             </div>
+            <strong
+              v-if="jobContext(job).post_title"
+              class="entity-title"
+            >{{ jobContext(job).post_title }}</strong>
+            <span
+              v-if="providerLabel(job)"
+              class="provider"
+            >使用 {{ providerLabel(job) }}</span>
             <span class="step">{{ job.current_step ?? '处理中' }}</span>
             <div
               class="bar"
@@ -95,7 +173,7 @@ async function cancel(job: AsyncJob): Promise<void> {
         v-if="waiting.length"
         aria-label="等待确认"
       >
-        <h3>等待确认</h3>
+        <h3>等待确认（{{ waiting.length }}）</h3>
         <div
           v-for="job in waiting"
           :key="job.id"
@@ -104,7 +182,48 @@ async function cancel(job: AsyncJob): Promise<void> {
           <div class="job-head">
             <span class="name">{{ jobLabel(job) }}</span>
           </div>
+          <strong
+            v-if="jobContext(job).post_title"
+            class="entity-title"
+          >{{ jobContext(job).post_title }}</strong>
+          <span
+            v-if="providerLabel(job)"
+            class="provider"
+          >使用 {{ providerLabel(job) }}</span>
           <span class="step">{{ job.current_step ?? '请确认' }}</span>
+
+          <!-- Quick-add planner: answer here, or skip to save what it planned. -->
+          <template v-if="job.job_type === 'plan.analyze' && planQuestions(job).length">
+            <label
+              v-for="(q, i) in planQuestions(job)"
+              :key="i"
+              class="q"
+            >
+              <span>{{ q }}</span>
+              <input
+                v-model="answers[aKey(job.id, i)]"
+                type="text"
+                placeholder="可不填"
+                :disabled="planBusy[job.id]"
+              >
+            </label>
+            <div class="actions">
+              <button
+                type="button"
+                :disabled="planBusy[job.id]"
+                @click="submitAnswers(job)"
+              >
+                提交回答
+              </button>
+              <button
+                type="button"
+                :disabled="planBusy[job.id]"
+                @click="skipPlan(job)"
+              >
+                跳过并保存
+              </button>
+            </div>
+          </template>
         </div>
       </section>
 
@@ -140,12 +259,6 @@ async function cancel(job: AsyncJob): Promise<void> {
               >
                 重试
               </button>
-              <button
-                type="button"
-                @click="cancel(job)"
-              >
-                取消
-              </button>
               <details v-if="job.trace_id">
                 <summary>诊断</summary>
                 <code>{{ job.trace_id }}</code>
@@ -155,8 +268,26 @@ async function cancel(job: AsyncJob): Promise<void> {
         </transition-group>
       </section>
 
+      <section
+        v-if="completed.length"
+        aria-label="已完成"
+      >
+        <div class="section-head">
+          <h3>已完成（{{ completed.length }}）</h3>
+          <button
+            type="button"
+            class="clear-completed"
+            :disabled="clearingCompleted"
+            aria-label="清空已完成任务"
+            @click="clearCompleted"
+          >
+            {{ clearingCompleted ? '清理中…' : `清空已完成任务（${completed.length}）` }}
+          </button>
+        </div>
+      </section>
+
       <p
-        v-if="!active.length && !waiting.length && !jobs.failedJobs.length"
+        v-if="!active.length && !waiting.length && !jobs.failedJobs.length && !completed.length"
         class="empty"
       >
         暂无后台任务。
@@ -199,6 +330,27 @@ h3 {
   font-size: 0.9rem;
   margin: var(--space-3) 0 var(--space-2);
 }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.section-head h3 { margin-right: auto; }
+.clear-completed {
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.clear-completed:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
 .job {
   padding: var(--space-3);
   border: 1px solid var(--color-border);
@@ -234,6 +386,23 @@ h3 {
 .step {
   color: var(--color-text-muted);
   font-size: 0.85rem;
+}
+.entity-title { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider { color: var(--status-ai); font-size: .75rem; }
+.q {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  margin-top: var(--space-2);
+}
+.q input {
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 .reason {
   color: var(--status-urgent);

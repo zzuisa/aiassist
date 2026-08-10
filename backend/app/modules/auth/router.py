@@ -27,8 +27,9 @@ def _client_ip(request: Request) -> str:
 def _set_auth_cookies(response: Response, bundle: TokenBundle) -> None:
     settings = get_settings()
     secure = settings.app_env == AppEnv.production
+    access_cookie, refresh_cookie = auth_service.auth_cookie_names()
     response.set_cookie(
-        auth_service.ACCESS_COOKIE,
+        access_cookie,
         bundle.access_token,
         max_age=settings.access_token_ttl_seconds,
         httponly=True,
@@ -37,7 +38,7 @@ def _set_auth_cookies(response: Response, bundle: TokenBundle) -> None:
         path="/",
     )
     response.set_cookie(
-        auth_service.REFRESH_COOKIE,
+        refresh_cookie,
         bundle.refresh_token,
         max_age=settings.refresh_token_ttl_seconds,
         httponly=True,
@@ -48,8 +49,9 @@ def _set_auth_cookies(response: Response, bundle: TokenBundle) -> None:
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(auth_service.ACCESS_COOKIE, path="/")
-    response.delete_cookie(auth_service.REFRESH_COOKIE, path="/")
+    access_cookie, refresh_cookie = auth_service.auth_cookie_names()
+    response.delete_cookie(access_cookie, path="/")
+    response.delete_cookie(refresh_cookie, path="/")
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -76,7 +78,8 @@ def login(
 
 @router.post("/refresh", status_code=204)
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)) -> Response:
-    token = request.cookies.get(auth_service.REFRESH_COOKIE)
+    _, refresh_cookie = auth_service.auth_cookie_names()
+    token = request.cookies.get(refresh_cookie)
     if not token:
         raise AuthenticationError("Missing refresh token", code="refresh_invalid")
     _, bundle = auth_service.rotate_refresh(
@@ -94,7 +97,8 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
 
 @router.post("/logout", status_code=204)
 def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> Response:
-    token = request.cookies.get(auth_service.REFRESH_COOKIE)
+    _, refresh_cookie = auth_service.auth_cookie_names()
+    token = request.cookies.get(refresh_cookie)
     auth_service.logout(db, token, None)
     db.commit()
     _clear_auth_cookies(response)

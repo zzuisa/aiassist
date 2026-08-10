@@ -4,6 +4,8 @@ import { RouterView, useRoute } from 'vue-router'
 import { useJobsStore } from '@/stores/jobs'
 import TaskCenterDrawer from '@/components/jobs/TaskCenterDrawer.vue'
 import NotificationCenter from '@/components/notifications/NotificationCenter.vue'
+import { releasesApi, type ReleaseEntry } from '@/api/releases'
+import ReleaseUpdateDialog from '@/modules/releases/ReleaseUpdateDialog.vue'
 
 // Responsive shell: left sidebar on wide screens, bottom nav on mobile. Opens a
 // single global EventSource for job/notification updates.
@@ -11,6 +13,8 @@ const jobs = useJobsStore()
 const route = useRoute()
 const taskCenterOpen = ref(false)
 const notifOpen = ref(false)
+const currentRelease = ref<ReleaseEntry | null>(null)
+const updateNoticeOpen = ref(false)
 
 const primaryNav = [
   { to: '/today', label: '今日', icon: '📅' },
@@ -20,6 +24,7 @@ const primaryNav = [
   { to: '/search', label: '搜索', icon: '🔍' },
   { to: '/posts', label: '博客', icon: '✍️' },
   { to: '/assistant', label: 'AI 助手', icon: '🤖' },
+  { to: '/agent', label: '自助 Agent', icon: '🧩' },
   { to: '/settings', label: '设置', icon: '⚙️' },
 ]
 
@@ -27,10 +32,31 @@ const activeCount = computed(() => jobs.activeJobs.length)
 
 onMounted(() => {
   jobs.connect()
+  void loadReleaseNotice()
 })
 onBeforeUnmount(() => {
   jobs.disconnect()
 })
+
+async function loadReleaseNotice(): Promise<void> {
+  try {
+    const history = await releasesApi.history()
+    const latest = history.releases[0]
+    if (!latest) return
+    currentRelease.value = latest
+    const lastSeen = window.localStorage.getItem('aiassist:last-seen-release')
+    if (lastSeen !== latest.id) updateNoticeOpen.value = true
+  } catch {
+    // Release metadata is informational and must never block the application shell.
+  }
+}
+
+function acknowledgeRelease(): void {
+  if (currentRelease.value) {
+    window.localStorage.setItem('aiassist:last-seen-release', currentRelease.value.id)
+  }
+  updateNoticeOpen.value = false
+}
 </script>
 
 <template>
@@ -109,6 +135,12 @@ onBeforeUnmount(() => {
     <NotificationCenter
       :open="notifOpen"
       @close="notifOpen = false"
+    />
+
+    <ReleaseUpdateDialog
+      v-if="updateNoticeOpen && currentRelease"
+      :release="currentRelease"
+      @close="acknowledgeRelease"
     />
 
     <nav
@@ -218,19 +250,28 @@ onBeforeUnmount(() => {
     bottom: 0;
     left: 0;
     right: 0;
+    z-index: 100;
     display: flex;
     justify-content: space-around;
+    align-items: stretch;
     background: var(--color-surface);
     border-top: 1px solid var(--color-border);
-    padding-bottom: var(--safe-bottom);
+    padding: var(--space-2) var(--space-2) var(--safe-bottom);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    isolation: isolate;
   }
   .bottom-item {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
     flex-direction: column;
     gap: 2px;
     font-size: 0.75rem;
+    padding: 0 var(--space-1);
+    white-space: nowrap;
   }
   .content {
-    padding-bottom: calc(var(--tap-target) + var(--safe-bottom));
+    padding-bottom: calc(var(--tap-target) + var(--space-4) + var(--safe-bottom));
   }
 }
 </style>

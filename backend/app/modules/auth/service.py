@@ -23,7 +23,7 @@ from argon2.exceptions import VerifyMismatchError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import AppEnv, get_settings
 from app.core.errors import AuthenticationError, RateLimitedError
 from app.models.foundation import RefreshSession, User
 
@@ -33,12 +33,27 @@ UNKNOWN_IP = "0.0.0.0"  # noqa: S104 - placeholder IP string, not a bind address
 
 ACCESS_COOKIE = "__Host-aiassist_access"
 REFRESH_COOKIE = "__Host-aiassist_refresh"
+DEVELOPMENT_ACCESS_COOKIE = "aiassist_access"
+DEVELOPMENT_REFRESH_COOKIE = "aiassist_refresh"
 CSRF_HEADER = "X-CSRF-Token"
 JWT_ALGORITHM = "HS256"
 
 # In-process login attempt counter. A single-process personal deployment does
 # not need a distributed limiter; Redis-backed limiting is a later hardening.
 _login_attempts: dict[str, list[float]] = {}
+
+
+def auth_cookie_names() -> tuple[str, str]:
+    """Return browser-valid cookie names for the configured transport.
+
+    ``__Host-`` cookies are intentionally retained in production, where HTTPS
+    is mandatory. Browsers reject that prefix on the plain HTTP origin used by
+    local development and isolated CI, so those environments use unprefixed
+    host-only cookies instead.
+    """
+    if get_settings().app_env == AppEnv.production:
+        return ACCESS_COOKIE, REFRESH_COOKIE
+    return DEVELOPMENT_ACCESS_COOKIE, DEVELOPMENT_REFRESH_COOKIE
 
 
 def hash_password(password: str) -> str:
@@ -121,6 +136,11 @@ def _check_login_rate(email: str, ip: str) -> None:
     _login_attempts[key] = attempts
 
 
+def _clear_login_rate(email: str, ip: str) -> None:
+    """Do not let successful sign-ins consume the failed-attempt budget."""
+    _login_attempts.pop(f"{email.lower()}|{ip}", None)
+
+
 def reset_login_throttle() -> None:
     _login_attempts.clear()
 
@@ -163,6 +183,8 @@ def login(
         raise AuthenticationError("Invalid email or password", code="invalid_credentials")
     if user.status != "active":
         raise AuthenticationError("Invalid email or password", code="invalid_credentials")
+
+    _clear_login_rate(email, ip)
 
     family_id = uuid.uuid4()
     ua_hash = _hash_token(user_agent)[:64] if user_agent else None

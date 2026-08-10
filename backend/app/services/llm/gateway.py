@@ -9,7 +9,7 @@ output raises ``LLMError('invalid_structured_output')`` and never mutates data.
 from __future__ import annotations
 
 import json
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel, ValidationError
 
@@ -123,7 +123,11 @@ class LLMGatewayImpl:
             try:
                 return self._validate(raw2, request.schema)
             except (ValidationError, json.JSONDecodeError) as second_err:
-                raise LLMError("invalid_structured_output", str(second_err)) from second_err
+                raise LLMError(
+                    "invalid_structured_output",
+                    "Provider returned invalid structured output",
+                    diagnostic=self._validation_diagnostic(raw2, second_err),
+                ) from second_err
 
     @staticmethod
     def _augment_system(system: str, schema: type[T]) -> str:
@@ -141,6 +145,34 @@ class LLMGatewayImpl:
     def _validate(raw: str, schema: type[T]) -> T:
         data = json.loads(raw)
         return schema.model_validate(data)
+
+    @staticmethod
+    def _validation_diagnostic(
+        raw: str, error: ValidationError | json.JSONDecodeError
+    ) -> dict[str, Any]:
+        """Return useful validation metadata without logging generated content."""
+        diagnostic: dict[str, Any] = {
+            "error_type": type(error).__name__,
+            "response_chars": len(raw),
+            "starts_with_code_fence": raw.lstrip().startswith("```"),
+        }
+        if isinstance(error, json.JSONDecodeError):
+            diagnostic.update(
+                message=error.msg,
+                line=error.lineno,
+                column=error.colno,
+                position=error.pos,
+            )
+        else:
+            diagnostic["validation_errors"] = [
+                {
+                    "type": item.get("type"),
+                    "loc": [str(part) for part in item.get("loc", ())],
+                }
+                for item in error.errors(include_input=False)[:20]
+            ]
+            diagnostic["validation_error_count"] = error.error_count()
+        return diagnostic
 
 
 _default: LLMGatewayImpl | None = None

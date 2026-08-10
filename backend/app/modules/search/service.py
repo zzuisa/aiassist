@@ -145,28 +145,24 @@ def _search_captures(
 def _search_posts(
     session: Session, user_id: uuid.UUID, query: str, limit: int
 ) -> list[SearchResult]:
-    # Posts module (US8) may not be present yet; guard the import.
+    # Reuse the blog module's owner-scoped direct-data query so global and
+    # module search cannot drift on body/taxonomy/structured-field coverage.
     try:
-        from app.models.posts import (
-            Post,  # type: ignore[import-untyped,import-not-found,unused-ignore]
-        )
+        from app.modules.posts import query_service
     except Exception:
         return []
-    like = f"%{query}%"
-    rows = session.scalars(
-        select(Post)
-        .where(
-            Post.user_id == user_id,
-            Post.deleted_at.is_(None),
-            or_(Post.title.ilike(like)),
-        )
-        .limit(limit)
-    ).all()
+    rows = query_service.search_posts(session, user_id, query, limit=limit)["items"]
     return [
         SearchResult(
-            entity_type="post", entity_id=p.id, title=p.title, highlights=_highlight(p.title, query)
+            entity_type="post",
+            entity_id=uuid.UUID(row["id"]),
+            title=row["title"],
+            category=row["category"],
+            tags=row["tags"],
+            summary=row["summary"],
+            highlights=_highlight(row["highlight"], query),
         )
-        for p in rows
+        for row in rows
     ]
 
 

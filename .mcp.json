@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "/root/.local/pipx/venvs/code-review-graph/bin/python3",
+      "args": [
+        "-m",
+        "code_review_graph",
+        "serve"
+      ],
+      "cwd": "/appHome/application/aiassist",
+      "type": "stdio"
+    }
+  }
+}

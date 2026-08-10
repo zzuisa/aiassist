@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/agent-tool-manifest.v1.json",
+  "title": "Agent Tool Manifest V1",
+  "description": "The safe manifest a registered tool exposes to a model prompt or a user-visible surface. Constitution 1.1.0 restricts this to name, type, responsibility, required permission and availability: endpoints, credentials, tokens and connection strings MUST NOT appear here, and a tool absent from this manifest MUST NOT be described as callable nor have its result simulated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tools"],
+  "properties": {
+    "schema_version": { "const": "agent-tool-manifest.v1" },
+    "tools": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type", "responsibility", "available"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["read", "write"],
+            "description": "A write tool may only execute through a run whose allow_write is true and whose pending write has been approved."
+          },
+          "responsibility": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "required_permission": { "type": ["string", "null"], "maxLength": 120 },
+          "available": { "type": "boolean" },
+          "unavailable_reason": {
+            "type": ["string", "null"],
+            "maxLength": 500,
+            "description": "Required in practice when available is false, so a capability gap is reported explicitly instead of the tool silently disappearing."
+          },
+          "source": {
+            "type": "string",
+            "enum": ["internal_api", "mcp"],
+            "description": "MCP tools are permitted under constitution 1.1.0 but route through the same typed registry as internal ones."
+          }
+        }
+      }
+    }
+  }
+}

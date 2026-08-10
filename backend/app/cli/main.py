@@ -82,8 +82,11 @@ def cmd_healthcheck(url: str) -> int:
 
 
 def cmd_outbox_publisher() -> int:
+    from app.core.config import get_settings
+    from app.core.observability import configure_logging
     from app.services.outbox.publisher import run_publisher
 
+    configure_logging(get_settings().log_level, service="outbox-publisher")
     run_publisher()
     return 0
 
@@ -99,9 +102,7 @@ def cmd_flush_voice_queue() -> int:
 
     with session_scope() as s:
         records = list(
-            s.scalars(
-                select(VoiceRecord).where(VoiceRecord.status == "waiting_user")
-            ).all()
+            s.scalars(select(VoiceRecord).where(VoiceRecord.status == "waiting_user")).all()
         )
         confirmed = 0
         skipped = 0

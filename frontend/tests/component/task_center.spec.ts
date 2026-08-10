@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import TaskCenterDrawer from '@/components/jobs/TaskCenterDrawer.vue'
@@ -7,6 +8,11 @@ import { useJobsStore } from '@/stores/jobs'
 
 beforeEach(() => {
   setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('TaskCenterDrawer', () => {
@@ -49,6 +55,26 @@ describe('TaskCenterDrawer', () => {
     expect(wrapper.text()).toContain('开始')
   })
 
+  it('shows multiple optimization tasks with article and provider context', () => {
+    const jobs = useJobsStore()
+    for (const [id, title, provider] of [
+      ['a', '文章甲', 'radio'],
+      ['b', '文章乙', 'aiassist'],
+    ]) {
+      jobs.applyJobEvent({
+        job_id: id, job_version: 1, job_type: 'blog.optimize', status: 'processing',
+        progress: 55, current_step: '正在生成优化内容', created_at: `2026-07-24T10:00:0${id === 'a' ? 1 : 2}Z`,
+        result: { context: { post_title: title, provider_key: provider } },
+      })
+    }
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    expect(wrapper.text()).toContain('进行中（2）')
+    expect(wrapper.text()).toContain('文章甲')
+    expect(wrapper.text()).toContain('Radio')
+    expect(wrapper.text()).toContain('文章乙')
+    expect(wrapper.text()).toContain('AI Assist')
+  })
+
   it('shows failure reason, finish time and retry count', () => {
     const jobs = useJobsStore()
     jobs.applyJobEvent({
@@ -69,6 +95,43 @@ describe('TaskCenterDrawer', () => {
     expect(wrapper.text()).toContain('已重试 2 次')
   })
 
+  it('offers to clear completed jobs and removes them after confirmation', async () => {
+    const jobs = useJobsStore()
+    jobs.applyJobEvent({
+      job_id: 'done',
+      job_version: 1,
+      job_type: 'capture.process',
+      status: 'completed',
+      progress: 100,
+      created_at: '2026-07-24T10:00:00Z',
+    })
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/jobs/completed')) {
+        return Promise.resolve(new Response(JSON.stringify({ deleted_count: 1 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      }
+      return Promise.resolve(new Response('[]', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="清空已完成任务"]').exists()).toBe(true)
+    await wrapper.find('[aria-label="清空已完成任务"]').trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledWith('确定清空 1 个已完成任务吗？')
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/jobs/completed', expect.objectContaining({ method: 'DELETE' }))
+    expect(wrapper.find('[aria-label="已完成"]').exists()).toBe(false)
+  })
+
   it('shows a retry button only for retryable failures', () => {
     const jobs = useJobsStore()
     jobs.applyJobEvent({
@@ -79,6 +142,16 @@ describe('TaskCenterDrawer', () => {
     })
     const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
     expect(wrapper.findAll('button').some((b) => b.text() === '重试')).toBe(false)
+  })
+
+  it('does not offer cancellation for a terminal failed job', () => {
+    const jobs = useJobsStore()
+    jobs.applyJobEvent({
+      job_id: 'f', job_version: 1, status: 'failed',
+      error: { code: 'X', message: '失败', retryable: true },
+    })
+    const wrapper = mount(TaskCenterDrawer, { props: { open: true } })
+    expect(wrapper.findAll('button').some((b) => b.text() === '取消')).toBe(false)
   })
 
   it('renders a reconnect banner without toasts', async () => {

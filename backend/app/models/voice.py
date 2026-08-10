@@ -49,7 +49,8 @@ class UploadSession(Base):
             name="upload_status",
         ),
         CheckConstraint(
-            "purpose in ('capture','voice','post_cover','attachment')", name="upload_purpose"
+            "purpose in ('capture','voice','post_cover','attachment','task_note_image')",
+            name="upload_purpose",
         ),
     )
 

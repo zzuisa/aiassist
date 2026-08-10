@@ -144,8 +144,19 @@ def update_task(
         task.is_ai_adjustable = False
     if task.due_at and task.start_at and task.due_at < task.start_at:
         raise ValidationError("due_at must be >= start_at", code="invalid_time")
-    if "status" in provided and task.status == "completed" and task.completed_at is None:
-        task.completed_at = datetime.now(UTC)
+    if "status" in provided:
+        # Completion is reversible: reopening clears the completed timestamp.
+        if task.status == "completed" and task.completed_at is None:
+            task.completed_at = datetime.now(UTC)
+        elif task.status != "completed":
+            task.completed_at = None
+
+    # Keep the dedicated 4h "important" email reminder in sync with importance and
+    # the event start time (idempotent create/reschedule/cancel).
+    if "importance" in provided or "start_at" in provided:
+        from app.modules.notifications import reminder_service
+
+        reminder_service.sync_important_reminder(session, task)
 
     if "tag_ids" in provided and payload.tag_ids is not None:
         _validate_tags(session, user_id, payload.tag_ids)

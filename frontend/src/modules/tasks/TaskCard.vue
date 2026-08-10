@@ -24,6 +24,34 @@ const statusLabel = computed(() => {
   }
 })
 
+// A prominent, time-sensitive label: 今天/明天/周X/日期 + 时刻. Overdue turns red.
+const when = computed(() => {
+  const iso = props.task.start_at
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const hm = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  const midnight = (x: Date) => {
+    const y = new Date(x)
+    y.setHours(0, 0, 0, 0)
+    return y.getTime()
+  }
+  const days = Math.round((midnight(d) - midnight(new Date())) / 86400000)
+  let day: string
+  if (days === 0) day = '今天'
+  else if (days === 1) day = '明天'
+  else if (days === -1) day = '昨天'
+  else if (days > 1 && days < 7) day = '周' + '日一二三四五六'[d.getDay()]
+  else day = `${d.getMonth() + 1}月${d.getDate()}日`
+  return `${day} ${hm}`
+})
+const overdue = computed(
+  () =>
+    !!props.task.start_at &&
+    new Date(props.task.start_at).getTime() < Date.now() &&
+    props.task.status !== 'completed',
+)
+
 const statusClass = computed(() => {
   if (props.task.is_fixed) return 'fixed'
   if (props.task.status === 'completed') return 'done'
@@ -125,9 +153,10 @@ function onAddCalendar(): void {
             class="prio"
           >P{{ task.priority }}</span>
           <span
-            v-if="task.start_at"
-            class="prio when"
-          >📅 已排期</span>
+            v-if="when"
+            class="when-chip"
+            :class="{ overdue }"
+          >🕐 {{ when }}</span>
         </span>
       </button>
     </article>
@@ -227,8 +256,20 @@ function onAddCalendar(): void {
   background: var(--color-surface-2);
   color: var(--color-text-muted);
 }
-.when {
-  color: var(--status-ai);
+.when-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--status-normal) 16%, transparent);
+  color: var(--status-normal);
+}
+.when-chip.overdue {
+  background: color-mix(in srgb, var(--status-urgent) 18%, transparent);
+  color: var(--status-urgent);
 }
 @media (prefers-reduced-motion: reduce) {
   .card {

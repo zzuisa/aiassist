@@ -3,62 +3,49 @@
 from __future__ import annotations
 
 import uuid
+from typing import cast
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.db.session import get_db
-from app.models.posts import Post
 from app.modules.posts import rendering, service
+from app.modules.posts.schemas import (
+    GenerateBody,
+    PostCreate,
+    PostOut,
+    PostPatch,
+    PublishBody,
+    RestoreRevisionBody,
+    RevisionDetailOut,
+    RevisionOut,
+    post_detail_out,
+    post_out,
+    revision_out,
+)
+from app.services.storage.base import ObjectNotFoundError
+from app.services.storage.providers.local import get_storage
 
 private_router = APIRouter(prefix="/posts", tags=["posts"])
 public_router = APIRouter(prefix="/public", tags=["public"])
 
-
-class PostCreate(BaseModel):
-    model_config = {"extra": "forbid"}
-    title: str = Field(min_length=1, max_length=240)
-    markdown: str = Field(max_length=200000)
-    source_refs: list[dict] = Field(default_factory=list)
-    version: int | None = None
-
-
-class GenerateBody(BaseModel):
-    model_config = {"extra": "forbid"}
-    scenario: str = Field(pattern="^(generate_blog|optimize_blog|translate_blog)$")
-    source_refs: list[dict] = Field(default_factory=list, max_length=50)
-    instruction: str | None = Field(default=None, max_length=2000)
-
-
-class PublishBody(BaseModel):
-    model_config = {"extra": "forbid"}
-    published: bool
-    version: int
-
-
-def _post_out(p: Post) -> dict:
-    return {
-        "id": str(p.id),
-        "title": p.title,
-        "markdown": p.markdown,
-        "status": p.status,
-        "slug": p.slug,
-        "version": p.version,
-        "current_revision_id": str(p.current_revision_id) if p.current_revision_id else None,
-        "created_at": p.created_at.isoformat(),
-        "published_at": p.published_at.isoformat() if p.published_at else None,
-    }
+# Additive blog routers (spec 005, T025). Endpoints are attached by later user
+# stories; the routers are declared and registered here so the URL surface under
+# /api/v1 is stable and existing /posts routes stay untouched.
+capture_router = APIRouter(prefix="/blog/capture", tags=["blog-capture"])
+ai_router = APIRouter(prefix="/blog/ai", tags=["blog-ai"])
+query_router = APIRouter(prefix="/blog/query", tags=["blog-query"])
 
 
 @private_router.get("")
 def list_posts(
     user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)
-) -> list[dict]:
-    return [_post_out(p) for p in service.list_posts(db, user.id)]
+) -> list[PostOut]:
+    return [post_out(p) for p in service.list_posts(db, user.id)]
 
 
 @private_router.post("", status_code=201)
@@ -66,12 +53,12 @@ def create_post(
     body: PostCreate,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.create_post(
         db, user.id, title=body.title, markdown=body.markdown, source_refs=body.source_refs
     )
     db.commit()
-    return _post_out(post)
+    return post_out(post)
 
 
 @private_router.get("/{post_id}")
@@ -79,22 +66,49 @@ def get_post(
     post_id: uuid.UUID,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict:
-    return _post_out(service.get_post(db, user.id, post_id))
+) -> PostOut:
+    return post_detail_out(db, service.get_post(db, user.id, post_id))
+
+
+@private_router.get("/{post_id}/visual-assets/{asset_id}.png")
+def visual_asset(
+    post_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Stream a generated visual only to the owner of its post.
+
+    The object key is derived from the checked post and UUID rather than taken
+    from Markdown, so an article cannot use its image URL to read another
+    user's storage object.
+    """
+    post = service.get_post(db, user.id, post_id)
+    key = f"posts/{post.user_id}/visuals/{post.id}/{asset_id}.png"
+    try:
+        stream = get_storage().open_stream(key)
+    except ObjectNotFoundError as exc:
+        raise NotFoundError("Visual asset not found") from exc
+    return StreamingResponse(
+        stream,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @private_router.patch("/{post_id}")
 def update_post(
     post_id: uuid.UUID,
-    body: PostCreate,
+    body: PostPatch,
+    response: Response,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
-    post = service.save_user_revision(
-        db, user.id, post_id, title=body.title, markdown=body.markdown, version=body.version or 1
-    )
+) -> PostOut:
+    post, warnings = service.patch_post(db, user.id, post_id, body)
     db.commit()
-    return _post_out(post)
+    if warnings:
+        response.headers["X-Blog-Warnings"] = "; ".join(warnings)
+    return post_detail_out(db, post)
 
 
 @private_router.delete("/{post_id}", status_code=204)
@@ -142,19 +156,40 @@ def generate(
         user_id=user.id,
     )
     db.commit()
-    # Enqueue the generation task directly (best-effort). The worker creates an
-    # UNAPPLIED AI revision; the current text is never overwritten.
-    try:
-        from app.workers.tasks.blog import generate as blog_generate
-
-        blog_generate.delay(str(post.id), body.scenario, body.instruction)
-    except Exception:
-        from app.core.observability import get_logger
-
-        get_logger("posts").warning("blog_enqueue_failed", post_id=str(post.id))
     from app.modules.jobs.schemas import serialize_job
 
     return serialize_job(job).model_dump(mode="json")
+
+
+@private_router.get("/{post_id}/revisions")
+def list_revisions(
+    post_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[RevisionOut]:
+    return [revision_out(r) for r in service.list_revisions(db, user.id, post_id)]
+
+
+@private_router.get("/{post_id}/revisions/compare")
+def compare_revisions(
+    post_id: uuid.UUID,
+    from_revision: uuid.UUID,
+    to_revision: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return service.compare_revisions(db, user.id, post_id, from_revision, to_revision)
+
+
+@private_router.get("/{post_id}/revisions/{revision_id}")
+def get_revision(
+    post_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RevisionDetailOut:
+    revision = service.get_revision(db, user.id, post_id, revision_id)
+    return cast(RevisionDetailOut, revision_out(revision, include_snapshot=True))
 
 
 @private_router.get("/{post_id}/revisions/{revision_id}/diff")
@@ -173,10 +208,24 @@ def apply(
     revision_id: uuid.UUID,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.apply_revision(db, user.id, post_id, revision_id)
     db.commit()
-    return _post_out(post)
+    return post_out(post)
+
+
+@private_router.post("/{post_id}/revisions/{revision_id}/restore")
+def restore_revision(
+    post_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    body: RestoreRevisionBody,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> PostOut:
+    """Restore a past revision as a new user_edit revision (non-destructive)."""
+    post = service.restore_revision(db, user.id, post_id, revision_id, current_version=body.version)
+    db.commit()
+    return post_out(post)
 
 
 @private_router.post("/{post_id}/publish")
@@ -185,10 +234,10 @@ def publish(
     body: PublishBody,
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> dict:
+) -> PostOut:
     post = service.set_published(db, user.id, post_id, body.published, body.version)
     db.commit()
-    return _post_out(post)
+    return post_out(post)
 
 
 # ------------------------------------------------------------------ public

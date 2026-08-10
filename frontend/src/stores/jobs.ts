@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AsyncJob, NotificationItem } from '@/api/types'
+import { useAgentStore } from '@/stores/agent'
 
 // Global jobs/notifications store fed by a single EventSource per tab. Events are
 // deduplicated by id and applied only when job_version is newer (see sse.md).
@@ -11,6 +12,9 @@ export const useJobsStore = defineStore('jobs', () => {
   const notifications = ref<NotificationItem[]>([])
   const connected = ref(false)
   const reconnecting = ref(false)
+  // Bumped on any quick-add plan job event so the Today view can refetch once the
+  // background analysis finishes creating tasks.
+  const planTick = ref(0)
   let source: EventSource | null = null
   let lastEventId = ''
 
@@ -25,6 +29,23 @@ export const useJobsStore = defineStore('jobs', () => {
   const unreadCount = computed(
     () => notifications.value.filter((n) => n.status === 'unread').length,
   )
+  // Blog jobs (spec 005, T079): scope is derived server-side; fall back to the
+  // job_type prefix for events that predate the derived field.
+  const blogJobs = computed(() =>
+    [...jobs.value.values()]
+      .filter((j) => j.scope === 'blog' || j.job_type.startsWith('blog.'))
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+  )
+  function getJob(id: string): AsyncJob | undefined {
+    return jobs.value.get(id)
+  }
+
+  // Seed a freshly-created REST job immediately. Its durable SSE event will
+  // still win later via job_version, so this removes UI latency without adding
+  // polling or weakening event ordering.
+  function rememberJob(job: AsyncJob): void {
+    jobs.value.set(job.id, { ...jobs.value.get(job.id), ...job })
+  }
 
   function applyJobEvent(data: Record<string, unknown>): void {
     const id = data.job_id as string
@@ -50,7 +71,15 @@ export const useJobsStore = defineStore('jobs', () => {
       updated_at: (data.updated_at as string) ?? existing?.updated_at ?? '',
       finished_at: (data.finished_at as string) ?? existing?.finished_at ?? null,
       entity: (data.entity as AsyncJob['entity']) ?? existing?.entity ?? null,
+      result: (data.result as AsyncJob['result']) ?? existing?.result ?? null,
+      // Presentation-only derived fields (blog jobs); kept if the event omits them.
+      scope: (data.scope as string) ?? existing?.scope ?? null,
+      business_stage: (data.business_stage as string) ?? existing?.business_stage ?? null,
+      display_status: (data.display_status as string) ?? existing?.display_status ?? null,
     })
+    if (((data.job_type as string) ?? existing?.job_type) === 'plan.analyze') {
+      planTick.value += 1
+    }
   }
 
   function applySnapshot(data: Record<string, unknown>): void {
@@ -58,6 +87,7 @@ export const useJobsStore = defineStore('jobs', () => {
     for (const j of snapshotJobs) {
       applyJobEvent(j)
     }
+    useAgentStore().applySnapshot(data)
   }
 
   function applyNotification(data: Record<string, unknown>): void {
@@ -75,9 +105,24 @@ export const useJobsStore = defineStore('jobs', () => {
   async function refreshFromRest(): Promise<void> {
     const list = await api.get<AsyncJob[]>('/jobs')
     for (const j of list) {
-      jobVersions.value.set(j.id, -1)
-      applyJobEvent({ ...j, job_id: j.id, job_version: 1 })
+      const live = jobs.value.get(j.id)
+      // REST has no event version. Use it as a baseline/filler only and never
+      // let a late list response roll an SSE-updated job back to stale state.
+      jobs.value.set(j.id, live ? { ...j, ...live } : j)
     }
+  }
+
+  async function clearCompleted(): Promise<number> {
+    const result = await api.del<{ deleted_count: number }>('/jobs/completed')
+    let removed = 0
+    for (const [id, job] of jobs.value) {
+      if (job.status === 'completed') {
+        jobs.value.delete(id)
+        jobVersions.value.delete(id)
+        removed += 1
+      }
+    }
+    return result.deleted_count ?? removed
   }
 
   function connect(): void {
@@ -101,6 +146,10 @@ export const useJobsStore = defineStore('jobs', () => {
       lastEventId = (e as MessageEvent).lastEventId || lastEventId
       applyNotification(JSON.parse((e as MessageEvent).data))
     })
+    source.addEventListener('agent.status_changed', (e) => {
+      lastEventId = (e as MessageEvent).lastEventId || lastEventId
+      useAgentStore().applyStatusEvent(JSON.parse((e as MessageEvent).data))
+    })
     source.addEventListener('error', () => {
       connected.value = false
       reconnecting.value = true
@@ -119,6 +168,7 @@ export const useJobsStore = defineStore('jobs', () => {
     jobs.value.clear()
     jobVersions.value.clear()
     notifications.value = []
+    useAgentStore().clear()
     lastEventId = ''
   }
 
@@ -127,13 +177,18 @@ export const useJobsStore = defineStore('jobs', () => {
     notifications,
     connected,
     reconnecting,
+    planTick,
     activeJobs,
     failedJobs,
     unreadCount,
+    blogJobs,
+    getJob,
+    rememberJob,
     applyJobEvent,
     applySnapshot,
     applyNotification,
     refreshFromRest,
+    clearCompleted,
     connect,
     disconnect,
     clear,

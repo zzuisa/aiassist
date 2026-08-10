@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiassist.local/schemas/blog-agent-config.v1.json",
+  "title": "Blog Agent Config V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "display_name",
+    "description",
+    "instruction_sections",
+    "parameters"
+  ],
+  "properties": {
+    "schema_version": { "const": "blog-agent-config.v1" },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 1000 },
+    "instruction_sections": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "title", "content"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+          "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "content": { "type": "string", "maxLength": 24576 }
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 30,
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "boolean" },
+          { "type": "integer", "minimum": 0, "maximum": 1000000 },
+          { "type": "number", "minimum": 0, "maximum": 1000000 },
+          { "type": "string", "maxLength": 240 }
+        ]
+      }
+    }
+  }
+}
