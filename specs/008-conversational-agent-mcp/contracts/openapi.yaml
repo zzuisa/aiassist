@@ -1,0 +1,177 @@
+openapi: 3.1.0
+info:
+  title: AI Assist Conversational Agent API
+  version: 1.0.0
+paths:
+  /api/v1/agent/conversations:
+    post:
+      summary: Create an empty owned conversation
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Conversation' }
+    get:
+      summary: List owned conversations
+      responses:
+        '200':
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Conversation' }
+  /api/v1/agent/conversations/{conversation_id}:
+    get:
+      summary: Get one owned conversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversation detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationDetail' }
+        '404': { description: Not found or not owned }
+  /api/v1/agent/conversations/{conversation_id}/messages:
+    post:
+      summary: Persist a user message and create a durable turn before routing
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [client_message_id, text]
+              properties:
+                client_message_id: { type: string, format: uuid }
+                text: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '202':
+          description: Message and turn durably accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TurnAccepted' }
+    get:
+      summary: List owned conversation messages using an opaque cursor
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Message page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Message' }
+                  next_cursor: { type: [string, 'null'] }
+  /api/v1/agent/turns/{turn_id}:
+    get:
+      summary: Get one owned turn and linked task state
+      parameters:
+        - name: turn_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Turn detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Turn' }
+        '404': { description: Not found or not owned }
+  /api/v1/agent/turns/{turn_id}/retry:
+    post:
+      summary: Create an idempotent retry from a failed or stalled turn
+      parameters:
+        - name: turn_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Retry accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TurnAccepted' }
+        '409': { description: Turn is not retryable or already retried }
+  /api/v1/agent/capabilities:
+    get:
+      summary: Return the current user's safe, authorized capability manifest
+      responses:
+        '200':
+          description: Safe capability manifest
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schema_version, tools]
+                properties:
+                  schema_version: { const: safe-tool-manifest.v2 }
+                  tools: { type: array, items: { type: object } }
+components:
+  parameters:
+    ConversationId:
+      name: conversation_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Conversation:
+      type: object
+      required: [id, title, status, last_message_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        status: { enum: [active, archived] }
+        last_message_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    ConversationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          required: [active_turns]
+          properties:
+            active_turns:
+              type: array
+              items: { $ref: '#/components/schemas/Turn' }
+    Message:
+      type: object
+      required: [id, role, kind, content, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        role: { enum: [user, assistant, system] }
+        kind: { enum: [text, clarification, result, error] }
+        content: { type: object }
+        turn_id: { type: [string, 'null'], format: uuid }
+        created_at: { type: string, format: date-time }
+    Turn:
+      type: object
+      required: [id, conversation_id, status, current_step, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: string, format: uuid }
+        status: { enum: [accepted, routing, waiting_clarification, executing, waiting_confirmation, success, partial_success, failed, stalled, cancelled] }
+        route_kind: { type: [string, 'null'] }
+        current_step: { type: [string, 'null'] }
+        agent_task_id: { type: [string, 'null'], format: uuid }
+        error_message: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+    TurnAccepted:
+      type: object
+      required: [message, turn]
+      properties:
+        message: { $ref: '#/components/schemas/Message' }
+        turn: { $ref: '#/components/schemas/Turn' }

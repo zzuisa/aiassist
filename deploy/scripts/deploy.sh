@@ -41,12 +41,12 @@ check_env_and_secrets() {
   done
   # Optional secret files must exist for compose 'file:' sources; create empty
   # placeholders so absent features degrade instead of failing to configure.
-  for s in smtp_password llm_provider_key s3_access_key s3_secret_key; do
+  for s in smtp_password llm_provider_key s3_access_key s3_secret_key mcp_connections.json; do
     [ -f "$SECRETS_DIR/$s" ] || : > "$SECRETS_DIR/$s"
   done
   local secret_path
   for secret_path in "$SECRETS_DIR"/*_password "$SECRETS_DIR"/jwt_signing_key \
-    "$SECRETS_DIR"/*_key; do
+    "$SECRETS_DIR"/*_key "$SECRETS_DIR"/mcp_connections.json; do
     [ -f "$secret_path" ] || continue
     chmod 600 "$secret_path"
     if [ "$(stat -c %u "$secret_path")" != "$RUNTIME_UID" ]; then

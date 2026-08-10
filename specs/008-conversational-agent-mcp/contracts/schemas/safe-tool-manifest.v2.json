@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "safe-tool-manifest.v2.json",
+  "title": "Safe Agent Tool Manifest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tools"],
+  "properties": {
+    "schema_version": { "const": "safe-tool-manifest.v2" },
+    "tools": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "source", "type", "responsibility", "input_schema", "risk", "required_permission", "available"],
+        "properties": {
+          "key": { "type": "string", "maxLength": 160 },
+          "source": { "enum": ["internal_api", "mcp"] },
+          "type": { "enum": ["read", "write"] },
+          "responsibility": { "type": "string", "maxLength": 500 },
+          "input_schema": { "type": "object" },
+          "risk": { "type": "object" },
+          "required_permission": { "type": ["string", "null"], "maxLength": 120 },
+          "available": { "type": "boolean" },
+          "unavailable_reason": { "type": ["string", "null"], "maxLength": 500 }
+        }
+      }
+    }
+  }
+}

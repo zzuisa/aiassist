@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "conversation-event.v1.json",
+  "title": "Conversation Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_type", "conversation_id", "turn_id", "status", "timestamp"],
+  "properties": {
+    "schema_version": { "const": "conversation-event.v1" },
+    "event_type": { "enum": ["conversation.message_created", "conversation.turn_updated"] },
+    "conversation_id": { "type": "string", "format": "uuid" },
+    "turn_id": { "type": "string", "format": "uuid" },
+    "message_id": { "type": ["string", "null"], "format": "uuid" },
+    "status": { "enum": ["accepted", "routing", "waiting_clarification", "executing", "waiting_confirmation", "success", "partial_success", "failed", "stalled", "cancelled"] },
+    "stage_label": { "type": ["string", "null"], "maxLength": 200 },
+    "capability_name": { "type": ["string", "null"], "maxLength": 160 },
+    "result_summary": { "type": ["string", "null"], "maxLength": 1000 },
+    "error_message": { "type": ["string", "null"], "maxLength": 1000 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

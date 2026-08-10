@@ -27,6 +27,7 @@ x-backend-image: &backend-image
     SMTP_PASSWORD_FILE: /run/secrets/smtp_password
     LLM_PROVIDER_KEY_FILE: /run/secrets/llm_provider_key
     RADIO_SERVICE_PASSWORD_FILE: /run/secrets/radio_service_password
+    MCP_SECRETS_FILE: /run/secrets/mcp_connections
     LOG_DIR: /logs/aiassist
   secrets:
     - postgres_password
@@ -35,6 +36,7 @@ x-backend-image: &backend-image
     - smtp_password
     - llm_provider_key
     - radio_service_password
+    - mcp_connections
   volumes:
     - /www/wwwlogs/aiassist:/logs/aiassist
   logging: *logging
@@ -314,6 +316,8 @@ secrets:
     file: ./deploy/secrets/llm_provider_key
   radio_service_password:
     file: ./deploy/secrets/radio_service_password
+  mcp_connections:
+    file: ./deploy/secrets/mcp_connections.json
   s3_access_key:
     file: ./deploy/secrets/s3_access_key
   s3_secret_key:

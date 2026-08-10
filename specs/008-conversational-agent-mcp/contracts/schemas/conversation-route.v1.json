@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "conversation-route.v1.json",
+  "title": "Conversation Route Decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "route_kind", "objective", "operation_type", "target_scope", "semantic_arguments", "candidate_tool_keys", "requires_confirmation", "confidence"],
+  "properties": {
+    "schema_version": { "const": "conversation-route.v1" },
+    "route_kind": { "enum": ["chat", "capability_help", "clarification", "task"] },
+    "objective": { "type": "string", "maxLength": 500 },
+    "operation_type": { "enum": ["none", "query", "analyze", "create", "update", "delete", "publish", "rollback", "external_effect"] },
+    "target_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "object_type", "object_ids"],
+      "properties": {
+        "source": { "enum": ["none", "current_message", "conversation_context", "refresh_required"] },
+        "object_type": { "type": ["string", "null"], "maxLength": 80 },
+        "object_ids": { "type": "array", "maxItems": 500, "items": { "type": "string", "format": "uuid" }, "uniqueItems": true }
+      }
+    },
+    "semantic_arguments": { "type": "object" },
+    "candidate_tool_keys": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 160 }, "uniqueItems": true },
+    "clarification_question": { "type": ["string", "null"], "maxLength": 500 },
+    "requires_confirmation": { "type": "boolean" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

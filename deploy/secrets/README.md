@@ -34,6 +34,7 @@ closed with the required command when an unprivileged deploy user owns the files
 | `llm_provider_key` | API key for the configured LLM/speech provider |
 | `s3_access_key` | S3 access key (only when `STORAGE_PROVIDER=s3`) |
 | `s3_secret_key` | S3 secret key (only when `STORAGE_PROVIDER=s3`) |
+| `mcp_connections.json` | MCP server endpoints and tokens (see `mcp-connections.example.json`). Operator-provisioned only — never accepted from user input. Referenced by `config_key`; the database never stores its contents. |
 
 ## Creating a secret without leaking it to shell history
 

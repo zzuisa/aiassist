@@ -5,6 +5,7 @@
 deploy/secrets/*
 !deploy/secrets/README.md
 !deploy/secrets/.gitkeep
+!deploy/secrets/mcp-connections.example.json
 *.pem
 *.key
 *.p12

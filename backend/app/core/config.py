@@ -151,6 +151,23 @@ class Settings(BaseSettings):
 
     backup_retention_days: int = 30
 
+    # -- MCP (Model Context Protocol) tool gateway (optional) --
+    # Endpoints, tokens and connection strings live only in this file, keyed by
+    # config_key. The database stores config_key + safe metadata only — never
+    # the file contents. See deploy/secrets/mcp-connections.example.json.
+    mcp_secrets_file: str | None = None
+    mcp_connect_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    mcp_read_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    mcp_max_result_bytes: int = Field(default=262144, ge=1024, le=4194304)
+    mcp_catalog_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    mcp_max_retries: int = Field(default=2, ge=0, le=5)
+    mcp_max_connections_per_user: int = Field(default=20, ge=1, le=100)
+    mcp_max_visible_tools: int = Field(default=100, ge=1, le=500)
+    # Turn/task heartbeat watchdog thresholds (used by the beat-scheduled
+    # stalled-work repair job; see app/modules/agent/watchdog.py).
+    agent_turn_heartbeat_timeout_seconds: int = Field(default=45, ge=10, le=600)
+    agent_turn_watchdog_interval_seconds: int = Field(default=30, ge=5, le=300)
+
     # ---------------------------------------------------------------- secrets
 
     @computed_field  # type: ignore[prop-decorator]
@@ -182,6 +199,13 @@ class Settings(BaseSettings):
     @property
     def resolved_radio_service_password(self) -> str | None:
         return _read_secret_file(self.radio_service_password_file) or self.radio_service_password
+
+    @property
+    def mcp_secrets_path(self) -> Path | None:
+        if not self.mcp_secrets_file:
+            return None
+        p = Path(self.mcp_secrets_file)
+        return p if p.is_file() else None
 
     # ------------------------------------------------------------ connections
 
@@ -242,6 +266,9 @@ class Settings(BaseSettings):
 
     def storage_status(self) -> DependencyStatus:
         return DependencyStatus.ready
+
+    def mcp_status(self) -> DependencyStatus:
+        return DependencyStatus.ready if self.mcp_secrets_path else DependencyStatus.unconfigured
 
     def validate_startup(self) -> None:
         """Fail fast when a production-required secret is missing."""
