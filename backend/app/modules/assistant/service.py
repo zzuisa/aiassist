@@ -1,38 +1,37 @@
-"""Assistant run orchestration + structured action cards.
-
-An assistant run loads authorized grounded context, produces structured action
-cards referencing real entity IDs+versions, and stores those source versions.
-Applying an action goes through the normal domain service (ownership + fixed-event
-+ optimistic-version checks re-run); unselected/fixed/stale data never changes.
-"""
+"""Compatibility facade backed by durable Agent tasks."""
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.db.session import session_scope
+from app.models.agent import AgentTask
+from app.modules.agent import service as agent_service
 from app.modules.assistant.context import load_context
 from app.modules.jobs import service as jobs_service
 from app.modules.tasks import calendar_service
 from app.modules.tasks import service as task_service
 
-# In-memory run store keyed by run id. A run is short-lived and tied to a job;
-# action definitions carry the grounded source versions for re-checking on apply.
-_RUNS: dict[str, dict] = {}
+
+def _public_card(card: dict) -> dict:
+    return {
+        **card,
+        "actions": [
+            {key: value for key, value in action.items() if not key.startswith("_")}
+            for action in card.get("actions", [])
+        ],
+    }
 
 
-def create_run(session: Session, user_id: uuid.UUID, intent: str, instruction: str | None) -> dict:
-    job = jobs_service.create_job(
-        session, user_id=user_id, job_type=f"assistant.{intent}", entity_type="assistant_run"
-    )
-    context = load_context(session, user_id, intent)
-
+def complete_agent_task(session: Session, task: AgentTask) -> dict:
+    """Build legacy cards and store both private actions and public output durably."""
+    context = load_context(session, task.user_id, task.intent_key)
     cards: list[dict] = []
-    grounded_refs = context.entity_refs
-
     if context.empty:
         cards.append(
             {
@@ -43,20 +42,18 @@ def create_run(session: Session, user_id: uuid.UUID, intent: str, instruction: s
                 "actions": [],
             }
         )
-    elif intent in ("plan_today", "adjust_week"):
-        # Grounded plan: propose a concrete move only for AI-adjustable tasks.
+    else:
         actions = []
-        for t in context.payload["tasks"]:
-            if t["is_fixed"] or not t["is_ai_adjustable"]:
+        for item in context.payload["tasks"]:
+            if item["is_fixed"] or not item["is_ai_adjustable"]:
                 continue
             actions.append(
                 {
-                    "id": f"reschedule:{t['id']}",
-                    "label": f"调整「{t['title']}」到下一个空档",
+                    "id": f"reschedule:{item['id']}",
+                    "label": f"调整「{item['title']}」到下一个空档",
                     "destructive": False,
-                    # Stored source version re-checked on apply.
-                    "_task_id": t["id"],
-                    "_task_version": t["version"],
+                    "_task_id": item["id"],
+                    "_task_version": item["version"],
                     "_new_start": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
                 }
             )
@@ -67,86 +64,100 @@ def create_run(session: Session, user_id: uuid.UUID, intent: str, instruction: s
                 "title": "今日安排建议",
                 "body": {
                     "reason": "基于当前未完成任务的具体时间建议",
-                    "fixed_kept": [t["id"] for t in context.payload["tasks"] if t["is_fixed"]],
+                    "fixed_kept": [
+                        item["id"] for item in context.payload["tasks"] if item["is_fixed"]
+                    ],
                 },
                 "actions": actions,
             }
         )
-
-    run_id = str(uuid.uuid4())
-    _RUNS[run_id] = {
-        "user_id": str(user_id),
-        "intent": intent,
-        "job_id": str(job.id),
-        "cards": cards,
-        "grounded_refs": grounded_refs,
-    }
-    jobs_service.transition(session, job, status="completed", progress=100, current_step="分析完成")
-    return {
-        "id": run_id,
-        "intent": intent,
+    public = {
+        "id": str(task.id),
+        "intent": task.intent_key,
         "status": "completed",
-        "job_id": str(job.id),
-        "cards": [_public_card(c) for c in cards],
-        "grounded_refs": grounded_refs,
+        "job_id": str(task.job_id),
+        "cards": [_public_card(card) for card in cards],
+        "grounded_refs": context.entity_refs,
     }
+    task.scope_json = {
+        **task.scope_json,
+        "assistant_compat": {
+            "cards": cards,
+            "grounded_refs": context.entity_refs,
+        },
+    }
+    task.result_summary = json.dumps(public, ensure_ascii=False, separators=(",", ":"))
+    task.status = "success"
+    task.finished_at = datetime.now(UTC)
+    jobs_service.transition(
+        session,
+        task.job,
+        status="completed",
+        progress=100,
+        current_step="分析完成",
+        result={"agent_task_id": str(task.id)},
+    )
+    session.flush()
+    return public
 
 
-def _public_card(card: dict) -> dict:
-    """Strip internal (_-prefixed) action fields before returning to the client."""
-    return {
-        **card,
-        "actions": [
-            {k: v for k, v in a.items() if not k.startswith("_")} for a in card.get("actions", [])
-        ],
-    }
+def create_run(session: Session, user_id: uuid.UUID, intent: str, instruction: str | None) -> dict:
+    task = agent_service.create_agent_task(
+        session,
+        user_id=user_id,
+        request_text=instruction or intent,
+        intent_key=intent,
+    )
+    return complete_agent_task(session, task)
+
+
+def _load_run(session: Session, user_id: uuid.UUID, run_id: str) -> tuple[AgentTask, dict]:
+    try:
+        task_id = uuid.UUID(run_id)
+    except ValueError as exc:
+        raise NotFoundError("Run not found") from exc
+    task = agent_service.get_owned_task(session, user_id, task_id)
+    compat = task.scope_json.get("assistant_compat")
+    if not isinstance(compat, dict):
+        raise NotFoundError("Run not found")
+    return task, compat
 
 
 def get_run(user_id: uuid.UUID, run_id: str) -> dict:
-    run = _RUNS.get(run_id)
-    if run is None or run["user_id"] != str(user_id):
-        raise NotFoundError("Run not found")
-    return {
-        "id": run_id,
-        "intent": run["intent"],
-        "status": "completed",
-        "job_id": run["job_id"],
-        "cards": [_public_card(c) for c in run["cards"]],
-        "grounded_refs": run["grounded_refs"],
-    }
+    with session_scope() as session:
+        task, _compat = _load_run(session, user_id, run_id)
+        try:
+            result = json.loads(task.result_summary or "{}")
+        except json.JSONDecodeError as exc:
+            raise NotFoundError("Run not found") from exc
+        if not isinstance(result, dict):
+            raise NotFoundError("Run not found")
+        return result
 
 
 def execute_action(session: Session, user_id: uuid.UUID, run_id: str, action_id: str) -> dict:
-    """Apply exactly one explicit action through the normal domain service.
-
-    Re-runs ownership, fixed-event and optimistic-version checks. Rejects stale or
-    fixed targets; only the selected action takes effect.
-    """
-    run = _RUNS.get(run_id)
-    if run is None or run["user_id"] != str(user_id):
-        raise NotFoundError("Run not found")
-
-    action = None
-    for card in run["cards"]:
-        for a in card.get("actions", []):
-            if a["id"] == action_id:
-                action = a
-                break
+    _task, compat = _load_run(session, user_id, run_id)
+    action = next(
+        (
+            action
+            for card in compat.get("cards", [])
+            for action in card.get("actions", [])
+            if action.get("id") == action_id
+        ),
+        None,
+    )
     if action is None:
         raise NotFoundError("Action not found")
-
     if action_id.startswith("reschedule:"):
         task_id = uuid.UUID(action["_task_id"])
-        task = task_service.get_task(session, user_id, task_id)
-        # Optimistic version + fixed-event checks re-run inside the domain service.
-        new_start = datetime.fromisoformat(action["_new_start"])
+        target = task_service.get_task(session, user_id, task_id)
         try:
             calendar_service.reschedule_task(
                 session,
                 user_id,
-                task,
+                target,
                 version=action["_task_version"],
-                start_at=new_start,
+                start_at=datetime.fromisoformat(action["_new_start"]),
                 due_at=None,
                 by_ai=True,
             )
@@ -154,9 +165,8 @@ def execute_action(session: Session, user_id: uuid.UUID, run_id: str, action_id:
             raise ConflictError("固定事件不可调整或已过期", code="fixed_event") from exc
         session.commit()
         return {"applied": action_id, "task_id": str(task_id)}
-
     raise ValidationError("Unsupported action", code="unsupported_action")
 
 
 def clear_runs() -> None:
-    _RUNS.clear()
+    """Compatibility no-op: durable runs are intentionally not process-local."""

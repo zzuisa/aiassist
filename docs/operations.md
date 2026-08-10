@@ -37,6 +37,27 @@ Check current states (admin): `GET /api/v1/settings` → `dependencies`, or
   docker compose run --rm backend python -m app.cli.dlq replay voice --limit 10
   ```
 
+## Agent batch and concurrency tuning
+
+Agent fan-out runs inside one `worker-heavy` Celery task and shares that queue
+with speech transcription and image processing. Tune these two settings
+together:
+
+| Setting | Default | Hard limit | Guidance |
+|---|---:|---:|---|
+| `AGENT_MAX_BATCH_OBJECTS` | 200 | 500 | Maximum objects accepted by one Agent batch; require the user to narrow larger requests. |
+| `AGENT_MAX_CONCURRENCY` | 4 | 8 | Threads used inside one Agent task; start at 4 and raise only after measuring provider and database headroom. |
+
+The bounded thread pool prevents one Agent task from creating unlimited local
+work, but it does not create another Celery slot. A long Agent batch still
+occupies the single `worker-heavy` slot, so queued voice and image jobs can wait
+until that Celery task returns. Monitor queue wait time separately from task
+runtime for all three workloads. If voice or image wait time grows, reduce the
+Agent batch size or concurrency and split requests into smaller batches. Do not
+configure concurrency above 8. If sustained workloads cannot meet their queue
+latency target at conservative settings, move Agent work to a dedicated worker
+in a separate deployment change instead of increasing the in-task thread count.
+
 ## One-click Agent API validation
 
 Use the dedicated Playwright flow to watch and verify the production-safe,

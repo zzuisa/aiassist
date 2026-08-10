@@ -11,6 +11,7 @@ from app.api.dependencies import CurrentUser, get_current_user, require_csrf
 from app.db.session import get_db
 from app.models.agent import AgentRun as AgentRunModel
 from app.modules.agent import schemas, service
+from app.modules.agent.audit import list_execution_records
 from app.modules.agent.intents import classify_request
 from app.workers.tasks.agent import execute_task
 
@@ -49,6 +50,18 @@ def _run_out(run: AgentRunModel) -> schemas.AgentRun:
     )
 
 
+@router.get("/tools", response_model=schemas.ToolManifest)
+def list_tools(
+    _user: CurrentUser = Depends(get_current_user),
+) -> schemas.ToolManifest:
+    return schemas.ToolManifest(
+        tools=[
+            schemas.ToolManifestEntry.model_validate(tool)
+            for tool in service.tool_registry.safe_manifest()
+        ]
+    )
+
+
 @router.post("/tasks", response_model=schemas.AgentTask, status_code=202)
 def create_task(
     body: schemas.AgentTaskCreate,
@@ -59,9 +72,12 @@ def create_task(
     scope: dict | None = None
     if body.previous_task_id is not None:
         previous = service.get_owned_task(db, user.id, body.previous_task_id)
-        object_ids = previous.scope_json.get("object_ids", [])
-        if isinstance(object_ids, list):
-            scope = {"object_ids": object_ids, "previous_task_id": str(previous.id)}
+        scope = service.inherit_conversation_scope(
+            db,
+            user_id=user.id,
+            previous=previous,
+            request_text=body.request_text,
+        )
     task = service.create_agent_task(
         db,
         user_id=user.id,
@@ -105,6 +121,22 @@ def get_task(
         **task_data,
         runs=[_run_out(run) for run in service.task_runs(db, task.id)],
     )
+
+
+@router.get(
+    "/tasks/{task_id}/records",
+    response_model=list[schemas.ExecutionRecord],
+)
+def list_records(
+    task_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[schemas.ExecutionRecord]:
+    task = service.get_owned_task(db, user.id, task_id)
+    return [
+        schemas.ExecutionRecord.model_validate(record)
+        for record in list_execution_records(db, task.id)
+    ]
 
 
 @router.get(

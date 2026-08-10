@@ -41,6 +41,31 @@ export interface AgentTaskDetail extends AgentTask {
   runs: AgentRun[]
 }
 
+export type AgentOperationType =
+  | 'query'
+  | 'analyze'
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'publish'
+  | 'rollback'
+
+export interface ExecutionRecord {
+  step_id: string
+  agent_id: string | null
+  agent_name: string
+  step_label: string
+  tool_name: string
+  operation_type: AgentOperationType
+  params_digest: Record<string, unknown>
+  result_summary: string | null
+  status: 'success' | 'failed' | 'skipped'
+  error_reason: string | null
+  started_at: string
+  finished_at: string | null
+  duration_ms: number | null
+}
+
 export type ConfirmationDecision = 'approve' | 'reject'
 
 export interface PendingWriteTarget {
@@ -74,9 +99,18 @@ export interface AgentArticleResult {
 }
 
 export interface AgentReply {
-  处理结果: AgentArticleResult[] | Record<string, unknown> | string
-  执行记录: Array<Record<string, unknown>>
+  处理结果?: AgentArticleResult[] | Record<string, unknown> | string
+  执行记录?: Array<Record<string, unknown>> | Record<string, unknown>
   局限说明?: Record<string, unknown>
+  能力缺口?: CapabilityGap
+}
+
+export interface CapabilityGap {
+  缺失能力: string[]
+  '缺失接口/字段/权限': string[]
+  可完成部分: string[]
+  不可完成部分: string[]
+  建议补充项: string[]
 }
 
 export const agentApi = {
@@ -88,6 +122,8 @@ export const agentApi = {
   listTasks: (limit = 20, status?: AgentTaskStatus) =>
     api.get<AgentTask[]>('/agent/tasks', { limit, status }),
   getTask: (taskId: string) => api.get<AgentTaskDetail>(`/agent/tasks/${taskId}`),
+  listRecords: (taskId: string) =>
+    api.get<ExecutionRecord[]>(`/agent/tasks/${taskId}/records`),
   listConfirmations: (taskId: string) =>
     api.get<PendingWrite[]>(`/agent/tasks/${taskId}/confirmations`),
   decideConfirmation: (

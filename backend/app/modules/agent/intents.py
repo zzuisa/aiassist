@@ -25,7 +25,7 @@ class IntentPlan:
     tool_name: str
     params: dict[str, Any]
     clarification_question: str | None = None
-    execution_kind: Literal["query", "analysis"] = "query"
+    execution_kind: Literal["query", "analysis", "capability_gap", "assistant_compat"] = "query"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +116,25 @@ def plan_article_analysis(_request_text: str) -> IntentPlan:
         tool_name="content.extract_metadata",
         params={},
         execution_kind="analysis",
+    )
+
+
+@register_intent("capability.unknown")
+def plan_capability_gap(_request_text: str) -> IntentPlan:
+    return IntentPlan(
+        tool_name="agent.capabilities",
+        params={},
+        execution_kind="capability_gap",
+    )
+
+
+@register_intent("plan_today")
+@register_intent("adjust_week")
+def plan_legacy_assistant(_request_text: str) -> IntentPlan:
+    return IntentPlan(
+        tool_name="assistant.plan_tasks",
+        params={},
+        execution_kind="assistant_compat",
     )
 
 

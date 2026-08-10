@@ -101,7 +101,13 @@ def create_pending_write(
     session.flush()
     tools_by_confirmation = dict(task.scope_json.get("pending_write_tools", {}))
     tools_by_confirmation[str(pending.id)] = tool_name
-    task.scope_json = {**task.scope_json, "pending_write_tools": tools_by_confirmation}
+    pending_write_ids = _scope_ids(task.scope_json.get("pending_write_ids"))
+    pending_write_ids.append(str(pending.id))
+    task.scope_json = {
+        **task.scope_json,
+        "pending_write_tools": tools_by_confirmation,
+        "pending_write_ids": pending_write_ids,
+    }
     task.status = "waiting_confirmation"
     task.finished_at = None
     run.allowed_tools = list(dict.fromkeys([*run.allowed_tools, tool_name]))
@@ -244,6 +250,24 @@ def decide_pending_write(
             code="agent_confirmation_conflict",
         )
     now = datetime.now(UTC)
+    confirmed_operations = list(task.scope_json.get("confirmed_operations", []))
+    confirmed_operations.append(
+        {
+            "confirmation_id": str(pending.id),
+            "operation_type": pending.operation_type,
+            "decision": "approved" if decision == "approve" else "rejected",
+            "decided_at": now.isoformat(),
+        }
+    )
+    task.scope_json = {
+        **task.scope_json,
+        "confirmed_operations": confirmed_operations,
+        "pending_write_ids": [
+            value
+            for value in _scope_ids(task.scope_json.get("pending_write_ids"))
+            if value != str(pending.id)
+        ],
+    }
     if decision == "reject":
         pending.decision = "rejected"
         pending.decided_at = now
@@ -382,6 +406,127 @@ def get_owned_task(session: Session, user_id: uuid.UUID, task_id: uuid.UUID) -> 
     if task is None or task.user_id != user_id:
         raise NotFoundError("Agent task not found")
     return task
+
+
+def _scope_ids(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, (str, uuid.UUID)):
+            continue
+        object_id = str(item).strip()
+        if object_id and object_id not in normalized:
+            normalized.append(object_id)
+    return normalized
+
+
+def remaining_scope_object_ids(scope: Mapping[str, Any]) -> list[str]:
+    """Return scope objects that have not already completed successfully."""
+    completed = set(_scope_ids(scope.get("completed_object_ids")))
+    return [
+        object_id
+        for object_id in _scope_ids(scope.get("object_ids"))
+        if object_id not in completed
+    ]
+
+
+def _current_post_versions(
+    session: Session,
+    user_id: uuid.UUID,
+    object_ids: Sequence[str],
+) -> dict[str, int]:
+    from app.models.posts import Post
+
+    parsed: list[uuid.UUID] = []
+    for object_id in object_ids:
+        try:
+            parsed.append(uuid.UUID(object_id))
+        except ValueError:
+            continue
+    if not parsed:
+        return {}
+    rows = session.execute(
+        select(Post.id, Post.version).where(
+            Post.user_id == user_id,
+            Post.id.in_(parsed),
+            Post.deleted_at.is_(None),
+        )
+    ).all()
+    return {str(post_id): version for post_id, version in rows}
+
+
+def inherit_conversation_scope(
+    session: Session,
+    *,
+    user_id: uuid.UUID,
+    previous: AgentTask,
+    request_text: str,
+) -> dict[str, Any]:
+    """Copy an owned prior scope and refresh it when its object snapshot is stale."""
+    del request_text  # Explicit previous_task_id is the unambiguous conversation link.
+    prior = dict(previous.scope_json or {})
+    object_ids = _scope_ids(prior.get("object_ids"))
+    prior_versions = prior.get("object_versions")
+    if not isinstance(prior_versions, Mapping):
+        prior_versions = {}
+    current_versions = _current_post_versions(session, user_id, object_ids)
+    stale = bool(object_ids) and (
+        set(current_versions) != set(object_ids)
+        or any(
+            prior_versions.get(object_id) != version
+            for object_id, version in current_versions.items()
+        )
+    )
+    refreshed = False
+    notice: str | None = None
+    query_conditions = prior.get("query_conditions")
+    if not isinstance(query_conditions, Mapping):
+        query_conditions = {}
+    if stale:
+        refreshed = True
+        notice = "上一轮对象已变化或不可用，已按原查询条件刷新处理范围。"
+        if previous.intent_key == "articles.list_recent":
+            result = tool_registry.invoke(
+                "posts.list_recent",
+                context=ToolContext(
+                    user_id=user_id,
+                    task_id=previous.id,
+                    run_id=None,
+                    session=session,
+                ),
+                params=dict(query_conditions),
+            )
+            object_ids = _scope_ids(
+                [item.get("id") for item in result if isinstance(item, Mapping)]
+                if isinstance(result, list)
+                else []
+            )
+        else:
+            object_ids = [object_id for object_id in object_ids if object_id in current_versions]
+        current_versions = _current_post_versions(session, user_id, object_ids)
+
+    scope = {
+        **prior,
+        "object_ids": object_ids,
+        "object_versions": current_versions,
+        "query_conditions": dict(query_conditions),
+        "query_range": dict(prior.get("query_range", {}))
+        if isinstance(prior.get("query_range"), Mapping)
+        else {},
+        "sort": prior.get("sort"),
+        "confirmed_operations": list(prior.get("confirmed_operations", []))
+        if isinstance(prior.get("confirmed_operations"), list)
+        else [],
+        "pending_write_ids": _scope_ids(prior.get("pending_write_ids")),
+        "completed_object_ids": _scope_ids(prior.get("completed_object_ids")),
+        "failed_object_ids": _scope_ids(prior.get("failed_object_ids")),
+        "valid": True,
+        "scope_refreshed": refreshed,
+        "refresh_notice": notice,
+        "previous_task_id": str(previous.id),
+    }
+    return scope
 
 
 def list_owned_tasks(
@@ -542,6 +687,7 @@ def _analysis_reply(
     outcome: BatchOutcome,
     unprocessed_ids: Sequence[str],
     record_count: int,
+    scope_notice: str | None = None,
 ) -> dict[str, Any]:
     generated = [result.value for result in outcome.succeeded]
     failed = [
@@ -557,7 +703,7 @@ def _analysis_reply(
     unique_keywords = _normalize_terms(
         [keyword for item in generated for keyword in item.get("keywords", [])]
     )
-    return {
+    reply: dict[str, Any] = {
         "执行计划": {
             "selected_agents": list(selected_agent_keys),
             "skipped_agents": list(skipped_agents),
@@ -594,6 +740,9 @@ def _analysis_reply(
             "failed": len(outcome.failed),
         },
     }
+    if scope_notice:
+        reply["执行计划"]["scope_notice"] = scope_notice
+    return reply
 
 
 def execute_query_task(session: Session, task_id: uuid.UUID) -> AgentTask:
@@ -684,7 +833,25 @@ def execute_query_task(session: Session, task_id: uuid.UUID) -> AgentTask:
     task.status = "success"
     task.finished_at = finished
     if isinstance(result, list):
-        task.scope_json = {**task.scope_json, "object_ids": [item["id"] for item in result]}
+        object_ids = _scope_ids([item.get("id") for item in result if isinstance(item, Mapping)])
+        task.scope_json = {
+            **task.scope_json,
+            "object_ids": object_ids,
+            "object_versions": _current_post_versions(session, task.user_id, object_ids),
+            "query_conditions": dict(plan.params),
+            "query_range": {
+                "returned": len(object_ids),
+                "limit": plan.params.get("limit"),
+            },
+            "sort": "updated_desc",
+            "confirmed_operations": [],
+            "pending_write_ids": [],
+            "completed_object_ids": [],
+            "failed_object_ids": [],
+            "valid": True,
+            "scope_refreshed": False,
+            "refresh_notice": None,
+        }
     run.status = "success" if record_status == "success" else "skipped"
     run.current_tool = None
     run.stage_label = "查询完成"
@@ -697,6 +864,69 @@ def execute_query_task(session: Session, task_id: uuid.UUID) -> AgentTask:
         progress=100,
         current_step="查询完成",
         result={"agent_task_id": str(task.id)},
+    )
+    publish_status(session, task, run)
+    session.flush()
+    return task
+
+
+def _complete_already_processed_scope(session: Session, task: AgentTask) -> AgentTask:
+    """Finish a repeated follow-up without invoking tools for completed objects."""
+    from app.modules.posts.agent_manifest import resolve_builtin_agent
+
+    now = datetime.now(UTC)
+    binding = resolve_builtin_agent("coordinator-agent")
+    run = AgentRun(
+        task_id=task.id,
+        agent_key=binding.agent_key,
+        agent_version=binding.version_ref,
+        agent_name=binding.agent_name,
+        responsibility=binding.responsibility,
+        current_task=task.request_text,
+        input_scope_json={"object_ids": []},
+        allowed_tools=[],
+        status="skipped",
+        stage_label="已跳过重复步骤",
+        result_summary="上一轮对象均已成功处理，本次未重复执行",
+        started_at=now,
+        finished_at=now,
+    )
+    session.add(run)
+    session.flush()
+    record = write_execution_record(
+        session,
+        task_id=task.id,
+        run_id=run.id,
+        step_id=None,
+        agent_name=run.agent_name,
+        step_label="检查上一轮已完成对象",
+        tool_name="scope.completed",
+        operation_type="analyze",
+        params={"completed_object_ids": task.scope_json.get("completed_object_ids", [])},
+        status="skipped",
+        result_summary=run.result_summary,
+        started_at=now,
+        finished_at=now,
+    )
+    task.status = "success"
+    task.finished_at = now
+    task.result_summary = json.dumps(
+        {
+            "执行计划": {"execution_mode": "none", "reason": run.result_summary},
+            "当前运行 Agent": [],
+            "执行结果": {"已生成未保存": [], "已保存": [], "失败": [], "未处理": []},
+            "执行记录": {"total": 1, "skipped": 1, "step_id": record.step_id},
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    jobs_service.transition(
+        session,
+        task.job,
+        status="completed",
+        progress=100,
+        current_step="已跳过重复步骤",
+        result={"agent_task_id": str(task.id), "status": "success"},
     )
     publish_status(session, task, run)
     session.flush()
@@ -716,12 +946,15 @@ def execute_analysis_task(
     task = session.get(AgentTask, task_id)
     if task is None:
         raise NotFoundError("Agent task not found")
-    raw_ids = task.scope_json.get("object_ids", [])
-    if not isinstance(raw_ids, list) or not raw_ids:
+    all_scope_ids = _scope_ids(task.scope_json.get("object_ids"))
+    if not all_scope_ids:
         raise ValidationError(
             "Analysis requires an explicit object scope",
             code="agent_analysis_scope_required",
         )
+    raw_ids = remaining_scope_object_ids(task.scope_json)
+    if not raw_ids:
+        return _complete_already_processed_scope(session, task)
     try:
         object_ids = list(dict.fromkeys(str(uuid.UUID(str(value))) for value in raw_ids))
     except (TypeError, ValueError) as exc:
@@ -921,14 +1154,27 @@ def execute_analysis_task(
         outcome=outcome,
         unprocessed_ids=unprocessed_ids,
         record_count=len(records),
+        scope_notice=(
+            str(task.scope_json.get("refresh_notice"))
+            if task.scope_json.get("refresh_notice")
+            else None
+        ),
     )
     task.status = terminal_status
     task.result_summary = json.dumps(reply, ensure_ascii=False, separators=(",", ":"))
     task.finished_at = finished
+    prior_completed = _scope_ids(task.scope_json.get("completed_object_ids"))
+    prior_failed = _scope_ids(task.scope_json.get("failed_object_ids"))
+    succeeded_ids = [result.key for result in outcome.succeeded]
+    failed_ids = [result.key for result in outcome.failed]
     task.scope_json = {
         **task.scope_json,
-        "completed_object_ids": [result.key for result in outcome.succeeded],
-        "failed_object_ids": [result.key for result in outcome.failed],
+        "completed_object_ids": list(dict.fromkeys([*prior_completed, *succeeded_ids])),
+        "failed_object_ids": [
+            object_id
+            for object_id in dict.fromkeys([*prior_failed, *failed_ids])
+            if object_id not in succeeded_ids
+        ],
         "unprocessed_object_ids": unprocessed_ids,
         "retryable": any(result.retryable for result in outcome.failed),
     }
@@ -944,11 +1190,11 @@ def execute_analysis_task(
     if outcome.succeeded and _request_wants_write(task.request_text):
         from app.models.posts import Post
 
-        succeeded_ids = [uuid.UUID(result.key) for result in outcome.succeeded]
+        succeeded_post_ids = [uuid.UUID(result.key) for result in outcome.succeeded]
         version_rows = session.execute(
             select(Post.id, Post.version).where(
                 Post.user_id == task.user_id,
-                Post.id.in_(succeeded_ids),
+                Post.id.in_(succeeded_post_ids),
             )
         ).all()
         versions = {str(post_id): version for post_id, version in version_rows}
@@ -1021,6 +1267,141 @@ def execute_analysis_task(
     return task
 
 
+def _requested_agent_key(request_text: str) -> str:
+    normalized = request_text.casefold()
+    if any(signal in normalized for signal in ("概念插画", "插画", "illustration")):
+        return "illustration-agent"
+    if any(signal in normalized for signal in ("场景图片", "实景图", "scene image")):
+        return "scene-image-agent"
+    return "unregistered-agent"
+
+
+def build_capability_gap(
+    request_text: str,
+    inspection: Mapping[str, Any],
+) -> dict[str, list[str]]:
+    """Describe unsupported work without claiming a missing capability executed."""
+    agent_key = str(inspection.get("agent_key") or "unregistered-agent")
+    reason = str(inspection.get("unavailable_reason") or "没有匹配的已注册能力")
+    return {
+        "缺失能力": [f"{agent_key}: {reason}"],
+        "缺失接口/字段/权限": ["当前工具清单中没有完成该请求所需的可用接口或权限"],
+        "可完成部分": ["可以记录请求、检查当前能力清单并明确说明能力边界"],
+        "不可完成部分": [request_text],
+        "建议补充项": [f"在 spec 006 中注册并启用 {agent_key}，再绑定完成该请求所需的工具"],
+    }
+
+
+def execute_capability_gap_task(session: Session, task_id: uuid.UUID) -> AgentTask:
+    """Persist a truthful capability-gap result without invoking the requested work."""
+    from app.modules.posts.agent_manifest import resolve_builtin_agent
+
+    task = session.get(AgentTask, task_id)
+    if task is None:
+        raise NotFoundError("Agent task not found")
+    now = datetime.now(UTC)
+    binding = resolve_builtin_agent("coordinator-agent")
+    run = AgentRun(
+        task_id=task.id,
+        agent_key=binding.agent_key,
+        agent_version=binding.version_ref,
+        agent_name=binding.agent_name,
+        responsibility=binding.responsibility,
+        current_task=task.request_text,
+        allowed_tools=["agent.capabilities"],
+        status="running",
+        current_tool="agent.capabilities",
+        stage_label="正在检查可用能力",
+        started_at=now,
+    )
+    session.add(run)
+    task.status = "running"
+    jobs_service.transition(
+        session,
+        task.job,
+        status="processing",
+        progress=50,
+        current_step="正在检查可用能力",
+    )
+    session.flush()
+    publish_status(session, task, run)
+    requested_agent_key = _requested_agent_key(task.request_text)
+    inspection = tool_registry.invoke(
+        "agent.capabilities",
+        context=ToolContext(
+            user_id=task.user_id,
+            task_id=task.id,
+            run_id=run.id,
+            session=session,
+        ),
+        params={"agent_key": requested_agent_key},
+    )
+    gap = build_capability_gap(task.request_text, inspection)
+    finished = datetime.now(UTC)
+    record = write_execution_record(
+        session,
+        task_id=task.id,
+        run_id=run.id,
+        step_id=None,
+        agent_name=run.agent_name,
+        step_label="检查 Agent 与工具清单",
+        tool_name="agent.capabilities",
+        operation_type="query",
+        params={"agent_key": requested_agent_key},
+        status="success",
+        result_summary="已确认当前能力不足，未执行目标业务操作",
+        started_at=now,
+        finished_at=finished,
+    )
+    run.status = "partial_success"
+    run.current_tool = None
+    run.stage_label = "能力检查完成"
+    run.result_summary = record.result_summary
+    run.finished_at = finished
+    task.status = "partial_success"
+    task.finished_at = finished
+    task.result_summary = json.dumps(
+        {
+            "能力缺口": gap,
+            "执行记录": [
+                {
+                    "step_id": record.step_id,
+                    "status": record.status,
+                    "result_summary": record.result_summary,
+                }
+            ],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    task.scope_json = {
+        **task.scope_json,
+        "capability_gap": gap,
+        "requested_agent_key": requested_agent_key,
+    }
+    jobs_service.transition(
+        session,
+        task.job,
+        status="completed",
+        progress=100,
+        current_step="能力检查完成",
+        result={"agent_task_id": str(task.id), "status": "partial_success"},
+    )
+    publish_status(session, task, run)
+    session.flush()
+    return task
+
+
+def execute_assistant_compat_task(session: Session, task_id: uuid.UUID) -> AgentTask:
+    from app.modules.assistant.service import complete_agent_task
+
+    task = session.get(AgentTask, task_id)
+    if task is None:
+        raise NotFoundError("Agent task not found")
+    complete_agent_task(session, task)
+    return task
+
+
 def execute_agent_task(session: Session, task_id: uuid.UUID) -> AgentTask:
     """Dispatch by extensible execution kind rather than hard-coded intent keys."""
     task = session.get(AgentTask, task_id)
@@ -1032,6 +1413,8 @@ def execute_agent_task(session: Session, task_id: uuid.UUID) -> AgentTask:
     executors: dict[str, Callable[[Session, uuid.UUID], AgentTask]] = {
         "query": execute_query_task,
         "analysis": execute_analysis_task,
+        "capability_gap": execute_capability_gap_task,
+        "assistant_compat": execute_assistant_compat_task,
     }
     executor = executors.get(plan.execution_kind)
     if executor is None:

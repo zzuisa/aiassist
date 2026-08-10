@@ -144,6 +144,70 @@ class ToolRegistry:
 tool_registry = ToolRegistry()
 
 
+def check_agent_availability(
+    agent_key: str,
+    *,
+    required_tools: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Resolve the spec-006 Agent and all required runtime tools without fallback."""
+    from app.core.errors import NotFoundError
+    from app.modules.posts.agent_manifest import resolve_builtin_agent
+
+    try:
+        binding = resolve_builtin_agent(agent_key)
+    except NotFoundError:
+        return {
+            "agent_key": agent_key,
+            "available": False,
+            "unavailable_reason": "Agent 未在 spec 006 清单中注册",
+            "version_ref": None,
+        }
+    if not binding.enabled:
+        return {
+            "agent_key": agent_key,
+            "available": False,
+            "unavailable_reason": "Agent 已在 spec 006 中停用",
+            "version_ref": binding.version_ref,
+        }
+    for tool_name in required_tools:
+        try:
+            tool = tool_registry.get(tool_name)
+        except ValidationError:
+            return {
+                "agent_key": agent_key,
+                "available": False,
+                "unavailable_reason": f"所需工具 {tool_name} 未注册",
+                "version_ref": binding.version_ref,
+            }
+        if not tool.available:
+            return {
+                "agent_key": agent_key,
+                "available": False,
+                "unavailable_reason": tool.unavailable_reason or f"所需工具 {tool_name} 不可用",
+                "version_ref": binding.version_ref,
+            }
+    return {
+        "agent_key": agent_key,
+        "available": True,
+        "unavailable_reason": None,
+        "version_ref": binding.version_ref,
+    }
+
+
+def _inspect_agent_capability(
+    _context: ToolContext,
+    params: Mapping[str, Any],
+) -> dict[str, Any]:
+    agent_key = str(params.get("agent_key") or "unregistered-agent")
+    raw_tools = params.get("required_tools", [])
+    required_tools = (
+        tuple(str(tool) for tool in raw_tools)
+        if isinstance(raw_tools, list)
+        else ()
+    )
+    return check_agent_availability(agent_key, required_tools=required_tools)
+
+
 def _list_recent_posts(context: ToolContext, params: Mapping[str, Any]) -> list[dict[str, Any]]:
     from app.models.foundation import Category, Tag
     from app.models.posts import Post, PostTag
@@ -347,6 +411,15 @@ def _apply_post_analysis(context: ToolContext, params: Mapping[str, Any]) -> lis
     return results
 
 
+tool_registry.register(
+    ToolDefinition(
+        name="agent.capabilities",
+        type="read",
+        responsibility="检查 spec 006 Agent 与所需工具是否已注册并启用，不执行目标业务操作",
+        required_permission=None,
+        handler=_inspect_agent_capability,
+    )
+)
 tool_registry.register(
     ToolDefinition(
         name="posts.list_recent",

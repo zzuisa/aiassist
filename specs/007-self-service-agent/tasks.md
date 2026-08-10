@@ -201,14 +201,14 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### Tests for User Story 5 (REQUIRED; write first) ⚠️
 
-- [ ] T070 [P] [US5] 契约测试 `backend/tests/contract/test_agent_records_contract.py`：`GET /agent/tasks/{id}/records` 符合 `ExecutionRecord` schema，`operation_type` 落在七值枚举（FR-030）
-- [ ] T071 [P] [US5] 集成测试 `backend/tests/integration/test_agent_record_completeness.py`：多步骤任务的记录可按序还原，无步骤缺失，可区分成功/失败/跳过（SC-005）
+- [X] T070 [P] [US5] 契约测试 `backend/tests/contract/test_agent_records_contract.py`：`GET /agent/tasks/{id}/records` 符合 `ExecutionRecord` schema，`operation_type` 落在七值枚举（FR-030）
+- [X] T071 [P] [US5] 集成测试 `backend/tests/integration/test_agent_record_completeness.py`：多步骤任务的记录可按序还原，无步骤缺失，可区分成功/失败/跳过（SC-005）
 
 ### Implementation for User Story 5
 
-- [ ] T072 [US5] 在 `backend/app/modules/agent/router.py` 实现 `GET /agent/tasks/{task_id}/records`
-- [ ] T073 [US5] 在 `backend/app/modules/agent/audit.py` 补齐耗时统计与步骤序号，确保每次工具/子 Agent 调用均有独立条目（FR-029）
-- [ ] T074 [P] [US5] 前端 `frontend/src/components/agent/ExecutionRecordList.vue` 按序展示执行记录
+- [X] T072 [US5] 在 `backend/app/modules/agent/router.py` 实现 `GET /agent/tasks/{task_id}/records`
+- [X] T073 [US5] 在 `backend/app/modules/agent/audit.py` 补齐耗时统计与步骤序号，确保每次工具/子 Agent 调用均有独立条目（FR-029）
+- [X] T074 [P] [US5] 前端 `frontend/src/components/agent/ExecutionRecordList.vue` 按序展示执行记录
 
 **Checkpoint**: US1–US5 均独立可用
 
@@ -222,15 +222,15 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### Tests for User Story 6 (REQUIRED; write first) ⚠️
 
-- [ ] T075 [P] [US6] 集成测试 `backend/tests/integration/test_agent_scope_inheritance.py`：`previous_task_id` 传入后指代解析为上轮 ID 集合，未扩大到全库（SC-009/FR-035）
-- [ ] T076 [P] [US6] 集成测试 `backend/tests/integration/test_agent_scope_staleness.py`：上轮对象已变更或删除时重新查询并向用户说明（FR-036）
-- [ ] T077 [P] [US6] 单元测试 `backend/tests/unit/test_agent_scope.py`：已成功完成的步骤不重复执行（FR-037）
+- [X] T075 [P] [US6] 集成测试 `backend/tests/integration/test_agent_scope_inheritance.py`：`previous_task_id` 传入后指代解析为上轮 ID 集合，未扩大到全库（SC-009/FR-035）
+- [X] T076 [P] [US6] 集成测试 `backend/tests/integration/test_agent_scope_staleness.py`：上轮对象已变更或删除时重新查询并向用户说明（FR-036）
+- [X] T077 [P] [US6] 单元测试 `backend/tests/unit/test_agent_scope.py`：已成功完成的步骤不重复执行（FR-037）
 
 ### Implementation for User Story 6
 
-- [ ] T078 [US6] 在 `backend/app/modules/agent/service.py` 实现 `ConversationScope` 读写：上轮对象 ID、查询条件、范围、排序、已确认操作、未执行写操作、已完成与已失败对象，持久化至 `agent_tasks.scope_json`
-- [ ] T079 [US6] 在 `backend/app/modules/agent/service.py` 实现范围有效性检测与失效重查
-- [ ] T080 [US6] 在 `backend/app/modules/agent/router.py` 的 `POST /agent/tasks` 支持 `previous_task_id` 并校验其归属
+- [X] T078 [US6] 在 `backend/app/modules/agent/service.py` 实现 `ConversationScope` 读写：上轮对象 ID、查询条件、范围、排序、已确认操作、未执行写操作、已完成与已失败对象，持久化至 `agent_tasks.scope_json`
+- [X] T079 [US6] 在 `backend/app/modules/agent/service.py` 实现范围有效性检测与失效重查
+- [X] T080 [US6] 在 `backend/app/modules/agent/router.py` 的 `POST /agent/tasks` 支持 `previous_task_id` 并校验其归属
 
 **Checkpoint**: US1–US6 均独立可用
 
@@ -244,17 +244,17 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### Tests for User Story 7 (REQUIRED; write first) ⚠️
 
-- [ ] T081 [P] [US7] 契约测试 `backend/tests/contract/test_agent_tools_manifest.py`：`GET /agent/tools` 符合 `agent-tool-manifest.v1.json`，**不含端点与凭据字段**（FR-042）
-- [ ] T082 [P] [US7] 集成测试 `backend/tests/integration/test_agent_capability_gap.py`：无匹配工具时输出缺失能力/缺失接口或权限/可完成部分/不可完成部分/建议补充项（FR-007/SC-007）
-- [ ] T083 [P] [US7] 集成测试 `backend/tests/integration/test_agent_no_fabrication.py`：未注册工具不被声称可调用，失败不以模拟数据代替（FR-006/FR-044）
-- [ ] T084 [P] [US7] 集成测试 `backend/tests/integration/test_agent_unavailable_agent.py`：spec 006 中标记停用/未注册的 Agent 触发缺口说明而非伪执行（FR-047）
+- [X] T081 [P] [US7] 契约测试 `backend/tests/contract/test_agent_tools_manifest.py`：`GET /agent/tools` 符合 `agent-tool-manifest.v1.json`，**不含端点与凭据字段**（FR-042）
+- [X] T082 [P] [US7] 集成测试 `backend/tests/integration/test_agent_capability_gap.py`：无匹配工具时输出缺失能力/缺失接口或权限/可完成部分/不可完成部分/建议补充项（FR-007/SC-007）
+- [X] T083 [P] [US7] 集成测试 `backend/tests/integration/test_agent_no_fabrication.py`：未注册工具不被声称可调用，失败不以模拟数据代替（FR-006/FR-044）
+- [X] T084 [P] [US7] 集成测试 `backend/tests/integration/test_agent_unavailable_agent.py`：spec 006 中标记停用/未注册的 Agent 触发缺口说明而非伪执行（FR-047）
 
 ### Implementation for User Story 7
 
-- [ ] T085 [US7] 在 `backend/app/modules/agent/service.py` 实现能力缺口分析与结构化输出
-- [ ] T086 [US7] 在 `backend/app/modules/agent/router.py` 实现 `GET /agent/tools`
-- [ ] T087 [US7] 在 `backend/app/modules/agent/registry.py` 实现 006 Agent/能力可用性检查，不可用时携带 `unavailable_reason`
-- [ ] T088 [P] [US7] 前端 `frontend/src/components/agent/CapabilityGapNotice.vue` 展示能力缺口说明
+- [X] T085 [US7] 在 `backend/app/modules/agent/service.py` 实现能力缺口分析与结构化输出
+- [X] T086 [US7] 在 `backend/app/modules/agent/router.py` 实现 `GET /agent/tools`
+- [X] T087 [US7] 在 `backend/app/modules/agent/registry.py` 实现 006 Agent/能力可用性检查，不可用时携带 `unavailable_reason`
+- [X] T088 [P] [US7] 前端 `frontend/src/components/agent/CapabilityGapNotice.vue` 展示能力缺口说明
 
 **Checkpoint**: 全部用户故事独立可用
 
@@ -266,22 +266,22 @@ Web app（模块化单体）：`backend/app/`、`backend/tests/`、`frontend/src
 
 ### assistant 模块吸收（D-003 / FR-050 / FR-051）
 
-- [ ] T089 契约测试 `backend/tests/contract/test_assistant_compat.py`：`POST /assistant/runs`、`GET /assistant/runs/{id}`、`POST /assistant/runs/{id}/actions/{action_id}` 三个既有端点行为不变
-- [ ] T090 集成测试 `backend/tests/integration/test_assistant_migrated.py`：`plan_today` 与 `adjust_week` 作为普通意图继续可用，动作卡片仍引用真实实体 ID 与版本，固定事件不被 AI 移动（FR-050）
-- [ ] T091 将 `plan_today` / `adjust_week` 注册为 `backend/app/modules/agent/intents.py` 中的普通意图，移除 `backend/app/modules/assistant/service.py` 的硬编码分支
-- [ ] T092 移除 `backend/app/modules/assistant/service.py` 的进程内存 run 存储 `_RUNS`，改用持久化任务（FR-049）
-- [ ] T093 在 `backend/app/modules/assistant/router.py` 保留兼容层，将既有三个端点代理至新体系（FR-051）
+- [X] T089 契约测试 `backend/tests/contract/test_assistant_compat.py`：`POST /assistant/runs`、`GET /assistant/runs/{id}`、`POST /assistant/runs/{id}/actions/{action_id}` 三个既有端点行为不变
+- [X] T090 集成测试 `backend/tests/integration/test_assistant_migrated.py`：`plan_today` 与 `adjust_week` 作为普通意图继续可用，动作卡片仍引用真实实体 ID 与版本，固定事件不被 AI 移动（FR-050）
+- [X] T091 将 `plan_today` / `adjust_week` 注册为 `backend/app/modules/agent/intents.py` 中的普通意图，移除 `backend/app/modules/assistant/service.py` 的硬编码分支
+- [X] T092 移除 `backend/app/modules/assistant/service.py` 的进程内存 run 存储 `_RUNS`，改用持久化任务（FR-049）
+- [X] T093 在 `backend/app/modules/assistant/router.py` 保留兼容层，将既有三个端点代理至新体系（FR-051）
 
 ### 跨切面验证
 
-- [ ] T094 [P] 集成测试 `backend/tests/integration/test_agent_restart_recovery.py`：进程重启后任务、状态与执行记录仍可查询（FR-049）
-- [ ] T095 [P] 性能验证：并发扇出运行期间语音转写与图片处理不被饿死（`worker-heavy` 单槽位风险，plan.md 已知风险 1）
-- [ ] T096 [P] 在 `backend/tests/integration/test_agent_latency.py` 验证首个状态事件延迟 ≤ 2s（SC-002）
-- [ ] T097 [P] 在 `backend/tests/integration/test_agent_single_agent_ratio.py` 验证简单查询的单 Agent 占比 ≥ 95%（SC-003）
-- [ ] T098 [P] 在 `backend/app/core/observability.py` 确认 trace id 贯穿 REST → Celery → LLM 网关 → 状态事件（Constitution VIII）
+- [X] T094 [P] 集成测试 `backend/tests/integration/test_agent_restart_recovery.py`：进程重启后任务、状态与执行记录仍可查询（FR-049）
+- [X] T095 [P] 性能验证：并发扇出运行期间语音转写与图片处理不被饿死（`worker-heavy` 单槽位风险，plan.md 已知风险 1）
+- [X] T096 [P] 在 `backend/tests/integration/test_agent_latency.py` 验证首个状态事件延迟 ≤ 2s（SC-002）
+- [X] T097 [P] 在 `backend/tests/integration/test_agent_single_agent_ratio.py` 验证简单查询的单 Agent 占比 ≥ 95%（SC-003）
+- [X] T098 [P] 在 `backend/app/core/observability.py` 确认 trace id 贯穿 REST → Celery → LLM 网关 → 状态事件（Constitution VIII）
 - [X] T099 前端 `frontend/src/router/` 注册 Agent 页面路由并接入 `AppShell.vue` 导航
-- [ ] T100 [P] 文档：在 `docs/operations.md` 补充两个新配置项的调优说明与单槽位并发注意事项
-- [ ] T101 按 `specs/007-self-service-agent/quickstart.md` 逐节执行验收（9 节全过）
+- [X] T100 [P] 文档：在 `docs/operations.md` 补充两个新配置项的调优说明与单槽位并发注意事项
+- [X] T101 按 `specs/007-self-service-agent/quickstart.md` 逐节执行验收（9 节全过）
 
 ---
 

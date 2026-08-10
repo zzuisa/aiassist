@@ -10,6 +10,7 @@
     "event_type",
     "task_id",
     "job_id",
+    "trace_id",
     "agent",
     "timestamp"
   ],
@@ -21,6 +22,11 @@
       "type": "string",
       "format": "uuid",
       "description": "Owning async job; required because async_job_events.job_id is NOT NULL."
+    },
+    "trace_id": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "description": "Correlation identifier propagated from the owning async job into worker logs, gateway calls, and status events; null only for legacy jobs created without tracing."
     },
     "agent": {
       "type": "object",

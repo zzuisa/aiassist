@@ -45,6 +45,7 @@ def build_status_payload(
         "event_type": "agent_status_changed",
         "task_id": str(task.id),
         "job_id": str(task.job_id),
+        "trace_id": task.job.trace_id,
         "agent": {
             "agent_id": str(run.id),
             "parent_agent_id": str(run.parent_run_id) if run.parent_run_id else None,

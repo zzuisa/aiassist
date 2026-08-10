@@ -9,6 +9,7 @@ from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.agent import ExecutionRecord
@@ -47,7 +48,7 @@ def write_execution_record(
     session: Session,
     *,
     task_id: uuid.UUID,
-    step_id: str,
+    step_id: str | None = None,
     agent_name: str,
     step_label: str,
     tool_name: str,
@@ -64,6 +65,11 @@ def write_execution_record(
     started = started_at or datetime.now(UTC)
     finished = finished_at or datetime.now(UTC)
     duration_ms = max(0, int((finished - started).total_seconds() * 1000))
+    if step_id is None:
+        count = session.scalar(
+            select(func.count(ExecutionRecord.id)).where(ExecutionRecord.task_id == task_id)
+        )
+        step_id = f"step-{int(count or 0) + 1:04d}"
     record = ExecutionRecord(
         task_id=task_id,
         run_id=run_id,
@@ -83,3 +89,17 @@ def write_execution_record(
     session.add(record)
     session.flush()
     return record
+
+
+def list_execution_records(
+    session: Session,
+    task_id: uuid.UUID,
+) -> list[ExecutionRecord]:
+    """Return one task's durable audit trail in insertion/execution order."""
+    return list(
+        session.scalars(
+            select(ExecutionRecord)
+            .where(ExecutionRecord.task_id == task_id)
+            .order_by(ExecutionRecord.id.asc())
+        ).all()
+    )

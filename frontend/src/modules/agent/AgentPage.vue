@@ -5,21 +5,26 @@ import {
   parseAgentReply,
   type ConfirmationDecision,
   type AgentArticleResult,
+  type ExecutionRecord,
   type PendingWrite,
   type AgentTaskDetail,
 } from '@/api/agent'
 import AgentStatusPanel from '@/components/agent/AgentStatusPanel.vue'
+import CapabilityGapNotice from '@/components/agent/CapabilityGapNotice.vue'
 import ConfirmationCard from '@/components/agent/ConfirmationCard.vue'
+import ExecutionRecordList from '@/components/agent/ExecutionRecordList.vue'
 
 const requestText = ref('')
 const task = ref<AgentTaskDetail | null>(null)
 const error = ref('')
 const submitting = ref(false)
 const confirmations = ref<PendingWrite[]>([])
+const records = ref<ExecutionRecord[]>([])
 const decidingId = ref<string | null>(null)
 let pollTimer: number | null = null
 
 const reply = computed(() => parseAgentReply(task.value?.result_summary ?? null))
+const capabilityGap = computed(() => reply.value?.能力缺口 ?? null)
 const articles = computed<AgentArticleResult[]>(() => {
   const result = reply.value?.处理结果
   return Array.isArray(result) ? (result as AgentArticleResult[]) : []
@@ -37,8 +42,14 @@ function stopPolling(): void {
 }
 
 async function refresh(taskId: string): Promise<void> {
-  task.value = await agentApi.getTask(taskId)
-  confirmations.value = await agentApi.listConfirmations(taskId)
+  const [nextTask, nextConfirmations, nextRecords] = await Promise.all([
+    agentApi.getTask(taskId),
+    agentApi.listConfirmations(taskId),
+    agentApi.listRecords(taskId),
+  ])
+  task.value = nextTask
+  confirmations.value = nextConfirmations
+  records.value = nextRecords
   if (['pending', 'running'].includes(task.value.status)) {
     pollTimer = window.setTimeout(() => void refresh(taskId), 1000)
   }
@@ -137,6 +148,13 @@ onBeforeUnmount(stopPolling)
         @decide="(decision) => decide(confirmation, decision)"
       />
     </section>
+
+    <ExecutionRecordList :records="records" />
+
+    <CapabilityGapNotice
+      v-if="capabilityGap"
+      :gap="capabilityGap"
+    />
 
     <section
       v-if="articles.length"

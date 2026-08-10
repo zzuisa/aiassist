@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -115,7 +116,8 @@ def run_bounded(
     ordered: list[WorkResult | None] = [None] * len(items)
     with ThreadPoolExecutor(max_workers=min(max_concurrency, len(items))) as pool:
         for index, item in enumerate(items):
-            future = pool.submit(_run_one, item, handler, retry_once=retry_once)
+            context = copy_context()
+            future = pool.submit(context.run, _run_one, item, handler, retry_once=retry_once)
             indexed[future] = index
         for future in as_completed(indexed):
             ordered[indexed[future]] = future.result()

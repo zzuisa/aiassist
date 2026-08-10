@@ -146,6 +146,13 @@ class ToolManifestEntry(BaseModel):
     source: Literal["internal_api", "mcp"] = "internal_api"
 
 
+class ToolManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["agent-tool-manifest.v1"] = "agent-tool-manifest.v1"
+    tools: list[ToolManifestEntry] = Field(max_length=200)
+
+
 class AgentTaskCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
