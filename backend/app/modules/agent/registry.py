@@ -6,8 +6,10 @@ import json
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any, Literal
 
+import jsonschema  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,11 @@ from app.core.errors import ConflictError, DependencyDegradedError, ValidationEr
 
 ToolType = Literal["read", "write"]
 ToolSource = Literal["internal_api", "mcp"]
+
+# A permissive default: any JSON object. Tools that declare a stricter schema
+# (required for MCP-backed tools; optional for legacy internal tools) get
+# their arguments validated against it before the handler ever runs.
+_DEFAULT_INPUT_SCHEMA: dict[str, Any] = {"type": "object"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +49,15 @@ class ToolDefinition:
     source: ToolSource = "internal_api"
     timeout_seconds: float = 30.0
     max_retries: int = 1
+    # JSON Schema (2020-12 subset) for arguments; validated before every call.
+    input_schema: dict[str, Any] = dataclass_field(
+        default_factory=lambda: dict(_DEFAULT_INPUT_SCHEMA)
+    )
+    # Free-form, safe-to-expose risk annotations (e.g. destructive/reversible
+    # hints). Never populated from untrusted MCP server output without review.
+    risk: dict[str, Any] = dataclass_field(default_factory=dict)
+    # Only set for source == "mcp": the owning connection, used for grant checks.
+    connection_id: uuid.UUID | None = None
 
     def safe_manifest(self) -> dict[str, str | bool | None]:
         """Return only fields allowed by agent-tool-manifest.v1."""
@@ -54,6 +70,35 @@ class ToolDefinition:
             "unavailable_reason": self.unavailable_reason,
             "source": self.source,
         }
+
+    def safe_manifest_v2_entry(self) -> dict[str, Any]:
+        """Return one entry matching contracts/schemas/safe-tool-manifest.v2.json."""
+        return {
+            "key": self.name,
+            "source": self.source,
+            "type": self.type,
+            "responsibility": self.responsibility,
+            "input_schema": self.input_schema,
+            "risk": self.risk,
+            "required_permission": self.required_permission,
+            "available": self.available,
+            "unavailable_reason": self.unavailable_reason,
+        }
+
+    def validate_arguments(self, params: Mapping[str, Any]) -> None:
+        try:
+            jsonschema.validate(dict(params), self.input_schema)
+        except jsonschema.ValidationError as exc:
+            raise ValidationError(
+                f"Arguments for tool {self.name} failed schema validation",
+                code="agent_tool_params_invalid",
+                extensions={"schema_error": exc.message[:500]},
+            ) from exc
+        except jsonschema.SchemaError as exc:
+            raise ValidationError(
+                f"Tool {self.name} has an invalid input schema",
+                code="agent_tool_schema_invalid",
+            ) from exc
 
 
 class ToolRegistry:
@@ -98,6 +143,20 @@ class ToolRegistry:
                 tool.unavailable_reason or f"Tool is unavailable: {name}",
                 code="agent_tool_unavailable",
             )
+        tool.validate_arguments(params)
+        if tool.source == "mcp" and (
+            tool.connection_id is None
+            or not check_mcp_tool_grant(
+                context.session,
+                user_id=context.user_id,
+                connection_id=tool.connection_id,
+                tool_key=tool.name,
+            )
+        ):
+            raise ConflictError(
+                "MCP tool requires an active grant for this user",
+                code="agent_mcp_grant_required",
+            )
         if tool.type == "write":
             from app.models.agent import AgentRun, PendingWrite
 
@@ -140,8 +199,78 @@ class ToolRegistry:
     def safe_manifest(self) -> list[dict[str, str | bool | None]]:
         return [tool.safe_manifest() for tool in self._tools.values()]
 
+    def safe_manifest_v2(
+        self,
+        *,
+        session: Session | None = None,
+        user_id: uuid.UUID | None = None,
+    ) -> dict[str, Any]:
+        """Build a ``safe-tool-manifest.v2`` payload.
+
+        Internal tools are always listed per their static registry flags. MCP
+        tools are only ever listed as ``available`` when the caller supplied a
+        session/user and that user holds an active, non-revoked grant for the
+        exact tool_key — an MCP tool with no grant context is reported
+        unavailable rather than silently omitted, so the model never infers a
+        capability exists without being told why it cannot be used.
+        """
+        tools: list[dict[str, Any]] = []
+        for tool in self._tools.values():
+            entry = tool.safe_manifest_v2_entry()
+            if tool.source == "mcp":
+                grantable = (
+                    session is not None
+                    and user_id is not None
+                    and tool.connection_id is not None
+                    and check_mcp_tool_grant(
+                        session,
+                        user_id=user_id,
+                        connection_id=tool.connection_id,
+                        tool_key=tool.name,
+                    )
+                )
+                if not grantable:
+                    entry = {
+                        **entry,
+                        "available": False,
+                        "unavailable_reason": "当前用户未授权使用该 MCP 工具",
+                    }
+            tools.append(entry)
+        return {"schema_version": "safe-tool-manifest.v2", "tools": tools}
+
 
 tool_registry = ToolRegistry()
+
+
+def check_mcp_tool_grant(
+    session: Session,
+    *,
+    user_id: uuid.UUID,
+    connection_id: uuid.UUID,
+    tool_key: str,
+) -> bool:
+    """Whether ``user_id`` currently holds an active grant for one MCP tool.
+
+    Re-evaluated on every call (never cached) so revocation takes effect
+    immediately, and requires connection ownership so a grant row cannot
+    outlive a connection that was reassigned or removed.
+    """
+    from app.models.agent_conversation import McpConnection, McpToolGrant
+
+    grant = session.execute(
+        select(McpToolGrant)
+        .join(McpConnection, McpConnection.id == McpToolGrant.connection_id)
+        .where(
+            McpToolGrant.user_id == user_id,
+            McpToolGrant.connection_id == connection_id,
+            McpToolGrant.tool_key == tool_key,
+            McpToolGrant.allowed.is_(True),
+            McpToolGrant.revoked_at.is_(None),
+            McpConnection.user_id == user_id,
+            McpConnection.enabled.is_(True),
+        )
+    ).scalar_one_or_none()
+    return grant is not None
 
 
 def check_agent_availability(

@@ -37,6 +37,7 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
         from sqlalchemy import select
 
         from app.models.agent import AgentRun, AgentTask
+        from app.models.agent_conversation import AgentConversation, AgentTurn
         from app.modules.agent.status import build_status_payload
 
         jobs = jobs_service.list_jobs(
@@ -53,8 +54,33 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
             )
             .order_by(AgentTask.created_at, AgentRun.started_at, AgentRun.id)
         ).all()
+        active_turns = s.execute(
+            select(AgentTurn)
+            .join(AgentConversation, AgentConversation.id == AgentTurn.conversation_id)
+            .where(
+                AgentConversation.user_id == user_id,
+                AgentTurn.status.notin_(
+                    ("success", "partial_success", "failed", "stalled", "cancelled")
+                ),
+            )
+            .order_by(AgentTurn.created_at)
+        ).scalars().all()
         payload = {
             "snapshot_at": datetime.now(UTC).isoformat(),
+            "conversation_turns": [
+                {
+                    "turn_id": str(t.id),
+                    "conversation_id": str(t.conversation_id),
+                    "status": t.status,
+                    "route_kind": t.route_kind,
+                    "current_step": t.current_step,
+                    "agent_task_id": str(t.agent_task_id) if t.agent_task_id else None,
+                    "created_at": (
+                        t.created_at.astimezone(UTC).isoformat() if t.created_at else None
+                    ),
+                }
+                for t in active_turns
+            ],
             "jobs": [
                 {
                     "job_id": str(j.id),
