@@ -95,7 +95,7 @@ prepare_release_commit() {
   release_version="$(date -u +%Y.%m.%d.%H%M%S)"
   release_id="${release_version}-pending"
   deployed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  commit_message="${DEPLOY_COMMIT_MESSAGE:-deploy: update ${release_version}}"
+  commit_message="${DEPLOY_COMMIT_MESSAGE:-🐳 chore: 更新部署版本 ${release_version}}"
 
   git diff --check
   if [ -n "$(git status --porcelain)" ]; then
@@ -162,7 +162,7 @@ history_path.chmod(0o644)
 PY
 
   git add "$RELEASE_HISTORY_FILE"
-  git commit -m "release: ${release_version}"
+  git commit -m "🐳 chore: 更新发布记录 ${release_version}"
   log "Pushing release history..."
   push_current_branch
 }
