@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies, architecture, project structure,
 contracts, and implementation constraints, read the current plan:
-`specs/007-self-service-agent/plan.md`.
+`specs/008-conversational-agent-mcp/plan.md`.
 <!-- SPECKIT END -->
 
 ## 修复复盘归档

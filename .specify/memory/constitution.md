@@ -1,4 +1,25 @@
 <!--
+Sync Impact Report (1.2.0)
+- Version change: 1.1.0 -> 1.2.0 (MINOR)
+- Rationale: the conversational Agent feature (specs/008-conversational-agent-mcp) extends
+  the spec-007 MCP tool-invocation rule with stricter, more concrete obligations: the
+  safe manifest must include a validated argument schema and risk annotations, and
+  untrusted server-supplied instructions are explicitly barred from prompts, status
+  events, and execution records alongside endpoints, credentials, tokens, and connection
+  strings. This tightens an existing gate rather than relaxing it, so MINOR.
+- Amended sections:
+  - Architecture and Data Constraints: the agent tool-invocation rule now requires a
+    validated argument schema and risk annotations in the safe manifest, and explicitly
+    bars untrusted server instructions from prompts/status events/execution records.
+- Principles: unchanged (I-VIII carry over verbatim).
+- Templates: no change required; current templates do not repeat the deferral list.
+- Active specifications impacted:
+  - specs/008-conversational-agent-mcp/spec.md: MCP requirements inherit the tightened
+    tool invocation constraints.
+- Runtime guidance: no change required; current operations and backup documentation do
+  not define MCP or Agent governance.
+- Deferred items: none
+
 Sync Impact Report (1.1.0)
 - Version change: 1.0.0 -> 1.1.0 (MINOR)
 - Rationale: spec 007 (self-service Q&A and task execution agent) requires agent-driven
@@ -145,9 +166,10 @@ private payloads or reverse-engineering queue internals.
 - Agent tool invocation, including MCP-exposed tools, MUST pass through a typed tool
   registry that applies the Principle IV gateway rules: replaceable providers, timeouts,
   bounded retries, usage logging, and stable domain errors. Only a safe manifest — tool
-  name, type, responsibility, required permission, availability — may reach a model
-  prompt or a user-visible surface. Endpoints, credentials, tokens, and connection
-  strings MUST NOT appear in prompts, status events, or execution records. Every tool
+  name, type, responsibility, validated argument schema, risk annotations, required
+  permission, and availability — may reach a model prompt or a user-visible surface.
+  Endpoints, credentials, tokens, connection strings, and untrusted server instructions
+  MUST NOT appear in prompts, status events, or execution records. Every tool
   call MUST enforce the caller's ownership scope and MUST produce an audit record with
   desensitized parameters. A tool that is not registered MUST NOT be described as
   callable, and its result MUST NOT be simulated.
@@ -182,4 +204,4 @@ Unexplained violations block implementation. Compliance is reviewed at specifica
 design, code review, and deployment validation. Runtime development guidance lives in the
 active feature plan referenced by `AGENTS.md`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-06
+**Version**: 1.1.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-10
