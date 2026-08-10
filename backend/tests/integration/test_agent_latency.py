@@ -24,7 +24,9 @@ def test_first_agent_status_event_latency_is_below_two_seconds(db_session, make_
     db_session.flush()
     first = db_session.scalar(
         select(AsyncJobEvent)
-        .where(AsyncJobEvent.job_id == task.job_id, AsyncJobEvent.event_type == "agent.status_changed")
+        .where(
+            AsyncJobEvent.job_id == task.job_id, AsyncJobEvent.event_type == "agent.status_changed"
+        )
         .order_by(AsyncJobEvent.id)
     )
     assert first is not None

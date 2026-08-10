@@ -425,9 +425,7 @@ def remaining_scope_object_ids(scope: Mapping[str, Any]) -> list[str]:
     """Return scope objects that have not already completed successfully."""
     completed = set(_scope_ids(scope.get("completed_object_ids")))
     return [
-        object_id
-        for object_id in _scope_ids(scope.get("object_ids"))
-        if object_id not in completed
+        object_id for object_id in _scope_ids(scope.get("object_ids")) if object_id not in completed
     ]
 
 

@@ -200,11 +200,7 @@ def _inspect_agent_capability(
 ) -> dict[str, Any]:
     agent_key = str(params.get("agent_key") or "unregistered-agent")
     raw_tools = params.get("required_tools", [])
-    required_tools = (
-        tuple(str(tool) for tool in raw_tools)
-        if isinstance(raw_tools, list)
-        else ()
-    )
+    required_tools = tuple(str(tool) for tool in raw_tools) if isinstance(raw_tools, list) else ()
     return check_agent_availability(agent_key, required_tools=required_tools)
 
 

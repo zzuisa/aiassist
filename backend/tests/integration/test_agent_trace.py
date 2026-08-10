@@ -29,7 +29,10 @@ def test_trace_id_propagates_into_fanout_and_status_event(db_session, make_user)
         execute_query_task(db_session, task.id)
         event = db_session.scalar(
             select(AsyncJobEvent)
-            .where(AsyncJobEvent.job_id == task.job_id, AsyncJobEvent.event_type == "agent.status_changed")
+            .where(
+                AsyncJobEvent.job_id == task.job_id,
+                AsyncJobEvent.event_type == "agent.status_changed",
+            )
             .order_by(AsyncJobEvent.id)
         )
         assert observed.succeeded[0].value == trace_id

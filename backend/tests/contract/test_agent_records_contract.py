@@ -57,9 +57,7 @@ def test_execution_records_contract(client, make_user, monkeypatch) -> None:
     assert response.status_code == 200
     records = response.json()
     assert [item["operation_type"] for item in records] == operation_types
-    assert [item["step_id"] for item in records] == [
-        f"step-{index:04d}" for index in range(1, 8)
-    ]
+    assert [item["step_id"] for item in records] == [f"step-{index:04d}" for index in range(1, 8)]
     assert set(records[0]) == {
         "step_id",
         "agent_id",
