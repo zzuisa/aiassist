@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from app.core.observability import set_trace_id
+from app.core.observability import get_logger, set_trace_id
 from app.db.session import session_scope
 from app.models.agent import AgentTask
 from app.models.agent_conversation import AgentTurn
@@ -12,6 +12,8 @@ from app.models.foundation import AsyncJob
 from app.modules.agent import conversation_service
 from app.modules.agent.service import execute_agent_task
 from app.workers.celery_app import celery
+
+log = get_logger("agent.worker")
 
 
 @celery.task(name="app.workers.tasks.agent.execute_task", bind=True, max_retries=1)
@@ -49,6 +51,13 @@ def execute_conversation_turn(self, turn_id: str) -> str:  # type: ignore[no-unt
             turn = conversation_service.execute_turn(session, parsed_id)
             return turn.status
     except Exception as exc:
+        # Preserve only the stable exception class and durable turn ID. Raw
+        # provider/config exception text may contain sensitive connection data.
+        log.error(
+            "conversation_turn_execution_failed",
+            turn_id=turn_id,
+            error_type=type(exc).__name__,
+        )
         with session_scope() as finalizer_session:
             conversation_service.finalize_turn_failure(finalizer_session, parsed_id, exc)
         return "failed"

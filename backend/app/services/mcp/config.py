@@ -150,8 +150,18 @@ class McpSecretsConfig:
     @classmethod
     def load(cls, path: Path) -> McpSecretsConfig:
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw_text = path.read_text(encoding="utf-8")
         except (OSError, json.JSONDecodeError) as exc:
+            raise McpConfigError("MCP secrets file is unreadable or not valid JSON") from exc
+        # ``deploy.sh`` deliberately creates an empty placeholder when MCP is
+        # not configured so Compose's file-backed secret source remains valid.
+        # Treat that placeholder exactly like an absent optional configuration;
+        # otherwise every non-fast-path conversation would fail before routing.
+        if not raw_text.strip():
+            return cls.empty()
+        try:
+            raw = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
             raise McpConfigError("MCP secrets file is unreadable or not valid JSON") from exc
         if not isinstance(raw, dict) or not isinstance(raw.get("connections"), dict):
             raise McpConfigError("MCP secrets file must have a top-level 'connections' object")

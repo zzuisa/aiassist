@@ -56,6 +56,16 @@ def test_list_safe_metadata_never_exposes_secrets(secrets_file) -> None:
     assert _SECRET_TOKEN not in dumped
 
 
+def test_empty_optional_mcp_secrets_file_is_an_empty_config(tmp_path) -> None:
+    """Match deploy.sh's empty placeholder for an unconfigured MCP gateway."""
+    from app.services.mcp.config import McpSecretsConfig
+
+    secrets_file = tmp_path / "mcp-connections.json"
+    secrets_file.write_text("", encoding="utf-8")
+
+    assert McpSecretsConfig.load(secrets_file).list_config_keys() == []
+
+
 def test_mcp_connection_model_has_no_secret_bearing_columns() -> None:
     from app.models.agent_conversation import McpConnection
 
