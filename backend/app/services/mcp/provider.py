@@ -72,10 +72,18 @@ async def _discover_async(secret: ConnectionSecret, settings: Settings) -> McpDi
         for tool in listing.tools:
             policy = secret.tool_policies.get(tool.name)
             reviewed = policy is not None
-            tool_type = str(policy["type"]) if policy else _classify_tool_type(tool.annotations)
-            responsibility = (str(policy.get("responsibility") or "") if policy else "") or (
-                tool.description or ""
-            )[:500]
+            if policy is None:
+                tool_type = _classify_tool_type(tool.annotations)
+                responsibility = (tool.description or "")[:500]
+                previewable = False
+                reversible = False
+            else:
+                tool_type = str(policy["type"])
+                responsibility = (
+                    str(policy.get("responsibility") or "") or (tool.description or "")[:500]
+                )
+                previewable = bool(policy.get("previewable"))
+                reversible = bool(policy.get("reversible"))
             tools.append(
                 McpToolDescriptor(
                     tool_key=tool.name,
@@ -86,13 +94,13 @@ async def _discover_async(secret: ConnectionSecret, settings: Settings) -> McpDi
                     output_schema=tool.output_schema,
                     risk={
                         "reviewed": reviewed,
-                        "previewable": bool(policy and policy.get("previewable")),
-                        "reversible": bool(policy and policy.get("reversible")),
+                        "previewable": previewable,
+                        "reversible": reversible,
                     },
-                    available=reviewed and (tool_type == "read" or bool(policy.get("previewable"))),
+                    available=reviewed and (tool_type == "read" or previewable),
                     unavailable_reason=(
                         None
-                        if reviewed and (tool_type == "read" or bool(policy.get("previewable")))
+                        if reviewed and (tool_type == "read" or previewable)
                         else "工具尚未通过运维安全审查或无法预览影响范围"
                     ),
                 )

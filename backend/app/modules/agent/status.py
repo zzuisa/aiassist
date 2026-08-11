@@ -117,6 +117,8 @@ def build_conversation_event_payload(
     """
     if event_type not in (CONVERSATION_MESSAGE_CREATED, CONVERSATION_TURN_UPDATED):
         raise ValueError(f"Unknown conversation event_type: {event_type}")
+    safe_result_summary = result_summary or ""
+    safe_error_message = error_message or turn.error_message or ""
     return {
         "schema_version": CONVERSATION_EVENT_SCHEMA_VERSION,
         "event_type": event_type,
@@ -126,12 +128,8 @@ def build_conversation_event_payload(
         "status": turn.status,
         "stage_label": (stage_label or turn.current_step or None),
         "capability_name": capability_name,
-        "result_summary": result_summary[:1000] if result_summary else None,
-        "error_message": (
-            (error_message or turn.error_message)[:1000]
-            if (error_message or turn.error_message)
-            else None
-        ),
+        "result_summary": safe_result_summary[:1000] or None,
+        "error_message": safe_error_message[:1000] or None,
         "timestamp": _iso(timestamp or datetime.now(UTC)) or datetime.now(UTC).isoformat(),
     }
 

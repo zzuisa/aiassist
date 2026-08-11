@@ -16,7 +16,9 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
@@ -32,6 +34,7 @@ from app.models.agent_conversation import (
 )
 from app.models.foundation import AsyncJob
 from app.modules.agent import conversation_router
+from app.modules.agent.registry import ToolContext, ToolHandler, ToolType
 from app.modules.agent.status import (
     CONVERSATION_MESSAGE_CREATED,
     CONVERSATION_TURN_UPDATED,
@@ -148,7 +151,7 @@ def sync_mcp_connections(
             tool_registry.register_or_replace(
                 ToolDefinition(
                     name=descriptor.tool_key,
-                    type=descriptor.tool_type,  # type: ignore[arg-type]
+                    type=cast(ToolType, descriptor.tool_type),
                     responsibility=descriptor.responsibility,
                     handler=_mcp_handler(
                         gateway=active_gateway,
@@ -169,14 +172,16 @@ def sync_mcp_connections(
     return connections
 
 
-def _mcp_handler(*, gateway: object, config_key: str, remote_name: str, tool_type: str):
+def _mcp_handler(
+    *, gateway: object, config_key: str, remote_name: str, tool_type: str
+) -> ToolHandler:
     from app.services.mcp.gateway import McpGateway
 
     active_gateway = gateway
     if not isinstance(active_gateway, McpGateway):  # pragma: no cover - guarded by bootstrap
         raise TypeError("Invalid MCP gateway")
 
-    def invoke(context, params):
+    def invoke(context: ToolContext, params: Mapping[str, Any]) -> dict[str, Any]:
         arguments = dict(params)
         if tool_type == "write":
             from app.models.agent import PendingWrite
@@ -815,11 +820,11 @@ def _intent_for_selected_tool(tool_name: str) -> str:
 def _execute_mcp_task(
     session: Session,
     *,
-    task,
+    task: Any,
     tool_name: str,
-    arguments: dict,
+    arguments: dict[str, Any],
     requires_confirmation: bool,
-):
+) -> Any:
     """Execute an authorized MCP read or create a local write preview."""
     from app.models.agent import AgentRun
     from app.modules.agent.audit import write_execution_record

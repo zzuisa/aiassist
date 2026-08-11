@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from typing import Any, Literal
 
-import jsonschema  # type: ignore[import-untyped]
+import jsonschema
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

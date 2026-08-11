@@ -12,7 +12,7 @@ import time
 from dataclasses import replace
 from typing import Any
 
-import jsonschema  # type: ignore[import-untyped]
+import jsonschema
 
 from app.services.mcp.base import McpCallResult, McpDiscoveryResult, McpProvider
 from app.services.mcp.provider import StreamableHttpMcpProvider
