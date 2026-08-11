@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "id": "2026.08.11.211242-740e866",
+      "version": "2026.08.11.211242",
+      "commit": "740e8663b41165482dc626b55afde2f2e7c6e974",
+      "commit_short": "740e866",
+      "message": "🐳 chore: 更新部署版本 2026.08.11.211242",
+      "changes": [
+        "🐳 chore: 更新部署版本 2026.08.11.211242",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        "backend/app/services/mcp/config.py",
+        "backend/app/workers/tasks/agent.py",
+        "backend/tests/security/test_mcp_secret_boundary.py",
+        "docs/agent-user-guide.md"
+      ],
+      "deployed_at": "2026-08-11T21:12:42Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.11.205951-68673e6",
       "version": "2026.08.11.205951",
       "commit": "68673e62bf238b4c2de67ee78eba94c1216dced3",
@@ -1249,38 +1272,6 @@
         "backend/tests/unit/test_blog_orchestrator.py"
       ],
       "deployed_at": "2026-07-31T17:02:42Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.07.31.160124-5632ab6",
-      "version": "2026.07.31.160124",
-      "commit": "5632ab6d2c23b8e7a4de9db7bab7637f76c4e89e",
-      "commit_short": "5632ab6",
-      "message": "feat: add blog visual generation capabilities",
-      "changes": [
-        "feat: add blog visual generation capabilities",
-        "前端界面与交互更新",
-        "后端接口与业务逻辑更新",
-        "规格与文档更新"
-      ],
-      "changed_files": [
-        ".env.example",
-        "backend/app/core/config.py",
-        "backend/app/modules/posts/orchestrator.py",
-        "backend/app/modules/posts/visuals.py",
-        "backend/app/workers/tasks/blog.py",
-        "backend/tests/unit/test_blog_visuals.py",
-        "frontend/package-lock.json",
-        "frontend/package.json",
-        "frontend/src/modules/posts/MarkdownPreview.vue",
-        "frontend/src/modules/posts/VisualBlock.vue",
-        "specs/005-blog-content-management/quickstart.md",
-        "specs/005-blog-content-management/tasks.md"
-      ],
-      "deployed_at": "2026-07-31T16:01:24Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
