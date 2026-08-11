@@ -30,9 +30,7 @@ def execute_task(self, task_id: str) -> str:  # type: ignore[no-untyped-def]
         set_trace_id(None)
 
 
-@celery.task(
-    name="app.workers.tasks.agent.execute_conversation_turn", bind=True, max_retries=1
-)
+@celery.task(name="app.workers.tasks.agent.execute_conversation_turn", bind=True, max_retries=1)
 def execute_conversation_turn(self, turn_id: str) -> str:  # type: ignore[no-untyped-def]
     """Route and finalize a single conversation Turn.
 

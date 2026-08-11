@@ -13,7 +13,7 @@ its own run-record, never the linked AgentTask/business object. MCP secrets
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
@@ -116,7 +116,10 @@ class AgentMessage(Base):
         ForeignKey("agent_messages.id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
     )
 
     __table_args__ = (
@@ -187,8 +190,7 @@ class AgentTurn(Base):
             name="agent_turn_status",
         ),
         CheckConstraint(
-            "route_kind is null or route_kind in "
-            "('chat','capability_help','clarification','task')",
+            "route_kind is null or route_kind in ('chat','capability_help','clarification','task')",
             name="agent_turn_route_kind",
         ),
         CheckConstraint("retry_count >= 0", name="agent_turn_retry_count_nonnegative"),

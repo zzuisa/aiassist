@@ -99,9 +99,7 @@ def test_capability_help_reflects_truthful_manifest_and_has_zero_side_effects(
     reply_text = assistant_message.content_json["text"]
 
     manifest = tool_registry.safe_manifest_v2(session=db_session, user_id=user.id)
-    available_responsibilities = {
-        t["responsibility"] for t in manifest["tools"] if t["available"]
-    }
+    available_responsibilities = {t["responsibility"] for t in manifest["tools"] if t["available"]}
     # Every claimed capability in the reply must trace back to something the
     # manifest actually reports available — no fabricated capability text.
     assert any(resp in reply_text for resp in available_responsibilities) or not (

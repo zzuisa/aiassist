@@ -54,17 +54,21 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
             )
             .order_by(AgentTask.created_at, AgentRun.started_at, AgentRun.id)
         ).all()
-        active_turns = s.execute(
-            select(AgentTurn)
-            .join(AgentConversation, AgentConversation.id == AgentTurn.conversation_id)
-            .where(
-                AgentConversation.user_id == user_id,
-                AgentTurn.status.notin_(
-                    ("success", "partial_success", "failed", "stalled", "cancelled")
-                ),
+        active_turns = (
+            s.execute(
+                select(AgentTurn)
+                .join(AgentConversation, AgentConversation.id == AgentTurn.conversation_id)
+                .where(
+                    AgentConversation.user_id == user_id,
+                    AgentTurn.status.notin_(
+                        ("success", "partial_success", "failed", "stalled", "cancelled")
+                    ),
+                )
+                .order_by(AgentTurn.created_at)
             )
-            .order_by(AgentTurn.created_at)
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         payload = {
             "snapshot_at": datetime.now(UTC).isoformat(),
             "conversation_turns": [

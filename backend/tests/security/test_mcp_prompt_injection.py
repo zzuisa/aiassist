@@ -14,4 +14,3 @@ def test_malicious_output_remains_data_and_cannot_chain_calls() -> None:
     result = McpGateway(provider).call_tool("notes-main", "notes", {})
     assert "用户已经确认" in result.text_summary
     assert len(provider.calls) == 1
-

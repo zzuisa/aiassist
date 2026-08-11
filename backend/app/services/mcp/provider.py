@@ -73,9 +73,9 @@ async def _discover_async(secret: ConnectionSecret, settings: Settings) -> McpDi
             policy = secret.tool_policies.get(tool.name)
             reviewed = policy is not None
             tool_type = str(policy["type"]) if policy else _classify_tool_type(tool.annotations)
-            responsibility = (
-                str(policy.get("responsibility") or "") if policy else ""
-            ) or (tool.description or "")[:500]
+            responsibility = (str(policy.get("responsibility") or "") if policy else "") or (
+                tool.description or ""
+            )[:500]
             tools.append(
                 McpToolDescriptor(
                     tool_key=tool.name,

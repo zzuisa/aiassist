@@ -44,9 +44,7 @@ class McpGateway:
                     )
                 )
                 continue
-            normalized.append(
-                replace(tool, tool_key=f"mcp.{connection_key}.{tool.remote_name}")
-            )
+            normalized.append(replace(tool, tool_key=f"mcp.{connection_key}.{tool.remote_name}"))
         safe_result = replace(result, tools=normalized)
         ttl = result.catalog_ttl_seconds or 300
         self._catalog_cache[connection_key] = (time.monotonic() + ttl, safe_result)

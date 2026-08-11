@@ -14,9 +14,15 @@ def test_revoked_or_missing_grant_is_not_available(db_session, make_user, monkey
     from tests.fixtures.mcp_server import StubMcpProvider
 
     user = make_user()
-    monkeypatch.setattr("app.services.mcp.config.list_safe_mcp_metadata", lambda: [ConnectionSafeMetadata("notes-main", "Notes", "streamable_http", "safe.invalid")])
+    monkeypatch.setattr(
+        "app.services.mcp.config.list_safe_mcp_metadata",
+        lambda: [ConnectionSafeMetadata("notes-main", "Notes", "streamable_http", "safe.invalid")],
+    )
     sync_mcp_connections(db_session, user_id=user.id, gateway=McpGateway(StubMcpProvider()))
-    entry = next(item for item in tool_registry.safe_manifest_v2(session=db_session, user_id=user.id)["tools"] if item["key"] == "mcp.notes-main.notes")
+    entry = next(
+        item
+        for item in tool_registry.safe_manifest_v2(session=db_session, user_id=user.id)["tools"]
+        if item["key"] == "mcp.notes-main.notes"
+    )
     assert entry["available"] is False
     assert "safe.invalid" not in str(entry)
-

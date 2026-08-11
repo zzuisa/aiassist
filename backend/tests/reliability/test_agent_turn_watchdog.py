@@ -13,10 +13,15 @@ def test_watchdog_stalls_only_expired_nonterminal_turn(db_session, make_user) ->
 
     user = make_user()
     conversation = create_conversation(db_session, user_id=user.id)
-    turn = accept_message(db_session, user_id=user.id, conversation_id=conversation.id, client_message_id="stall-1", text="任务")
+    turn = accept_message(
+        db_session,
+        user_id=user.id,
+        conversation_id=conversation.id,
+        client_message_id="stall-1",
+        text="任务",
+    )
     turn.status = "executing"
     turn.last_heartbeat_at = datetime.now(UTC) - timedelta(hours=1)
     assert repair_stalled_turns(db_session) == 1
     assert turn.status == "stalled"
     assert repair_stalled_turns(db_session) == 0
-

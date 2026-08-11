@@ -182,9 +182,7 @@ def _capability_help_text(session: Session, user_id: uuid.UUID) -> str:
     if not available:
         base = "目前我还没有可用的能力（可能是未连接或未授权）。"
     else:
-        summaries = "；".join(
-            f"{t.get('responsibility', t.get('key', ''))}" for t in available[:8]
-        )
+        summaries = "；".join(f"{t.get('responsibility', t.get('key', ''))}" for t in available[:8])
         base = f"我目前可以：{summaries}。"
 
     if unavailable:
@@ -263,11 +261,7 @@ def route_message(
     prompt_payload = {
         "message": text,
         "conversation_context": safe_context,
-        "candidate_tools": [
-            item
-            for item in manifest["tools"]
-            if item.get("key") in candidates
-        ],
+        "candidate_tools": [item for item in manifest["tools"] if item.get("key") in candidates],
     }
     try:
         route = gateway.structured(

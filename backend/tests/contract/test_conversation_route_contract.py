@@ -35,10 +35,23 @@ def test_every_route_kind_is_accepted(kind: str) -> None:
 
 @pytest.mark.parametrize(
     "operation",
-    ["none", "query", "analyze", "create", "update", "delete", "publish", "rollback", "external_effect"],
+    [
+        "none",
+        "query",
+        "analyze",
+        "create",
+        "update",
+        "delete",
+        "publish",
+        "rollback",
+        "external_effect",
+    ],
 )
 def test_every_operation_type_is_accepted(operation: str) -> None:
-    assert ConversationRoute.model_validate(_route(operation_type=operation)).operation_type == operation
+    assert (
+        ConversationRoute.model_validate(_route(operation_type=operation)).operation_type
+        == operation
+    )
 
 
 @pytest.mark.parametrize(
@@ -53,12 +66,19 @@ def test_every_scope_source_is_accepted(source: str) -> None:
 
 def test_candidate_limit_unique_ids_and_extra_fields_are_rejected() -> None:
     with pytest.raises(ValidationError):
-        ConversationRoute.model_validate(_route(candidate_tool_keys=[f"tool.{i}" for i in range(13)]))
+        ConversationRoute.model_validate(
+            _route(candidate_tool_keys=[f"tool.{i}" for i in range(13)])
+        )
     duplicate = str(uuid.uuid4())
     with pytest.raises(ValidationError):
         ConversationRoute.model_validate(
-            _route(target_scope={"source": "current_message", "object_type": "post", "object_ids": [duplicate, duplicate]})
+            _route(
+                target_scope={
+                    "source": "current_message",
+                    "object_type": "post",
+                    "object_ids": [duplicate, duplicate],
+                }
+            )
         )
     with pytest.raises(ValidationError):
         ConversationRoute.model_validate({**_route(), "hidden_reasoning": "never persist this"})
-

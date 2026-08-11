@@ -16,9 +16,20 @@ def test_messages_remain_ordered_and_attached_to_owned_conversation(db_session, 
 
     user = make_user()
     conversation = create_conversation(db_session, user_id=user.id)
-    turn = accept_message(db_session, user_id=user.id, conversation_id=conversation.id, client_message_id="timeline-1", text="hi")
+    turn = accept_message(
+        db_session,
+        user_id=user.id,
+        conversation_id=conversation.id,
+        client_message_id="timeline-1",
+        text="hi",
+    )
     execute_turn(db_session, turn.id)
-    rows = list(db_session.scalars(select(AgentMessage).where(AgentMessage.conversation_id == conversation.id).order_by(AgentMessage.created_at, AgentMessage.id)).all())
+    rows = list(
+        db_session.scalars(
+            select(AgentMessage)
+            .where(AgentMessage.conversation_id == conversation.id)
+            .order_by(AgentMessage.created_at, AgentMessage.id)
+        ).all()
+    )
     assert [row.role for row in rows] == ["user", "assistant"]
     assert rows[1].reply_to_id == rows[0].id
-

@@ -43,9 +43,7 @@ def test_accept_message_persists_conversation_message_turn_job_and_outbox(
     assert job is not None
     assert job.job_type == "agent.conversation_turn"
 
-    outbox_row = db_session.scalar(
-        select(OutboxEvent).where(OutboxEvent.aggregate_id == turn.id)
-    )
+    outbox_row = db_session.scalar(select(OutboxEvent).where(OutboxEvent.aggregate_id == turn.id))
     assert outbox_row is not None
     assert outbox_row.event_type == "agent.turn_accepted"
     assert outbox_row.payload_json["turn_id"] == str(turn.id)

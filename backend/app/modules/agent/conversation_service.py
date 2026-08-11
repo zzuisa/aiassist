@@ -116,9 +116,12 @@ def sync_mcp_connections(
             }
             for item in discovery.tools
         ]
-        catalog_version = discovery.catalog_etag or hashlib.sha256(
-            json.dumps(catalog_payload, sort_keys=True, default=str).encode("utf-8")
-        ).hexdigest()[:32]
+        catalog_version = (
+            discovery.catalog_etag
+            or hashlib.sha256(
+                json.dumps(catalog_payload, sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()[:32]
+        )
         for descriptor in discovery.tools:
             snapshot = session.scalar(
                 select(McpToolSnapshot).where(
@@ -346,9 +349,7 @@ def list_active_turns(
             select(AgentTurn)
             .where(
                 AgentTurn.conversation_id == conversation_id,
-                AgentTurn.status.notin_(
-                    ("success", "partial_success", "cancelled")
-                ),
+                AgentTurn.status.notin_(("success", "partial_success", "cancelled")),
             )
             .order_by(AgentTurn.created_at)
         ).all()
@@ -423,9 +424,7 @@ def accept_message(
         raise ValidationError("Message text is too long", code="agent_message_text_too_long")
     client_message_id = client_message_id.strip()
     if not client_message_id:
-        raise ValidationError(
-            "client_message_id is required", code="agent_client_message_id_empty"
-        )
+        raise ValidationError("client_message_id is required", code="agent_client_message_id_empty")
 
     conversation = get_owned_conversation(session, user_id, conversation_id)
 
@@ -730,9 +729,7 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
         "waiting_confirmation": "waiting_confirmation",
         "failed": "failed",
     }.get(task_status, "executing")
-    turn.current_step = (
-        "等待确认" if turn.status == "waiting_confirmation" else "任务处理完成"
-    )
+    turn.current_step = "等待确认" if turn.status == "waiting_confirmation" else "任务处理完成"
     if turn.status in {"success", "partial_success", "failed"}:
         turn.finished_at = datetime.now(UTC)
 
@@ -857,8 +854,7 @@ def _execute_mcp_task(
         from app.modules.agent import service as agent_service
 
         targets = [
-            {"id": value, "version": None}
-            for value in task.scope_json.get("object_ids", [])
+            {"id": value, "version": None} for value in task.scope_json.get("object_ids", [])
         ]
         pending = agent_service.create_pending_write(
             session,
