@@ -48,6 +48,7 @@ class ConnectionSecret:
     auth_type: str
     auth_token: str | None
     allowed_redirect_hosts: frozenset[str]
+    tool_policies: dict[str, dict[str, Any]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +110,25 @@ def _validate_entry(config_key: str, raw: Any) -> ConnectionSecret:
     # (i.e. staying on the same host is never a privilege escalation).
     allowed_redirect_hosts = frozenset({*raw_redirect_hosts, parsed.hostname})
 
+    raw_policies = raw.get("tool_policies", {})
+    if not isinstance(raw_policies, dict):
+        raise McpConfigError(f"MCP connection '{config_key}' tool_policies must be an object")
+    tool_policies: dict[str, dict[str, Any]] = {}
+    for tool_name, policy in raw_policies.items():
+        if not isinstance(tool_name, str) or not isinstance(policy, dict):
+            raise McpConfigError(f"MCP connection '{config_key}' has an invalid tool policy")
+        tool_type = policy.get("type")
+        if tool_type not in {"read", "write"}:
+            raise McpConfigError(
+                f"MCP connection '{config_key}' tool '{tool_name}' requires reviewed type"
+            )
+        tool_policies[tool_name] = {
+            "type": tool_type,
+            "responsibility": str(policy.get("responsibility") or "")[:500],
+            "previewable": bool(policy.get("previewable", False)),
+            "reversible": bool(policy.get("reversible", False)),
+        }
+
     return ConnectionSecret(
         config_key=config_key,
         display_name=display_name.strip(),
@@ -117,6 +137,7 @@ def _validate_entry(config_key: str, raw: Any) -> ConnectionSecret:
         auth_type=auth_type,
         auth_token=auth_token,
         allowed_redirect_hosts=allowed_redirect_hosts,
+        tool_policies=tool_policies,
     )
 
 
@@ -203,3 +224,8 @@ def get_mcp_secrets_config() -> McpSecretsConfig:
 def reset_mcp_secrets_cache() -> None:
     """Test-only: clear the cached config (mirrors ``reload_settings``)."""
     _cached_config.cache_clear()
+
+
+def list_safe_mcp_metadata() -> list[ConnectionSafeMetadata]:
+    """Public non-secret view used by persistence/bootstrap code."""
+    return get_mcp_secrets_config().list_safe_metadata()

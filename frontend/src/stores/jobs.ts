@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AsyncJob, NotificationItem } from '@/api/types'
 import { useAgentStore } from '@/stores/agent'
+import { useAgentConversationsStore } from '@/stores/agentConversations'
 
 // Global jobs/notifications store fed by a single EventSource per tab. Events are
 // deduplicated by id and applied only when job_version is newer (see sse.md).
@@ -88,6 +89,9 @@ export const useJobsStore = defineStore('jobs', () => {
       applyJobEvent(j)
     }
     useAgentStore().applySnapshot(data)
+    useAgentConversationsStore().applyConversationSnapshot(
+      (data.conversation_turns as Array<Record<string, unknown>>) ?? [],
+    )
   }
 
   function applyNotification(data: Record<string, unknown>): void {
@@ -150,6 +154,14 @@ export const useJobsStore = defineStore('jobs', () => {
       lastEventId = (e as MessageEvent).lastEventId || lastEventId
       useAgentStore().applyStatusEvent(JSON.parse((e as MessageEvent).data))
     })
+    for (const name of ['conversation.message_created', 'conversation.turn_updated']) {
+      source.addEventListener(name, (e) => {
+        lastEventId = (e as MessageEvent).lastEventId || lastEventId
+        useAgentConversationsStore().applyConversationEvent(
+          JSON.parse((e as MessageEvent).data),
+        )
+      })
+    }
     source.addEventListener('error', () => {
       connected.value = false
       reconnecting.value = true

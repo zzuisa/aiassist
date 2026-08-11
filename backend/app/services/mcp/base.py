@@ -53,6 +53,7 @@ class McpToolDescriptor:
     tool_type: str  # "read" | "write"
     input_schema: dict[str, Any]
     output_schema: dict[str, Any] | None = None
+    risk: dict[str, Any] = field(default_factory=dict)
     available: bool = True
     unavailable_reason: str | None = None
 
@@ -62,6 +63,7 @@ class McpDiscoveryResult:
     tools: list[McpToolDescriptor] = field(default_factory=list)
     protocol_version: str | None = None
     catalog_etag: str | None = None
+    catalog_ttl_seconds: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

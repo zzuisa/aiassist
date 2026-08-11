@@ -127,7 +127,11 @@ def build_conversation_event_payload(
         "stage_label": (stage_label or turn.current_step or None),
         "capability_name": capability_name,
         "result_summary": result_summary[:1000] if result_summary else None,
-        "error_message": (error_message or turn.error_message or None),
+        "error_message": (
+            (error_message or turn.error_message)[:1000]
+            if (error_message or turn.error_message)
+            else None
+        ),
         "timestamp": _iso(timestamp or datetime.now(UTC)) or datetime.now(UTC).isoformat(),
     }
 

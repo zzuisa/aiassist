@@ -18,12 +18,12 @@
 
 **Purpose**: Bring the completed self-service Agent into this branch and prepare MCP dependencies/configuration.
 
-- [ ] T001 Integrate `006-agent-content-management@d70e39c` self-service Agent baseline, including `backend/app/modules/agent/`, `backend/app/models/agent.py`, `backend/app/workers/tasks/agent.py`, `backend/alembic/versions/0019_agent_runtime.py`, `frontend/src/modules/agent/`, `frontend/src/components/agent/`, `frontend/src/api/agent.ts`, and `frontend/src/stores/agent.ts`
-- [ ] T002 Run the baseline Agent regression suites and record the green baseline in `specs/008-conversational-agent-mcp/quickstart.md`
-- [ ] T003 [P] Add the stable official MCP Python SDK 2.x constraint and type-check configuration in `backend/pyproject.toml`
-- [ ] T004 [P] Add non-secret MCP settings, limits, watchdog thresholds, and secrets-file path in `backend/app/core/config.py` and `.env.example`
-- [ ] T005 [P] Add a redacted Streamable HTTP connection example in `deploy/secrets/mcp-connections.example.json`
-- [ ] T006 Mount the operator-provided MCP secrets file read-only into backend and heavy worker services in `compose.yaml`
+- [x] T001 Integrate `006-agent-content-management@d70e39c` self-service Agent baseline, including `backend/app/modules/agent/`, `backend/app/models/agent.py`, `backend/app/workers/tasks/agent.py`, `backend/alembic/versions/0019_agent_runtime.py`, `frontend/src/modules/agent/`, `frontend/src/components/agent/`, `frontend/src/api/agent.ts`, and `frontend/src/stores/agent.ts`
+- [x] T002 Run the baseline Agent regression suites and record the green baseline in `specs/008-conversational-agent-mcp/quickstart.md`
+- [x] T003 [P] Add the stable official MCP Python SDK 2.x constraint and type-check configuration in `backend/pyproject.toml`
+- [x] T004 [P] Add non-secret MCP settings, limits, watchdog thresholds, and secrets-file path in `backend/app/core/config.py` and `.env.example`
+- [x] T005 [P] Add a redacted Streamable HTTP connection example in `deploy/secrets/mcp-connections.example.json`
+- [x] T006 Mount the operator-provided MCP secrets file read-only into backend and heavy worker services in `compose.yaml`
 
 **Checkpoint**: Existing `/agent` query, analysis, status, audit, and confirmation behavior passes before conversational changes begin.
 
@@ -37,24 +37,24 @@
 
 ### Tests first
 
-- [ ] T007 [P] Add migration upgrade/downgrade and cascade-safety tests for all conversation and MCP metadata tables in `backend/tests/integration/test_conversational_agent_migration.py`
-- [ ] T008 [P] Add JSON Schema validation tests for route, SSE event, and safe manifest v2 contracts in `backend/tests/contract/test_conversation_schemas.py`
-- [ ] T009 [P] Add configuration tests proving endpoint and token values never enter database models, manifests, logs, or validation errors in `backend/tests/security/test_mcp_secret_boundary.py`
-- [ ] T010 [P] Add message-idempotency and ownership-isolation tests for the durable acceptance transaction in `backend/tests/integration/test_conversation_acceptance.py`
+- [x] T007 [P] Add migration upgrade/downgrade and cascade-safety tests for all conversation and MCP metadata tables in `backend/tests/integration/test_conversational_agent_migration.py`
+- [x] T008 [P] Add JSON Schema validation tests for route, SSE event, and safe manifest v2 contracts in `backend/tests/contract/test_conversation_schemas.py`
+- [x] T009 [P] Add configuration tests proving endpoint and token values never enter database models, manifests, logs, or validation errors in `backend/tests/security/test_mcp_secret_boundary.py`
+- [x] T010 [P] Add message-idempotency and ownership-isolation tests for the durable acceptance transaction in `backend/tests/integration/test_conversation_acceptance.py`
 
 ### Implementation
 
-- [ ] T011 Create AgentConversation, AgentMessage, AgentTurn, AgentRoutingDecision, McpConnection, McpToolSnapshot, and McpToolGrant models with indexes and constraints in `backend/app/models/agent_conversation.py`
-- [ ] T012 Register the new models for metadata discovery in `backend/app/models/__init__.py` and `backend/app/db/base.py`
-- [ ] T013 Add migration `0020_conversational_agent` without business-entity foreign keys in `backend/alembic/versions/0020_conversational_agent.py`
-- [ ] T014 [P] Implement Pydantic request, response, state, and structured route schemas in `backend/app/modules/agent/conversation_schemas.py`
-- [ ] T015 [P] Define provider-neutral MCP connection, discovery, call, error, and result protocols in `backend/app/services/mcp/base.py`
-- [ ] T016 Implement validated secrets-file loading, config-key lookup, host allowlisting, redirect validation, and secret redaction in `backend/app/services/mcp/config.py`
-- [ ] T017 Implement the official SDK 2.x Streamable HTTP provider with timeouts, bounded retry, protocol compatibility, result-size limits, and stable errors in `backend/app/services/mcp/provider.py`
-- [ ] T018 Implement the synchronous worker-facing McpGateway façade and dependency injection in `backend/app/services/mcp/gateway.py` and `backend/app/services/mcp/__init__.py`
-- [ ] T019 Extend ToolDefinition and ToolRegistry with validated argument schemas, risk annotations, per-user grant checks, and safe manifest v2 in `backend/app/modules/agent/registry.py`
-- [ ] T020 Implement atomic conversation/message/turn/job/outbox acceptance and owned lookups in `backend/app/modules/agent/conversation_service.py`
-- [ ] T021 Register conversation event types and snapshot serialization without endpoint, credential, prompt, or raw MCP output fields in `backend/app/modules/agent/status.py` and `backend/app/modules/jobs/sse.py`
+- [x] T011 Create AgentConversation, AgentMessage, AgentTurn, AgentRoutingDecision, McpConnection, McpToolSnapshot, and McpToolGrant models with indexes and constraints in `backend/app/models/agent_conversation.py`
+- [x] T012 Register the new models for metadata discovery in `backend/app/models/__init__.py` and `backend/app/db/base.py`
+- [x] T013 Add migration `0020_conversational_agent` without business-entity foreign keys in `backend/alembic/versions/0020_conversational_agent.py`
+- [x] T014 [P] Implement Pydantic request, response, state, and structured route schemas in `backend/app/modules/agent/conversation_schemas.py`
+- [x] T015 [P] Define provider-neutral MCP connection, discovery, call, error, and result protocols in `backend/app/services/mcp/base.py`
+- [x] T016 Implement validated secrets-file loading, config-key lookup, host allowlisting, redirect validation, and secret redaction in `backend/app/services/mcp/config.py`
+- [x] T017 Implement the official SDK 2.x Streamable HTTP provider with timeouts, bounded retry, protocol compatibility, result-size limits, and stable errors in `backend/app/services/mcp/provider.py`
+- [x] T018 Implement the synchronous worker-facing McpGateway façade and dependency injection in `backend/app/services/mcp/gateway.py` and `backend/app/services/mcp/__init__.py`
+- [x] T019 Extend ToolDefinition and ToolRegistry with validated argument schemas, risk annotations, per-user grant checks, and safe manifest v2 in `backend/app/modules/agent/registry.py`
+- [x] T020 Implement atomic conversation/message/turn/job/outbox acceptance and owned lookups in `backend/app/modules/agent/conversation_service.py`
+- [x] T021 Register conversation event types and snapshot serialization without endpoint, credential, prompt, or raw MCP output fields in `backend/app/modules/agent/status.py` and `backend/app/modules/jobs/sse.py`
 
 **Checkpoint**: Messages can be durably accepted and queried; MCP can be configured and discovered internally, but no conversational routing or tool execution is exposed yet.
 
@@ -68,19 +68,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T022 [P] [US1] Add REST contract tests for create/list/get conversation and submit/list messages in `backend/tests/contract/test_agent_conversation_api.py`
-- [ ] T023 [P] [US1] Add unit cases for pure greeting, thanks, goodbye, capability help, and mixed greeting-plus-task boundaries in `backend/tests/unit/test_conversation_fast_route.py`
-- [ ] T024 [P] [US1] Add integration tests proving greetings persist before reply and create no tool/task/write records in `backend/tests/integration/test_conversation_greeting.py`
-- [ ] T025 [P] [US1] Add component tests for optimistic user messages, assistant text, empty/loading/error states, and keyboard submission in `frontend/tests/component/agent-conversation.spec.ts`
+- [x] T022 [P] [US1] Add REST contract tests for create/list/get conversation and submit/list messages in `backend/tests/contract/test_agent_conversation_api.py`
+- [x] T023 [P] [US1] Add unit cases for pure greeting, thanks, goodbye, capability help, and mixed greeting-plus-task boundaries in `backend/tests/unit/test_conversation_fast_route.py`
+- [x] T024 [P] [US1] Add integration tests proving greetings persist before reply and create no tool/task/write records in `backend/tests/integration/test_conversation_greeting.py`
+- [x] T025 [P] [US1] Add component tests for optimistic user messages, assistant text, empty/loading/error states, and keyboard submission in `frontend/tests/component/agent-conversation.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T026 [P] [US1] Implement deterministic pure-conversation and current-capability-help responses in `backend/app/modules/agent/conversation_router.py`
-- [ ] T027 [US1] Implement conversation CRUD, message acceptance, pagination, and CSRF/ownership enforcement in `backend/app/modules/agent/router.py`
-- [ ] T028 [US1] Add fast-route Turn execution and persisted assistant-message creation in `backend/app/workers/tasks/agent.py`
-- [ ] T029 [P] [US1] Implement typed conversation and message API client with client-generated idempotency IDs in `frontend/src/api/agentConversations.ts`
-- [ ] T030 [P] [US1] Implement persisted conversation/message state, optimistic reconciliation, and pagination in `frontend/src/stores/agentConversations.ts`
-- [ ] T031 [US1] Replace the single-task composer with a mobile-accessible conversation shell while preserving existing Agent result components in `frontend/src/modules/agent/AgentPage.vue`
+- [x] T026 [P] [US1] Implement deterministic pure-conversation and current-capability-help responses in `backend/app/modules/agent/conversation_router.py`
+- [x] T027 [US1] Implement conversation CRUD, message acceptance, pagination, and CSRF/ownership enforcement in `backend/app/modules/agent/router.py`
+- [x] T028 [US1] Add fast-route Turn execution and persisted assistant-message creation in `backend/app/workers/tasks/agent.py`
+- [x] T029 [P] [US1] Implement typed conversation and message API client with client-generated idempotency IDs in `frontend/src/api/agentConversations.ts`
+- [x] T030 [P] [US1] Implement persisted conversation/message state, optimistic reconciliation, and pagination in `frontend/src/stores/agentConversations.ts`
+- [x] T031 [US1] Replace the single-task composer with a mobile-accessible conversation shell while preserving existing Agent result components in `frontend/src/modules/agent/AgentPage.vue`
 
 **Checkpoint**: The Agent is demonstrably conversational for greetings and truthful capability help, while the existing task API remains unchanged.
 
@@ -94,22 +94,22 @@
 
 ### Tests for User Story 2
 
-- [ ] T032 [P] [US2] Add structured route contract tests for every route kind, operation type, scope source, candidate limit, and invalid extra field in `backend/tests/contract/test_conversation_route_contract.py`
-- [ ] T033 [P] [US2] Add at least 30 Chinese/English/paraphrased task variants plus mixed greeting/task cases in `backend/tests/unit/test_conversation_routing.py`
-- [ ] T034 [P] [US2] Add policy tests for candidate membership, permission, availability, read/write mismatch, confidence threshold, and minimal clarification in `backend/tests/unit/test_capability_selector.py`
-- [ ] T035 [P] [US2] Add multi-turn scope, stale object, repeated-success skip, and clarification-resume tests in `backend/tests/integration/test_conversation_context.py`
-- [ ] T036 [P] [US2] Add security tests proving quoted “确认” text and model-proposed approval cannot authorize writes in `backend/tests/security/test_conversation_confirmation.py`
-- [ ] T037 [P] [US2] Add E2E coverage for conversational query → follow-up analysis → confirmation preview → approve/reject in `frontend/tests/e2e/agent-conversation-task.spec.ts`
+- [x] T032 [P] [US2] Add structured route contract tests for every route kind, operation type, scope source, candidate limit, and invalid extra field in `backend/tests/contract/test_conversation_route_contract.py`
+- [x] T033 [P] [US2] Add at least 30 Chinese/English/paraphrased task variants plus mixed greeting/task cases in `backend/tests/unit/test_conversation_routing.py`
+- [x] T034 [P] [US2] Add policy tests for candidate membership, permission, availability, read/write mismatch, confidence threshold, and minimal clarification in `backend/tests/unit/test_capability_selector.py`
+- [x] T035 [P] [US2] Add multi-turn scope, stale object, repeated-success skip, and clarification-resume tests in `backend/tests/integration/test_conversation_context.py`
+- [x] T036 [P] [US2] Add security tests proving quoted “确认” text and model-proposed approval cannot authorize writes in `backend/tests/security/test_conversation_confirmation.py`
+- [x] T037 [P] [US2] Add E2E coverage for conversational query → follow-up analysis → confirmation preview → approve/reject in `frontend/tests/e2e/agent-conversation-task.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T038 [US2] Add the versioned `conversation_route` structured LLM scenario and prompt configuration in `backend/app/services/llm/schemas.py` and `backend/app/services/llm/gateway.py`
-- [ ] T039 [US2] Implement capability candidate reduction from safe names, responsibilities, operation types, scopes, permissions, and availability in `backend/app/modules/agent/capability_selector.py`
-- [ ] T040 [US2] Implement structured LLM routing, schema validation, confidence fallback, and one-question clarification in `backend/app/modules/agent/conversation_router.py`
-- [ ] T041 [US2] Persist routing decisions without hidden reasoning and bridge accepted task routes to existing AgentTask/Job execution in `backend/app/modules/agent/conversation_service.py`
-- [ ] T042 [US2] Extend conversation context inheritance with object IDs, versions, completed/failed items, refresh notices, and pending confirmations in `backend/app/modules/agent/service.py`
-- [ ] T043 [US2] Resume a waiting-clarification Turn from the next user message without expanding its original scope in `backend/app/workers/tasks/agent.py`
-- [ ] T044 [US2] Render clarification prompts, linked task results, capability gaps, and existing ConfirmationCard actions inside the conversation timeline in `frontend/src/modules/agent/AgentPage.vue`
+- [x] T038 [US2] Add the versioned `conversation_route` structured LLM scenario and prompt configuration in `backend/app/services/llm/schemas.py` and `backend/app/services/llm/gateway.py`
+- [x] T039 [US2] Implement capability candidate reduction from safe names, responsibilities, operation types, scopes, permissions, and availability in `backend/app/modules/agent/capability_selector.py`
+- [x] T040 [US2] Implement structured LLM routing, schema validation, confidence fallback, and one-question clarification in `backend/app/modules/agent/conversation_router.py`
+- [x] T041 [US2] Persist routing decisions without hidden reasoning and bridge accepted task routes to existing AgentTask/Job execution in `backend/app/modules/agent/conversation_service.py`
+- [x] T042 [US2] Extend conversation context inheritance with object IDs, versions, completed/failed items, refresh notices, and pending confirmations in `backend/app/modules/agent/service.py`
+- [x] T043 [US2] Resume a waiting-clarification Turn from the next user message without expanding its original scope in `backend/app/workers/tasks/agent.py`
+- [x] T044 [US2] Render clarification prompts, linked task results, capability gaps, and existing ConfirmationCard actions inside the conversation timeline in `frontend/src/modules/agent/AgentPage.vue`
 
 **Checkpoint**: Existing internal Agent abilities can be reached through ordinary conversation and multi-turn references, with all existing confirmation protections intact.
 
@@ -123,26 +123,26 @@
 
 ### Tests for User Story 3
 
-- [ ] T045 [P] [US3] Add an official-SDK-compatible Streamable HTTP MCP stub with read, write, invalid-schema, oversized, timeout, and malicious-output tools in `backend/tests/fixtures/mcp_server.py`
-- [ ] T046 [P] [US3] Add discovery/cache/schema-normalization contract tests against the MCP stub in `backend/tests/contract/test_mcp_discovery.py`
-- [ ] T047 [P] [US3] Add safe manifest v2 contract tests proving only approved fields and schemas are exposed in `backend/tests/contract/test_agent_capabilities.py`
-- [ ] T048 [P] [US3] Add integration tests for natural-language MCP selection, parameter generation, actual result return, and audit linkage in `backend/tests/integration/test_agent_mcp_execution.py`
-- [ ] T049 [P] [US3] Add integration tests for MCP write preview, grant/version recheck, approve, reject, and idempotent external effect in `backend/tests/integration/test_agent_mcp_write.py`
-- [ ] T050 [P] [US3] Add security tests for arbitrary URL/redirect SSRF, disabled tools, revoked grants, token passthrough, cross-user capability leakage, and credential redaction in `backend/tests/security/test_mcp_authorization.py`
-- [ ] T051 [P] [US3] Add prompt-injection tests proving MCP output and server instructions cannot alter route, scope, grant, confirmation, or follow-up invocation in `backend/tests/security/test_mcp_prompt_injection.py`
-- [ ] T052 [P] [US3] Add reliability tests for offline, timeout, invalid JSON, unknown media, oversized result, bounded retry, and successful-part preservation in `backend/tests/reliability/test_mcp_failures.py`
+- [x] T045 [P] [US3] Add an official-SDK-compatible Streamable HTTP MCP stub with read, write, invalid-schema, oversized, timeout, and malicious-output tools in `backend/tests/fixtures/mcp_server.py`
+- [x] T046 [P] [US3] Add discovery/cache/schema-normalization contract tests against the MCP stub in `backend/tests/contract/test_mcp_discovery.py`
+- [x] T047 [P] [US3] Add safe manifest v2 contract tests proving only approved fields and schemas are exposed in `backend/tests/contract/test_agent_capabilities.py`
+- [x] T048 [P] [US3] Add integration tests for natural-language MCP selection, parameter generation, actual result return, and audit linkage in `backend/tests/integration/test_agent_mcp_execution.py`
+- [x] T049 [P] [US3] Add integration tests for MCP write preview, grant/version recheck, approve, reject, and idempotent external effect in `backend/tests/integration/test_agent_mcp_write.py`
+- [x] T050 [P] [US3] Add security tests for arbitrary URL/redirect SSRF, disabled tools, revoked grants, token passthrough, cross-user capability leakage, and credential redaction in `backend/tests/security/test_mcp_authorization.py`
+- [x] T051 [P] [US3] Add prompt-injection tests proving MCP output and server instructions cannot alter route, scope, grant, confirmation, or follow-up invocation in `backend/tests/security/test_mcp_prompt_injection.py`
+- [x] T052 [P] [US3] Add reliability tests for offline, timeout, invalid JSON, unknown media, oversized result, bounded retry, and successful-part preservation in `backend/tests/reliability/test_mcp_failures.py`
 
 ### Implementation for User Story 3
 
-- [ ] T053 [US3] Implement MCP connection bootstrap and safe connection metadata synchronization from config keys in `backend/app/services/mcp/config.py` and `backend/app/modules/agent/conversation_service.py`
-- [ ] T054 [US3] Implement `server/discover`/legacy initialization fallback, tool listing, TTL/ETag catalog caching, and health status updates in `backend/app/services/mcp/provider.py`
-- [ ] T055 [US3] Normalize MCP tool schemas and register namespaced tools as `mcp.<connection>.<tool>` without server instructions in `backend/app/services/mcp/gateway.py`
-- [ ] T056 [US3] Implement tool-level McpToolGrant evaluation and immediate revocation checks in `backend/app/modules/agent/registry.py`
-- [ ] T057 [US3] Implement selected-tool argument generation, JSON Schema validation, minimal-data projection, and operation classification in `backend/app/modules/agent/capability_selector.py`
-- [ ] T058 [US3] Implement read-only MCP invocation with idempotency key, result validation, size/media limits, stable errors, trace propagation, and ExecutionRecord writes in `backend/app/modules/agent/conversation_service.py`
-- [ ] T059 [US3] Adapt eligible MCP write tools into PendingWrite previews and block tools whose impact cannot be previewed in `backend/app/modules/agent/service.py`
-- [ ] T060 [US3] Expose the owned safe capability manifest and connection health summaries without configuration secrets in `backend/app/modules/agent/router.py`
-- [ ] T061 [US3] Add operator MCP connection bootstrap, health-check, and safe catalog diagnostics without secret output in `backend/app/cli/mcp.py` and `backend/app/cli/main.py`
+- [x] T053 [US3] Implement MCP connection bootstrap and safe connection metadata synchronization from config keys in `backend/app/services/mcp/config.py` and `backend/app/modules/agent/conversation_service.py`
+- [x] T054 [US3] Implement `server/discover`/legacy initialization fallback, tool listing, TTL/ETag catalog caching, and health status updates in `backend/app/services/mcp/provider.py`
+- [x] T055 [US3] Normalize MCP tool schemas and register namespaced tools as `mcp.<connection>.<tool>` without server instructions in `backend/app/services/mcp/gateway.py`
+- [x] T056 [US3] Implement tool-level McpToolGrant evaluation and immediate revocation checks in `backend/app/modules/agent/registry.py`
+- [x] T057 [US3] Implement selected-tool argument generation, JSON Schema validation, minimal-data projection, and operation classification in `backend/app/modules/agent/capability_selector.py`
+- [x] T058 [US3] Implement read-only MCP invocation with idempotency key, result validation, size/media limits, stable errors, trace propagation, and ExecutionRecord writes in `backend/app/modules/agent/conversation_service.py`
+- [x] T059 [US3] Adapt eligible MCP write tools into PendingWrite previews and block tools whose impact cannot be previewed in `backend/app/modules/agent/service.py`
+- [x] T060 [US3] Expose the owned safe capability manifest and connection health summaries without configuration secrets in `backend/app/modules/agent/router.py`
+- [x] T061 [US3] Add operator MCP connection bootstrap, health-check, and safe catalog diagnostics without secret output in `backend/app/cli/mcp.py` and `backend/app/cli/main.py`
 
 **Checkpoint**: Authorized MCP reads work end-to-end; eligible writes use the same confirmation boundary; unavailable or unsafe tools are never simulated.
 
@@ -156,20 +156,20 @@
 
 ### Tests for User Story 4
 
-- [ ] T062 [P] [US4] Add SSE contract tests for conversation message/turn events, safe field limits, replay, and active-Turn snapshots in `backend/tests/contract/test_conversation_events.py`
-- [ ] T063 [P] [US4] Add integration tests for ordering and linkage across simultaneous Turns, assistant messages, AgentTasks, and confirmations in `backend/tests/integration/test_conversation_timeline.py`
-- [ ] T064 [P] [US4] Add component tests for message roles, stage labels, result status distinctions, clarification, tool activity, and confirmation ownership in `frontend/tests/component/conversation-timeline.spec.ts`
-- [ ] T065 [P] [US4] Add SSE reconnect/snapshot and page-reload E2E coverage in `frontend/tests/e2e/agent-conversation-reconnect.spec.ts`
+- [x] T062 [P] [US4] Add SSE contract tests for conversation message/turn events, safe field limits, replay, and active-Turn snapshots in `backend/tests/contract/test_conversation_events.py`
+- [x] T063 [P] [US4] Add integration tests for ordering and linkage across simultaneous Turns, assistant messages, AgentTasks, and confirmations in `backend/tests/integration/test_conversation_timeline.py`
+- [x] T064 [P] [US4] Add component tests for message roles, stage labels, result status distinctions, clarification, tool activity, and confirmation ownership in `frontend/tests/component/conversation-timeline.spec.ts`
+- [x] T065 [P] [US4] Add SSE reconnect/snapshot and page-reload E2E coverage in `frontend/tests/e2e/agent-conversation-reconnect.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T066 [US4] Publish `conversation.message_created` and `conversation.turn_updated` transactionally with safe payloads in `backend/app/modules/agent/status.py`
-- [ ] T067 [US4] Include active Turns and latest safe message cursor in job SSE snapshots and Last-Event-ID replay in `backend/app/modules/jobs/sse.py`
-- [ ] T068 [P] [US4] Implement reusable message bubble, result status, and accessible timestamp rendering in `frontend/src/components/agent/ConversationMessage.vue`
-- [ ] T069 [P] [US4] Implement clarification and capability/tool activity cards without infrastructure vocabulary in `frontend/src/components/agent/ClarificationCard.vue` and `frontend/src/components/agent/ToolActivityCard.vue`
-- [ ] T070 [US4] Implement ordered Turn/message/task/confirmation composition and stable keyed updates in `frontend/src/components/agent/ConversationTimeline.vue`
-- [ ] T071 [US4] Route conversation SSE events and snapshots into the conversation store with deduplication in `frontend/src/stores/jobs.ts` and `frontend/src/stores/agentConversations.ts`
-- [ ] T072 [US4] Integrate timeline, composer, pagination, live status, and existing confirmation actions in `frontend/src/modules/agent/AgentPage.vue`
+- [x] T066 [US4] Publish `conversation.message_created` and `conversation.turn_updated` transactionally with safe payloads in `backend/app/modules/agent/status.py`
+- [x] T067 [US4] Include active Turns and latest safe message cursor in job SSE snapshots and Last-Event-ID replay in `backend/app/modules/jobs/sse.py`
+- [x] T068 [P] [US4] Implement reusable message bubble, result status, and accessible timestamp rendering in `frontend/src/components/agent/ConversationMessage.vue`
+- [x] T069 [P] [US4] Implement clarification and capability/tool activity cards without infrastructure vocabulary in `frontend/src/components/agent/ClarificationCard.vue` and `frontend/src/components/agent/ToolActivityCard.vue`
+- [x] T070 [US4] Implement ordered Turn/message/task/confirmation composition and stable keyed updates in `frontend/src/components/agent/ConversationTimeline.vue`
+- [x] T071 [US4] Route conversation SSE events and snapshots into the conversation store with deduplication in `frontend/src/stores/jobs.ts` and `frontend/src/stores/agentConversations.ts`
+- [x] T072 [US4] Integrate timeline, composer, pagination, live status, and existing confirmation actions in `frontend/src/modules/agent/AgentPage.vue`
 
 **Checkpoint**: The conversation UI survives refresh/reconnect and clearly distinguishes queried, generated, pending, saved, failed, and unprocessed outcomes.
 
@@ -183,20 +183,20 @@
 
 ### Tests for User Story 5
 
-- [ ] T073 [P] [US5] Add worker top-level exception tests for failures before run creation, during routing, during tool selection, and after partial result persistence in `backend/tests/reliability/test_agent_turn_finalizer.py`
-- [ ] T074 [P] [US5] Add watchdog tests for heartbeat threshold, terminal exclusion, race locking, linked Task/Job repair, and user-visible stalled errors in `backend/tests/reliability/test_agent_turn_watchdog.py`
-- [ ] T075 [P] [US5] Add retry tests for duplicate clicks, repeated delivery, completed-step skipping, revoked capability, and external idempotency keys in `backend/tests/integration/test_agent_turn_retry.py`
-- [ ] T076 [P] [US5] Add restart recovery tests preserving conversation, scope, pending confirmation, successful parts, and messages in `backend/tests/integration/test_conversation_restart.py`
-- [ ] T077 [P] [US5] Add component tests for timeout/stalled copy, retry disabled states, and retry reconciliation in `frontend/tests/component/agent-turn-retry.spec.ts`
+- [x] T073 [P] [US5] Add worker top-level exception tests for failures before run creation, during routing, during tool selection, and after partial result persistence in `backend/tests/reliability/test_agent_turn_finalizer.py`
+- [x] T074 [P] [US5] Add watchdog tests for heartbeat threshold, terminal exclusion, race locking, linked Task/Job repair, and user-visible stalled errors in `backend/tests/reliability/test_agent_turn_watchdog.py`
+- [x] T075 [P] [US5] Add retry tests for duplicate clicks, repeated delivery, completed-step skipping, revoked capability, and external idempotency keys in `backend/tests/integration/test_agent_turn_retry.py`
+- [x] T076 [P] [US5] Add restart recovery tests preserving conversation, scope, pending confirmation, successful parts, and messages in `backend/tests/integration/test_conversation_restart.py`
+- [x] T077 [P] [US5] Add component tests for timeout/stalled copy, retry disabled states, and retry reconciliation in `frontend/tests/component/agent-turn-retry.spec.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T078 [US5] Wrap Turn execution in a top-level finalizer that persists failed/partial states in an independent transaction in `backend/app/workers/tasks/agent.py`
-- [ ] T079 [US5] Update heartbeats at bounded stage transitions and implement locked stalled-Turn repair in `backend/app/modules/agent/watchdog.py`
-- [ ] T080 [US5] Schedule the watchdog on the existing beat process without adding queues in `backend/app/workers/beat_schedule.py` and `backend/app/workers/tasks/maintenance.py`
-- [ ] T081 [US5] Implement owned, idempotent retry eligibility and retry-of linkage in `backend/app/modules/agent/conversation_service.py`
-- [ ] T082 [US5] Expose Turn detail and retry endpoints with CSRF, conflict, and retryability semantics in `backend/app/modules/agent/router.py`
-- [ ] T083 [US5] Add stalled/failure guidance and retry controls while preserving the original timeline in `frontend/src/modules/agent/AgentPage.vue` and `frontend/src/stores/agentConversations.ts`
+- [x] T078 [US5] Wrap Turn execution in a top-level finalizer that persists failed/partial states in an independent transaction in `backend/app/workers/tasks/agent.py`
+- [x] T079 [US5] Update heartbeats at bounded stage transitions and implement locked stalled-Turn repair in `backend/app/modules/agent/watchdog.py`
+- [x] T080 [US5] Schedule the watchdog on the existing beat process without adding queues in `backend/app/workers/beat_schedule.py` and `backend/app/workers/tasks/maintenance.py`
+- [x] T081 [US5] Implement owned, idempotent retry eligibility and retry-of linkage in `backend/app/modules/agent/conversation_service.py`
+- [x] T082 [US5] Expose Turn detail and retry endpoints with CSRF, conflict, and retryability semantics in `backend/app/modules/agent/router.py`
+- [x] T083 [US5] Add stalled/failure guidance and retry controls while preserving the original timeline in `frontend/src/modules/agent/AgentPage.vue` and `frontend/src/stores/agentConversations.ts`
 
 **Checkpoint**: No injected worker failure leaves a Turn, AgentTask, or Job indefinitely accepted/routing/executing; retry does not duplicate effects.
 

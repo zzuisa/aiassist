@@ -131,6 +131,8 @@ def main(argv: list[str] | None = None) -> int:
     p_health.add_argument("--url", default="http://localhost:8000/health/live")
     sub.add_parser("outbox-publisher")
     sub.add_parser("flush-voice-queue")
+    p_mcp = sub.add_parser("mcp-diagnose")
+    p_mcp.add_argument("--user-id", required=True)
 
     args = parser.parse_args(argv)
     if args.command == "migrate":
@@ -143,6 +145,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_outbox_publisher()
     if args.command == "flush-voice-queue":
         return cmd_flush_voice_queue()
+    if args.command == "mcp-diagnose":
+        from app.cli.mcp import diagnose_mcp
+
+        return diagnose_mcp(args.user_id)
     parser.error("unknown command")
     return 2
 

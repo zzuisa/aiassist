@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   agentApi,
   parseAgentReply,
@@ -9,19 +9,27 @@ import {
   type PendingWrite,
   type AgentTaskDetail,
 } from '@/api/agent'
+import { useAgentConversationsStore } from '@/stores/agentConversations'
 import AgentStatusPanel from '@/components/agent/AgentStatusPanel.vue'
+import AgentTurnRetry from '@/components/agent/AgentTurnRetry.vue'
 import CapabilityGapNotice from '@/components/agent/CapabilityGapNotice.vue'
 import ConfirmationCard from '@/components/agent/ConfirmationCard.vue'
+import ConversationPanel from '@/components/agent/ConversationPanel.vue'
 import ExecutionRecordList from '@/components/agent/ExecutionRecordList.vue'
 
-const requestText = ref('')
+const conversation = useAgentConversationsStore()
+
+// Existing single-task result/confirmation surfacing (execution records,
+// pending writes, capability-gap notices). Nothing populates these from a
+// conversation Turn yet — wiring task results INTO the chat timeline is
+// Phase 6/US4; these components are kept mounted and working so that phase
+// only needs to start feeding them data.
 const task = ref<AgentTaskDetail | null>(null)
-const error = ref('')
-const submitting = ref(false)
+const taskError = ref('')
 const confirmations = ref<PendingWrite[]>([])
 const records = ref<ExecutionRecord[]>([])
 const decidingId = ref<string | null>(null)
-let pollTimer: number | null = null
+let linkedTaskId: string | null = null
 
 const reply = computed(() => parseAgentReply(task.value?.result_summary ?? null))
 const capabilityGap = computed(() => reply.value?.能力缺口 ?? null)
@@ -36,101 +44,91 @@ const textualResult = computed(() => {
   return ''
 })
 
-function stopPolling(): void {
-  if (pollTimer !== null) window.clearTimeout(pollTimer)
-  pollTimer = null
-}
-
-async function refresh(taskId: string): Promise<void> {
-  const [nextTask, nextConfirmations, nextRecords] = await Promise.all([
-    agentApi.getTask(taskId),
-    agentApi.listConfirmations(taskId),
-    agentApi.listRecords(taskId),
-  ])
-  task.value = nextTask
-  confirmations.value = nextConfirmations
-  records.value = nextRecords
-  if (['pending', 'running'].includes(task.value.status)) {
-    pollTimer = window.setTimeout(() => void refresh(taskId), 1000)
-  }
-}
-
-async function submit(): Promise<void> {
-  const value = requestText.value.trim()
-  if (!value || submitting.value) return
-  stopPolling()
-  submitting.value = true
-  error.value = ''
-  try {
-    const created = await agentApi.createTask(value, task.value?.task_id)
-    await refresh(created.task_id)
-  } catch {
-    error.value = '任务创建失败，请稍后重试。'
-  } finally {
-    submitting.value = false
-  }
-}
-
 async function decide(confirmation: PendingWrite, decision: ConfirmationDecision): Promise<void> {
   if (!task.value || decidingId.value) return
   decidingId.value = confirmation.confirmation_id
-  error.value = ''
+  taskError.value = ''
   try {
     await agentApi.decideConfirmation(
       task.value.task_id,
       confirmation.confirmation_id,
       decision,
     )
-    await refresh(task.value.task_id)
+    const [nextTask, nextConfirmations, nextRecords] = await Promise.all([
+      agentApi.getTask(task.value.task_id),
+      agentApi.listConfirmations(task.value.task_id),
+      agentApi.listRecords(task.value.task_id),
+    ])
+    task.value = nextTask
+    confirmations.value = nextConfirmations
+    records.value = nextRecords
   } catch {
-    error.value = '确认操作失败，数据可能已变化，请刷新后重试。'
+    taskError.value = '确认操作失败，数据可能已变化，请刷新后重试。'
   } finally {
     decidingId.value = null
   }
 }
 
-onBeforeUnmount(stopPolling)
+async function refreshLinkedTask(taskId: string): Promise<void> {
+  try {
+    const [nextTask, nextConfirmations, nextRecords] = await Promise.all([
+      agentApi.getTask(taskId),
+      agentApi.listConfirmations(taskId),
+      agentApi.listRecords(taskId),
+    ])
+    task.value = nextTask
+    confirmations.value = nextConfirmations
+    records.value = nextRecords
+  } catch {
+    taskError.value = '任务详情加载失败，请稍后刷新。'
+  }
+}
+
+watch(
+  () => conversation.messages,
+  (messages) => {
+    const latest = [...messages]
+      .reverse()
+      .map((message) => message.content.task_id)
+      .find((value): value is string => typeof value === 'string')
+    if (latest && latest !== linkedTaskId) {
+      linkedTaskId = latest
+      void refreshLinkedTask(latest)
+    }
+  },
+  { deep: true },
+)
+
+onMounted(() => void conversation.loadHistory())
+onBeforeUnmount(() => conversation.reset())
 </script>
 
 <template>
   <main class="agent-page">
     <header>
       <h1>自助 Agent</h1>
-      <p>用自然语言查询和处理你的数据。</p>
+      <p>用自然语言和我聊聊，或者直接说说你想让我处理什么。</p>
     </header>
 
-    <form
-      class="composer"
-      @submit.prevent="submit"
-    >
-      <label for="agent-request">你希望系统做什么？</label>
-      <textarea
-        id="agent-request"
-        v-model="requestText"
-        rows="3"
-        maxlength="4000"
-        placeholder="例如：给我最近 10 篇文章"
-      />
-      <button
-        type="submit"
-        :disabled="submitting || !requestText.trim()"
-      >
-        {{ submitting ? '正在提交…' : '开始执行' }}
-      </button>
-    </form>
+    <ConversationPanel
+      :messages="conversation.messages"
+      :loading="conversation.loadingHistory"
+      :sending="conversation.sending"
+      :error="conversation.error"
+      @send="(text) => conversation.sendMessage(text)"
+    />
+
+    <AgentTurnRetry
+      :turns="conversation.activeTurns.filter((item) => item.status === 'stalled' || item.status === 'failed')"
+      @retry="conversation.retryTurn"
+    />
 
     <p
-      v-if="error"
+      v-if="taskError"
       class="error"
       role="alert"
     >
-      {{ error }}
-    </p>
-    <p
-      v-if="task && ['pending', 'running'].includes(task.status)"
-      role="status"
-    >
-      正在处理：{{ task.runs[0]?.current_task ?? task.request_text }}
+      {{ taskError }}
     </p>
 
     <AgentStatusPanel :task-id="task?.task_id" />
@@ -196,23 +194,6 @@ onBeforeUnmount(stopPolling)
   padding: var(--space-4);
   display: grid;
   gap: var(--space-4);
-}
-.composer {
-  display: grid;
-  gap: var(--space-2);
-}
-textarea {
-  width: 100%;
-  resize: vertical;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-button {
-  min-height: var(--tap-target);
-  justify-self: end;
 }
 .results {
   display: grid;

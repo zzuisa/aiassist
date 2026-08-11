@@ -106,7 +106,7 @@ class ToolRegistry:
         self._tools: dict[str, ToolDefinition] = {}
 
     def register(self, definition: ToolDefinition) -> ToolDefinition:
-        if not definition.name or len(definition.name) > 120:
+        if not definition.name or len(definition.name) > 160:
             raise ValidationError("Invalid tool name", code="agent_tool_name_invalid")
         if definition.name in self._tools:
             raise ConflictError(
@@ -118,6 +118,19 @@ class ToolRegistry:
                 "Tool timeout must be positive and retries must be bounded to at most one",
                 code="agent_tool_policy_invalid",
             )
+        self._tools[definition.name] = definition
+        return definition
+
+    def register_or_replace(self, definition: ToolDefinition) -> ToolDefinition:
+        """Refresh an operator-configured MCP entry without weakening static tools."""
+        existing = self._tools.get(definition.name)
+        if existing is not None and existing.source != "mcp":
+            raise ConflictError(
+                f"Cannot replace built-in tool: {definition.name}",
+                code="agent_tool_duplicate",
+            )
+        if not definition.name or len(definition.name) > 160:
+            raise ValidationError("Invalid tool name", code="agent_tool_name_invalid")
         self._tools[definition.name] = definition
         return definition
 
@@ -143,7 +156,8 @@ class ToolRegistry:
                 tool.unavailable_reason or f"Tool is unavailable: {name}",
                 code="agent_tool_unavailable",
             )
-        tool.validate_arguments(params)
+        if tool.type != "write":
+            tool.validate_arguments(params)
         if tool.source == "mcp" and (
             tool.connection_id is None
             or not check_mcp_tool_grant(
@@ -194,6 +208,16 @@ class ToolRegistry:
                     "Write tool requires an approved confirmation",
                     code="agent_write_approval_required",
                 )
+            if tool.source == "mcp":
+                stored_arguments = pending.preview_json.get("arguments", {})
+                if not isinstance(stored_arguments, Mapping):
+                    raise ValidationError(
+                        "MCP write preview arguments are invalid",
+                        code="agent_write_preview_invalid",
+                    )
+                tool.validate_arguments(stored_arguments)
+            else:
+                tool.validate_arguments(params)
         return tool.handler(context, params)
 
     def safe_manifest(self) -> list[dict[str, str | bool | None]]:

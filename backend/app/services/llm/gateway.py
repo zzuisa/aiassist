@@ -18,6 +18,15 @@ from app.services.llm.base import LLMError, StructuredRequest
 
 T = TypeVar("T", bound=BaseModel)
 
+SCENARIO_DEFAULTS: dict[str, dict[str, int | float]] = {
+    "conversation_route": {"temperature": 0.0, "max_tokens": 1200, "repair_attempts": 1},
+}
+
+
+def scenario_defaults(scenario: str) -> dict[str, int | float]:
+    """Return a copy so callers cannot mutate global scenario policy."""
+    return dict(SCENARIO_DEFAULTS.get(scenario, {}))
+
 
 @runtime_checkable
 class StructuredProvider(Protocol):

@@ -11,6 +11,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.modules.agent.conversation_schemas import ConversationRoute as ConversationRouteV1
+
+# The conversation router owns its REST-facing model, while the LLM gateway
+# exposes the same versioned type as a scenario schema. Keeping this alias here
+# makes scenario discovery explicit without maintaining a divergent duplicate.
+
+__all__ = ["ConversationRouteV1"]
+
 _STRICT = ConfigDict(extra="forbid")
 
 

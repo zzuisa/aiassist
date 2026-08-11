@@ -68,20 +68,41 @@ async def _discover_async(secret: ConnectionSecret, settings: Settings) -> McpDi
     transport = streamable_http_client(secret.url, http_client=_http_client(secret, settings))
     async with Client(transport, read_timeout_seconds=settings.mcp_read_timeout_seconds) as client:
         listing = await client.list_tools()
-        tools = [
-            McpToolDescriptor(
-                tool_key=tool.name,
-                remote_name=tool.name,
-                responsibility=(tool.description or "")[:500],
-                tool_type=_classify_tool_type(tool.annotations),
-                input_schema=tool.input_schema,
-                output_schema=tool.output_schema,
-                available=True,
-                unavailable_reason=None,
+        tools = []
+        for tool in listing.tools:
+            policy = secret.tool_policies.get(tool.name)
+            reviewed = policy is not None
+            tool_type = str(policy["type"]) if policy else _classify_tool_type(tool.annotations)
+            responsibility = (
+                str(policy.get("responsibility") or "") if policy else ""
+            ) or (tool.description or "")[:500]
+            tools.append(
+                McpToolDescriptor(
+                    tool_key=tool.name,
+                    remote_name=tool.name,
+                    responsibility=responsibility,
+                    tool_type=tool_type,
+                    input_schema=tool.input_schema,
+                    output_schema=tool.output_schema,
+                    risk={
+                        "reviewed": reviewed,
+                        "previewable": bool(policy and policy.get("previewable")),
+                        "reversible": bool(policy and policy.get("reversible")),
+                    },
+                    available=reviewed and (tool_type == "read" or bool(policy.get("previewable"))),
+                    unavailable_reason=(
+                        None
+                        if reviewed and (tool_type == "read" or bool(policy.get("previewable")))
+                        else "工具尚未通过运维安全审查或无法预览影响范围"
+                    ),
+                )
             )
-            for tool in listing.tools
-        ]
-    return McpDiscoveryResult(tools=tools, protocol_version=None, catalog_etag=None)
+    return McpDiscoveryResult(
+        tools=tools,
+        protocol_version=None,
+        catalog_etag=None,
+        catalog_ttl_seconds=settings.mcp_catalog_ttl_seconds,
+    )
 
 
 async def _call_tool_async(
@@ -116,6 +137,13 @@ def _to_call_result(result: Any, settings: Settings) -> McpCallResult:
     if total_bytes > settings.mcp_max_result_bytes:
         truncated = True
         text_parts = [t[:2000] for t in text_parts]
+    if structured is not None:
+        import json
+
+        encoded = json.dumps(structured, ensure_ascii=False, default=str).encode("utf-8")
+        if len(encoded) > settings.mcp_max_result_bytes:
+            truncated = True
+            structured = None
     summary = "\n".join(text_parts)[:4000] if text_parts else None
     return McpCallResult(
         is_error=bool(result.is_error),

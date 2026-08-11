@@ -33,4 +33,8 @@ celery.conf.beat_schedule = {
         "task": "app.workers.tasks.maintenance.cleanup_stale_jobs",
         "schedule": crontab(minute=15),
     },
+    "repair-stalled-agent-turns": {
+        "task": "app.workers.tasks.maintenance.repair_stalled_agent_turns",
+        "schedule": 30.0,
+    },
 }

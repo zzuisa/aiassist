@@ -8,7 +8,11 @@ providers: business code depends only on the provider-neutral protocol in
 
 from __future__ import annotations
 
+import time
+from dataclasses import replace
 from typing import Any
+
+import jsonschema  # type: ignore[import-untyped]
 
 from app.services.mcp.base import McpCallResult, McpDiscoveryResult, McpProvider
 from app.services.mcp.provider import StreamableHttpMcpProvider
@@ -19,9 +23,40 @@ class McpGateway:
 
     def __init__(self, provider: McpProvider | None = None) -> None:
         self._provider = provider or StreamableHttpMcpProvider()
+        self._catalog_cache: dict[str, tuple[float, McpDiscoveryResult]] = {}
 
     def discover(self, connection_key: str) -> McpDiscoveryResult:
-        return self._provider.discover(connection_key)
+        cached = self._catalog_cache.get(connection_key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        result = self._provider.discover(connection_key)
+        normalized = []
+        for tool in result.tools:
+            try:
+                jsonschema.Draft202012Validator.check_schema(tool.input_schema)
+            except jsonschema.SchemaError:
+                normalized.append(
+                    replace(
+                        tool,
+                        tool_key=f"mcp.{connection_key}.{tool.remote_name}",
+                        available=False,
+                        unavailable_reason="工具参数 schema 不受支持",
+                    )
+                )
+                continue
+            normalized.append(
+                replace(tool, tool_key=f"mcp.{connection_key}.{tool.remote_name}")
+            )
+        safe_result = replace(result, tools=normalized)
+        ttl = result.catalog_ttl_seconds or 300
+        self._catalog_cache[connection_key] = (time.monotonic() + ttl, safe_result)
+        return safe_result
+
+    def invalidate_catalog(self, connection_key: str | None = None) -> None:
+        if connection_key is None:
+            self._catalog_cache.clear()
+        else:
+            self._catalog_cache.pop(connection_key, None)
 
     def call_tool(
         self,

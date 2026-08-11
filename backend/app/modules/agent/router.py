@@ -8,12 +8,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
+from app.core.errors import NotFoundError, ValidationError
 from app.db.session import get_db
 from app.models.agent import AgentRun as AgentRunModel
-from app.modules.agent import schemas, service
+from app.models.agent_conversation import AgentMessage as AgentMessageModel
+from app.modules.agent import conversation_schemas, conversation_service, schemas, service
 from app.modules.agent.audit import list_execution_records
 from app.modules.agent.intents import classify_request
-from app.workers.tasks.agent import execute_task
+from app.workers.tasks.agent import execute_conversation_turn, execute_task
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -175,3 +177,175 @@ def decide_confirmation(
     db.commit()
     db.refresh(pending)
     return schemas.PendingWrite.model_validate(pending)
+
+
+# -- Conversations -------------------------------------------------------
+
+
+@router.post(
+    "/conversations",
+    response_model=conversation_schemas.Conversation,
+    status_code=201,
+)
+def create_conversation(
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> conversation_schemas.Conversation:
+    conversation = conversation_service.create_conversation(db, user_id=user.id)
+    db.commit()
+    db.refresh(conversation)
+    return conversation_schemas.Conversation.model_validate(conversation)
+
+
+@router.get(
+    "/conversations",
+    response_model=list[conversation_schemas.Conversation],
+)
+def list_conversations(
+    limit: int = Query(default=50, ge=1, le=200),
+    status: conversation_schemas.ConversationStatus | None = None,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[conversation_schemas.Conversation]:
+    conversations = conversation_service.list_owned_conversations(
+        db,
+        user.id,
+        status=status.value if status is not None else None,
+        limit=limit,
+    )
+    return [conversation_schemas.Conversation.model_validate(c) for c in conversations]
+
+
+@router.get(
+    "/conversations/{conversation_id}",
+    response_model=conversation_schemas.ConversationDetail,
+)
+def get_conversation(
+    conversation_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> conversation_schemas.ConversationDetail:
+    conversation = conversation_service.get_owned_conversation(db, user.id, conversation_id)
+    active_turns = conversation_service.list_active_turns(db, user.id, conversation_id)
+    detail = conversation_schemas.Conversation.model_validate(conversation).model_dump()
+    return conversation_schemas.ConversationDetail(
+        **detail,
+        active_turns=[conversation_schemas.Turn.model_validate(t) for t in active_turns],
+    )
+
+
+@router.post(
+    "/conversations/{conversation_id}/messages",
+    response_model=conversation_schemas.TurnAccepted,
+    status_code=202,
+)
+def submit_message(
+    conversation_id: uuid.UUID,
+    body: conversation_schemas.MessageCreate,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> conversation_schemas.TurnAccepted:
+    turn = conversation_service.accept_message(
+        db,
+        user_id=user.id,
+        conversation_id=conversation_id,
+        client_message_id=body.client_message_id,
+        text=body.text,
+    )
+    db.commit()
+    db.refresh(turn)
+    user_message = db.get(AgentMessageModel, turn.user_message_id)
+    if user_message is None:  # pragma: no cover - guarded by the FK contract
+        raise NotFoundError("Message not found")
+    execute_conversation_turn.delay(str(turn.id))
+    return conversation_schemas.TurnAccepted(
+        message=conversation_schemas.Message.model_validate(user_message),
+        turn=conversation_schemas.Turn.model_validate(turn),
+    )
+
+
+@router.get(
+    "/conversations/{conversation_id}/messages",
+    response_model=conversation_schemas.MessagePage,
+)
+def list_messages(
+    conversation_id: uuid.UUID,
+    cursor: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> conversation_schemas.MessagePage:
+    parsed_cursor: uuid.UUID | None = None
+    if cursor:
+        try:
+            parsed_cursor = uuid.UUID(cursor)
+        except ValueError as exc:
+            raise ValidationError(
+                "Invalid pagination cursor", code="agent_message_cursor_invalid"
+            ) from exc
+    messages, next_cursor = conversation_service.list_conversation_messages(
+        db,
+        user.id,
+        conversation_id,
+        cursor=parsed_cursor,
+        limit=limit,
+    )
+    return conversation_schemas.MessagePage(
+        items=[conversation_schemas.Message.model_validate(m) for m in messages],
+        next_cursor=str(next_cursor) if next_cursor is not None else None,
+    )
+
+
+@router.get("/capabilities")
+def list_capabilities(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    connections = conversation_service.sync_mcp_connections(db, user_id=user.id)
+    manifest = service.tool_registry.safe_manifest_v2(session=db, user_id=user.id)
+    db.commit()
+    return {
+        **manifest,
+        "connections": [
+            {
+                "config_key": item.config_key,
+                "display_name": item.display_name,
+                "health_status": item.health_status,
+                "last_error_code": item.last_error_code,
+            }
+            for item in connections
+        ],
+    }
+
+
+@router.get("/turns/{turn_id}", response_model=conversation_schemas.Turn)
+def get_turn(
+    turn_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> conversation_schemas.Turn:
+    return conversation_schemas.Turn.model_validate(
+        conversation_service.get_owned_turn(db, user.id, turn_id)
+    )
+
+
+@router.post(
+    "/turns/{turn_id}/retry",
+    response_model=conversation_schemas.TurnAccepted,
+    status_code=202,
+)
+def retry_turn(
+    turn_id: uuid.UUID,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> conversation_schemas.TurnAccepted:
+    turn = conversation_service.retry_turn(db, user_id=user.id, turn_id=turn_id)
+    message = db.get(AgentMessageModel, turn.user_message_id)
+    if message is None:  # pragma: no cover
+        raise NotFoundError("Message not found")
+    db.commit()
+    execute_conversation_turn.delay(str(turn.id))
+    return conversation_schemas.TurnAccepted(
+        message=conversation_schemas.Message.model_validate(message),
+        turn=conversation_schemas.Turn.model_validate(turn),
+    )

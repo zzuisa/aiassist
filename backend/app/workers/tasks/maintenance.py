@@ -65,3 +65,11 @@ def cleanup_stale_jobs() -> int:
     if cleaned:
         log.info("stale_jobs_cleaned", count=cleaned)
     return cleaned
+
+
+@celery.task(name="app.workers.tasks.maintenance.repair_stalled_agent_turns")
+def repair_stalled_agent_turns() -> int:
+    from app.modules.agent.watchdog import repair_stalled_turns
+
+    with session_scope() as session:
+        return repair_stalled_turns(session)
