@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "id": "2026.08.11.205951-68673e6",
+      "version": "2026.08.11.205951",
+      "commit": "68673e62bf238b4c2de67ee78eba94c1216dced3",
+      "commit_short": "68673e6",
+      "message": "🐳 chore: 更新部署版本 2026.08.11.205951",
+      "changes": [
+        "🐳 chore: 更新部署版本 2026.08.11.205951",
+        "后端接口与业务逻辑更新"
+      ],
+      "changed_files": [
+        "backend/app/modules/agent/conversation_service.py",
+        "backend/app/modules/agent/registry.py",
+        "backend/app/modules/agent/status.py",
+        "backend/app/services/mcp/gateway.py",
+        "backend/app/services/mcp/provider.py"
+      ],
+      "deployed_at": "2026-08-11T20:59:51Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.11.205358-087638f",
       "version": "2026.08.11.205358",
       "commit": "087638f3bf18223d86ab828af4f2f4c305fba872",
@@ -1258,36 +1281,6 @@
         "specs/005-blog-content-management/tasks.md"
       ],
       "deployed_at": "2026-07-31T16:01:24Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.07.31.151939-3603e2d",
-      "version": "2026.07.31.151939",
-      "commit": "3603e2d15e5e86c0f299bb230135ef66a7e1d975",
-      "commit_short": "3603e2d",
-      "message": "feat: add blog enhancement orchestrator",
-      "changes": [
-        "feat: add blog enhancement orchestrator",
-        "后端接口与业务逻辑更新",
-        "规格与文档更新"
-      ],
-      "changed_files": [
-        "backend/app/core/config.py",
-        "backend/app/modules/posts/orchestrator.py",
-        "backend/app/services/llm/schemas.py",
-        "backend/app/workers/tasks/blog.py",
-        "backend/tests/contract/test_blog_ai_schema.py",
-        "backend/tests/unit/test_blog_orchestrator.py",
-        "specs/005-blog-content-management/contracts/schemas/blog-enhancement.v1.json",
-        "specs/005-blog-content-management/plan.md",
-        "specs/005-blog-content-management/quickstart.md",
-        "specs/005-blog-content-management/spec.md",
-        "specs/005-blog-content-management/tasks.md"
-      ],
-      "deployed_at": "2026-07-31T15:19:39Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
