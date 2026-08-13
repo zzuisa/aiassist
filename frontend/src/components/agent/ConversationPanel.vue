@@ -54,7 +54,7 @@ function onKeydown(event: KeyboardEvent): void {
         v-else-if="!messages.length"
         class="state-message"
       >
-        跟我打个招呼，或者直接说说你想做什么。
+        开始一次新对话：直接说说你想查询或处理什么。
       </p>
       <ConversationTimeline
         v-else

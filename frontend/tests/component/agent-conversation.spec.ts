@@ -22,7 +22,7 @@ describe('Agent ConversationPanel', () => {
       props: { messages: [], loading: false, sending: false, error: '' },
     })
 
-    expect(wrapper.text()).toContain('跟我打个招呼')
+    expect(wrapper.text()).toContain('开始一次新对话')
   })
 
   it('shows a loading state instead of the empty guide while history loads', () => {
@@ -31,7 +31,7 @@ describe('Agent ConversationPanel', () => {
     })
 
     expect(wrapper.find('[role="status"]').text()).toContain('正在加载会话')
-    expect(wrapper.text()).not.toContain('跟我打个招呼')
+    expect(wrapper.text()).not.toContain('开始一次新对话')
   })
 
   it('shows an error banner when an error is present', () => {

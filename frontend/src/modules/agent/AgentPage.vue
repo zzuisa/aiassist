@@ -12,6 +12,7 @@ import {
 import { useAgentConversationsStore } from '@/stores/agentConversations'
 import AgentStatusPanel from '@/components/agent/AgentStatusPanel.vue'
 import AgentTurnRetry from '@/components/agent/AgentTurnRetry.vue'
+import ArticleResultCard from '@/components/agent/ArticleResultCard.vue'
 import CapabilityGapNotice from '@/components/agent/CapabilityGapNotice.vue'
 import ConfirmationCard from '@/components/agent/ConfirmationCard.vue'
 import ConversationPanel from '@/components/agent/ConversationPanel.vue'
@@ -99,7 +100,7 @@ watch(
   { deep: true },
 )
 
-onMounted(() => void conversation.loadHistory())
+onMounted(conversation.startFreshConversation)
 onBeforeUnmount(() => conversation.reset())
 </script>
 
@@ -159,25 +160,11 @@ onBeforeUnmount(() => conversation.reset())
       class="results"
       aria-label="文章查询结果"
     >
-      <article
+      <ArticleResultCard
         v-for="article in articles"
         :key="article.id"
-        class="result-card"
-      >
-        <RouterLink :to="article.link">
-          {{ article.title }}
-        </RouterLink>
-        <p
-          v-if="article.category || article.tags.length"
-          class="meta"
-        >
-          <span v-if="article.category">{{ article.category }}</span>
-          <span
-            v-for="tag in article.tags"
-            :key="tag"
-          >#{{ tag }}</span>
-        </p>
-      </article>
+        :article="article"
+      />
     </section>
 
     <pre
@@ -202,17 +189,6 @@ onBeforeUnmount(() => conversation.reset())
 .confirmations {
   display: grid;
   gap: var(--space-3);
-}
-.result-card {
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
 }
 .text-result {
   white-space: pre-wrap;

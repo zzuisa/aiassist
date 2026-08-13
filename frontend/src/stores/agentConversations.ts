@@ -49,6 +49,16 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     return conversation.id
   }
 
+  function startFreshConversation(): void {
+    stopPolling()
+    conversationId.value = null
+    messages.value = []
+    activeTurns.value = []
+    nextCursor.value = null
+    loadingHistory.value = false
+    error.value = ''
+  }
+
   async function loadHistory(): Promise<void> {
     error.value = ''
     loadingHistory.value = true
@@ -193,12 +203,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
   }
 
   function reset(): void {
-    stopPolling()
-    conversationId.value = null
-    messages.value = []
-    activeTurns.value = []
-    nextCursor.value = null
-    error.value = ''
+    startFreshConversation()
   }
 
   return {
@@ -210,6 +215,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     loadingMore,
     sending,
     error,
+    startFreshConversation,
     loadHistory,
     loadMore,
     sendMessage,
