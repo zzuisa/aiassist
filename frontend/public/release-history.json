@@ -1,6 +1,45 @@
 {
   "releases": [
     {
+      "id": "2026.08.13.222225-f4e43f7",
+      "version": "2026.08.13.222225",
+      "commit": "f4e43f73353b22811fcb16bc54aab59d5732efdc",
+      "commit_short": "f4e43f7",
+      "message": "🐳 chore: 更新部署版本 2026.08.13.222225",
+      "changes": [
+        "🐳 chore: 更新部署版本 2026.08.13.222225",
+        "前端界面与交互更新",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新"
+      ],
+      "changed_files": [
+        ".specify/feature.json",
+        "AGENTS.md",
+        "backend/tests/contract/test_agent_article_results.py",
+        "docs/fix-reports/2026-08-11-agent-empty-mcp-config.md",
+        "frontend/src/components/agent/ArticleResultCard.vue",
+        "frontend/src/components/agent/ConversationPanel.vue",
+        "frontend/src/modules/agent/AgentPage.vue",
+        "frontend/src/stores/agentConversations.ts",
+        "frontend/tests/component/agent-conversation.spec.ts",
+        "frontend/tests/component/agent-home-articles.spec.ts",
+        "frontend/tests/e2e/agent-home-articles.spec.ts",
+        "specs/009-agent-home-articles/checklists/requirements.md",
+        "specs/009-agent-home-articles/contracts/article-result-card.md",
+        "specs/009-agent-home-articles/data-model.md",
+        "specs/009-agent-home-articles/plan.md",
+        "specs/009-agent-home-articles/quickstart.md",
+        "specs/009-agent-home-articles/research.md",
+        "specs/009-agent-home-articles/spec.md",
+        "specs/009-agent-home-articles/tasks.md"
+      ],
+      "deployed_at": "2026-08-13T22:22:25Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.11.211242-740e866",
       "version": "2026.08.11.211242",
       "commit": "740e8663b41165482dc626b55afde2f2e7c6e974",
@@ -1250,28 +1289,6 @@
         "specs/005-blog-content-management/quickstart.md"
       ],
       "deployed_at": "2026-07-31T23:05:16Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.07.31.170242-dbf8a33",
-      "version": "2026.07.31.170242",
-      "commit": "dbf8a33b2f3d60d1482489d444550cb23292aa94",
-      "commit_short": "dbf8a33",
-      "message": "feat: support board-style visual reasoning for blog articles",
-      "changes": [
-        "feat: support board-style visual reasoning for blog articles",
-        "后端接口与业务逻辑更新"
-      ],
-      "changed_files": [
-        "backend/app/modules/posts/orchestrator.py",
-        "backend/app/modules/posts/visuals.py",
-        "backend/app/workers/tasks/blog.py",
-        "backend/tests/unit/test_blog_orchestrator.py"
-      ],
-      "deployed_at": "2026-07-31T17:02:42Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
