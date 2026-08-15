@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "id": "2026.08.15.221150-1384fc9",
+      "version": "2026.08.15.221150",
+      "commit": "1384fc969771ad4389c7fc8d2fd1f777d2931cdb",
+      "commit_short": "1384fc9",
+      "message": "🐳 chore: 更新部署版本 2026.08.15.221150",
+      "changes": [
+        "🐳 chore: 更新部署版本 2026.08.15.221150",
+        "规格与文档更新",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        "compose.yaml",
+        "deploy/scripts/deploy.sh",
+        "docs/operations/observability-storage.md"
+      ],
+      "deployed_at": "2026-08-15T22:11:50Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.15.145715-65df953",
       "version": "2026.08.15.145715",
       "commit": "65df953a7f6be9b816b31ea723decb0d0b8523fa",
@@ -1294,25 +1316,6 @@
         "backend/Dockerfile"
       ],
       "deployed_at": "2026-07-31T23:35:50Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.07.31.233252-0365dbf",
-      "version": "2026.07.31.233252",
-      "commit": "0365dbf28a17e9ff0ae05cbb6673d72485babe9d",
-      "commit_short": "0365dbf",
-      "message": "fix: use simplified Chinese font for visual PNGs",
-      "changes": [
-        "fix: use simplified Chinese font for visual PNGs",
-        "后端接口与业务逻辑更新"
-      ],
-      "changed_files": [
-        "backend/app/modules/posts/visuals.py"
-      ],
-      "deployed_at": "2026-07-31T23:32:52Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
