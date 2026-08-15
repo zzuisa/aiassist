@@ -50,7 +50,7 @@
 
 - [X] T022 Run backend formatting, type checks and focused contract/integration tests from `backend/`
 - [X] T023 Run frontend lint, typecheck, component tests and production build from `frontend/` (passed in Node 24 container)
-- [ ] T024 Verify the quickstart flow and record completed tasks in `specs/010-prompt-skill-management/tasks.md`
+- [X] T024 Verify the quickstart flow and record completed tasks in `specs/010-prompt-skill-management/tasks.md`
 
 ## Dependencies
 
