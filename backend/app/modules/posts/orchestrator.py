@@ -524,12 +524,16 @@ def build_user_payload(
 
 
 def build_system_prompt(
-    config: dict[str, Any], plan: OrchestrationPlan, instruction: str | None
+    config: dict[str, Any],
+    plan: OrchestrationPlan,
+    instruction: str | None,
+    *,
+    base_instruction: str | None = None,
 ) -> str:
     rules: list[str] = []
     for key in ("content_rules", "title_rules", "summary_rules", "body_structure", "prohibitions"):
         rules.extend(str(item) for item in config.get(key, []) or [])
-    parts = [BLOG_ENHANCEMENT_SYSTEM_PROMPT]
+    parts = [base_instruction or BLOG_ENHANCEMENT_SYSTEM_PROMPT]
     if rules:
         parts.append(
             "当前 Skill 的附加规则（不得违反总控安全规则）：\n"

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, ParamSpec, TypeVar
@@ -80,24 +79,11 @@ register_intent = intent_registry.register
 dispatch_intent = intent_registry.dispatch
 
 
-def _recent_limit(request_text: str) -> int | None:
-    for pattern in (r"最近\s*(\d+)\s*篇", r"(\d+)\s*篇"):
-        match = re.search(pattern, request_text)
-        if match:
-            return min(max(int(match.group(1)), 1), 100)
-    return None
-
-
 @register_intent("articles.list_recent")
-def plan_recent_articles(request_text: str) -> IntentPlan:
-    limit = _recent_limit(request_text)
-    if limit is None:
-        return IntentPlan(
-            tool_name="posts.list_recent",
-            params={},
-            clarification_question="需要查看最近多少篇文章？",
-        )
-    return IntentPlan(tool_name="posts.list_recent", params={"limit": limit})
+def plan_recent_articles(_request_text: str) -> IntentPlan:
+    """The LLM/Skill chooses optional query parameters; this legacy plan only
+    supplies the safe tool identity for deterministic fallback execution."""
+    return IntentPlan(tool_name="posts.list_recent", params={})
 
 
 @register_intent("taxonomy.categories")

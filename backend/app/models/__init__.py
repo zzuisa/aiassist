@@ -7,6 +7,7 @@ Every feature module's models are imported here as they are added. Importing
 from app.db.base import Base
 from app.models import agent as agent
 from app.models import agent_conversation as agent_conversation
+from app.models import ai_config as ai_config
 from app.models import blog as blog
 from app.models import captures as captures
 from app.models import foundation as foundation

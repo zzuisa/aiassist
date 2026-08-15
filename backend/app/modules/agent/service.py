@@ -751,6 +751,20 @@ def execute_query_task(session: Session, task_id: uuid.UUID) -> AgentTask:
     plan = dispatch_intent(task.intent_key, task.request_text)
     if not isinstance(plan, IntentPlan):
         raise ValidationError("Intent produced an invalid plan", code="agent_intent_plan_invalid")
+    if plan.tool_name == "posts.list_recent":
+        # Parameter defaults come from the active user Skill.  The optional
+        # model-proposed value was bounded at the conversation policy boundary.
+        from app.modules.ai_config.service import resolve
+
+        config = resolve(session, task.user_id, "conversation_route")
+        params = dict(config.tool_defaults.get("posts.list_recent", {}))
+        requested = task.scope_json.get("tool_parameters", {})
+        if isinstance(requested, Mapping):
+            params.update(requested)
+        limit = params.get("limit", 10)
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            limit = 10
+        plan = IntentPlan(tool_name=plan.tool_name, params={"limit": min(max(limit, 1), 100)})
     from app.modules.posts.agent_manifest import resolve_builtin_agent
 
     binding = resolve_builtin_agent("article-query-agent")

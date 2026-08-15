@@ -619,6 +619,7 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
         session=session,
         user_id=conversation.user_id,
         context=conversation.context_json,
+        run_reference=f"agent-turn:{turn.id}",
     )
     route = outcome.route
     decision = AgentRoutingDecision(
@@ -698,6 +699,13 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
     from app.modules.agent import service as agent_service
 
     scope = _scope_for_route(conversation.context_json, route.target_scope.model_dump(mode="json"))
+    # The model may supply semantic arguments, but only the selected built-in
+    # article query currently accepts a bounded integer limit.  This is a
+    # policy validation point, not a natural-language parser.
+    if outcome.selected_tool == "posts.list_recent":
+        requested_limit = route.semantic_arguments.get("limit")
+        if isinstance(requested_limit, int) and not isinstance(requested_limit, bool):
+            scope["tool_parameters"] = {"limit": min(max(requested_limit, 1), 100)}
     task = agent_service.create_agent_task(
         session,
         user_id=conversation.user_id,

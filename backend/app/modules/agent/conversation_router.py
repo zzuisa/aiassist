@@ -24,6 +24,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.errors import ValidationError
 from app.modules.agent.capability_selector import reduce_candidates, validate_route
 from app.modules.agent.conversation_schemas import ConversationRoute, TargetScope
 from app.modules.agent.registry import tool_registry
@@ -236,6 +237,7 @@ def route_message(
     user_id: uuid.UUID,
     context: Mapping[str, Any] | None = None,
     gateway: Any | None = None,
+    run_reference: str | None = None,
 ) -> RoutingOutcome:
     """Generate and policy-check one structured conversation-route.v1 decision."""
     manifest = tool_registry.safe_manifest_v2(session=session, user_id=user_id)
@@ -258,20 +260,20 @@ def route_message(
         from app.services.llm.gateway import get_llm_gateway
 
         gateway = get_llm_gateway()
+    from app.modules.ai_config.service import bind
+
+    config = bind(session, user_id, "conversation_route", run_reference=run_reference)
     prompt_payload = {
         "message": text,
         "conversation_context": safe_context,
         "candidate_tools": [item for item in manifest["tools"] if item.get("key") in candidates],
+        "skill_tool_defaults": config.tool_defaults,
     }
     try:
         route = gateway.structured(
             StructuredRequest(
                 scenario="conversation_route",
-                system=(
-                    "把用户消息路由为 chat、capability_help、clarification 或 task。"
-                    "只能从 candidate_tools 选择能力；不要输出推理过程。"
-                    "写操作必须设置 requires_confirmation=true。"
-                ),
+                system=config.system_instruction,
                 user=json.dumps(prompt_payload, ensure_ascii=False),
                 schema=ConversationRoute,
                 temperature=0.0,
@@ -282,6 +284,25 @@ def route_message(
     except LLMError:
         route = _clarification_route("任务路由能力暂时不可用，请稍后重试；你的消息已经安全保存。")
         return RoutingOutcome(route, None, ("router_unavailable",))
+
+    if route.tool_call is not None:
+        defaults = config.tool_defaults.get(route.tool_call.name, {})
+        arguments = {**defaults, **route.tool_call.arguments}
+        try:
+            tool_registry.get(route.tool_call.name).validate_arguments(arguments)
+        except ValidationError:
+            fallback = _clarification_route(
+                "调用参数不符合该能力的要求，请换一种方式说明范围或数量。",
+                objective=route.objective,
+            )
+            return RoutingOutcome(fallback, None, ("tool_arguments_invalid",))
+        route = route.model_copy(
+            update={
+                "candidate_tool_keys": [route.tool_call.name],
+                "semantic_arguments": arguments,
+                "tool_call": route.tool_call.model_copy(update={"arguments": arguments}),
+            }
+        )
 
     policy = validate_route(route, manifest, allowed_candidates=candidates)
     if not policy.valid:
