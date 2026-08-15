@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "id": "2026.08.15.145715-65df953",
+      "version": "2026.08.15.145715",
+      "commit": "65df953a7f6be9b816b31ea723decb0d0b8523fa",
+      "commit_short": "65df953",
+      "message": "🐳 chore: 发布集中 Prompt 与 Skill 管理功能",
+      "changes": [
+        "🐳 chore: 发布集中 Prompt 与 Skill 管理功能",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-15T14:57:15Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.15.144823-83e2a35",
       "version": "2026.08.15.144823",
       "commit": "83e2a3580dd3fcb9ad7d9810ab4833d6d788307c",
@@ -1296,35 +1313,6 @@
         "backend/app/modules/posts/visuals.py"
       ],
       "deployed_at": "2026-07-31T23:32:52Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.07.31.232546-55922dd",
-      "version": "2026.07.31.232546",
-      "commit": "55922ddef1adc93db13ef0e052b66c980eaadf34",
-      "commit_short": "55922dd",
-      "message": "fix: generate and embed readable blog visual PNGs",
-      "changes": [
-        "fix: generate and embed readable blog visual PNGs",
-        "前端界面与交互更新",
-        "后端接口与业务逻辑更新",
-        "规格与文档更新"
-      ],
-      "changed_files": [
-        "backend/app/modules/posts/router.py",
-        "backend/app/modules/posts/visuals.py",
-        "backend/app/workers/tasks/blog.py",
-        "backend/tests/unit/test_blog_visuals.py",
-        "frontend/src/modules/posts/MarkdownPreview.vue",
-        "frontend/src/modules/posts/VisualBlock.vue",
-        "specs/005-blog-content-management/contracts/openapi.yaml",
-        "specs/005-blog-content-management/plan.md",
-        "specs/005-blog-content-management/quickstart.md"
-      ],
-      "deployed_at": "2026-07-31T23:25:46Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
