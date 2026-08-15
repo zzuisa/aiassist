@@ -3,7 +3,8 @@
 # Only the internal nginx gateway publishes a port, bound to 127.0.0.1.
 
 # Shared log rotation for all services. stdout is captured by Docker and rotated
-# here; structured JSON logs from the app are also written to /www/wwwlogs/aiassist/.
+# here; structured JSON logs from the app are also written to the dedicated
+# observability disk at /mnt/docker-ext4/observability/aiassist/logs/.
 x-logging: &logging
   driver: local
   options:
@@ -38,7 +39,7 @@ x-backend-image: &backend-image
     - radio_service_password
     - mcp_connections
   volumes:
-    - /www/wwwlogs/aiassist:/logs/aiassist
+    - /mnt/docker-ext4/observability/aiassist/logs:/logs/aiassist
   logging: *logging
   networks: [internal]
 
@@ -116,7 +117,7 @@ services:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
     volumes:
       - assets:/data/assets
-      - /www/wwwlogs/aiassist:/logs/aiassist
+      - /mnt/docker-ext4/observability/aiassist/logs:/logs/aiassist
     healthcheck:
       test: ["CMD", "python", "-m", "app.cli.main", "healthcheck", "--url", "http://localhost:8000/health/ready"]
       interval: 15s
@@ -156,7 +157,7 @@ services:
        "--prefetch-multiplier", "1", "-l", "info", "-n", "fast@%h"]
     volumes:
       - assets:/data/assets
-      - /www/wwwlogs/aiassist:/logs/aiassist
+      - /mnt/docker-ext4/observability/aiassist/logs:/logs/aiassist
     healthcheck:
       test:
         ["CMD-SHELL", "celery -A app.workers.celery_app.celery inspect ping --destination fast@$$HOSTNAME --timeout 10 | grep -q pong"]
@@ -181,7 +182,7 @@ services:
        "-l", "info", "-n", "heavy@%h"]
     volumes:
       - assets:/data/assets
-      - /www/wwwlogs/aiassist:/logs/aiassist
+      - /mnt/docker-ext4/observability/aiassist/logs:/logs/aiassist
     healthcheck:
       test:
         ["CMD-SHELL", "celery -A app.workers.celery_app.celery inspect ping --destination heavy@$$HOSTNAME --timeout 10 | grep -q pong"]
@@ -243,7 +244,7 @@ services:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
       - assets:/data/assets:ro
-      - /www/wwwlogs/aiassist/nginx:/logs/aiassist/nginx
+      - /mnt/docker-ext4/observability/aiassist/logs/nginx:/logs/aiassist/nginx
     logging: *logging
     depends_on:
       backend:

@@ -69,10 +69,11 @@ export_rabbitmq_pass() {
 }
 
 ensure_log_dirs() {
-  # Create per-service log directories under /www/wwwlogs/aiassist/ and make
+  # Keep AI Assist file logs on the dedicated observability disk rather than
+  # the host root volume. Containers need a shared, writable log root.
   # them world-writable so containers (uid 10001 backend, root nginx) can write
   # without requiring a matching host user.
-  local log_root="/www/wwwlogs/aiassist"
+  local log_root="/mnt/docker-ext4/observability/aiassist/logs"
   for svc in backend outbox-publisher worker-fast worker-heavy celery-beat nginx; do
     mkdir -p "$log_root/$svc"
   done
