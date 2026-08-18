@@ -33,14 +33,15 @@ def _outcome(*, tool="posts.list_recent", operation="query", source="current_mes
 def test_task_route_bridges_to_existing_agent_task_and_updates_context(
     db_session, make_user, monkeypatch
 ) -> None:
-    from app.models.agent import AgentTask
+    from app.models.agent import AgentExecutionPlan, AgentTask
     from app.models.posts import Post
-    from app.modules.agent import conversation_router
+    from app.modules.agent import conversation_router, scheduler, step_executor
     from app.modules.agent.conversation_service import (
         accept_message,
         create_conversation,
         execute_turn,
     )
+    from sqlalchemy import select
 
     user = make_user()
     db_session.add_all(
@@ -61,9 +62,24 @@ def test_task_route_bridges_to_existing_agent_task_and_updates_context(
     db_session.commit()
     monkeypatch.setattr(conversation_router, "route_message", lambda *_args, **_kwargs: _outcome())
 
-    finished = execute_turn(db_session, turn.id)
+    planned = execute_turn(db_session, turn.id)
     db_session.commit()
 
+    assert planned.status == "executing"
+    assert planned.agent_task_id is not None
+    plan = db_session.scalar(
+        select(AgentExecutionPlan).where(AgentExecutionPlan.turn_id == planned.id)
+    )
+    assert plan is not None
+    ready = scheduler.coordinate_plan(db_session, plan.id)
+    assert len(ready) == 1
+    assert scheduler.start_step(db_session, ready[0]) is not None
+    step_executor.execute_step(db_session, ready[0])
+    assert scheduler.coordinate_plan(db_session, plan.id) == []
+    db_session.commit()
+
+    db_session.refresh(planned)
+    finished = planned
     assert finished.status == "success"
     assert finished.agent_task_id is not None
     task = db_session.get(AgentTask, finished.agent_task_id)

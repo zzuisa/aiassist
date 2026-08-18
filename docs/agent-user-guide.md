@@ -2,7 +2,58 @@
 
 Agent 是 AI Assist 内置的对话入口：普通问候和“你能做什么”可直接回复；查询、分析和写入请求会先生成受控任务。写入操作必须先显示预览并由用户确认，MCP 外部能力只允许由服务器管理员预先配置。
 
-## 1. 最小可用配置
+## 1. 当前工作流
+
+```mermaid
+flowchart TD
+    U[用户消息] --> A[持久化 Message / Turn / Job]
+    A --> B{纯问候或能力说明?}
+    B -- 是 --> C[确定性快速回复]
+    B -- 否 --> D[对话路由]
+    D --> E{信息是否充分?}
+    E -- 否 --> F[追问并等待补充]
+    E -- 是 --> G[任务规划器生成有界 DAG]
+    G --> H[平台校验工具、参数、权限、范围、依赖和写确认]
+    H --> I[完整计划落库并发送 agent.plan_updated]
+    I --> J[协调器领取所有依赖已满足的步骤]
+    J --> K1[查询 Agent]
+    J --> K2[内容分析 Agent]
+    J --> K3[外部能力 Agent]
+    K1 --> L[结构化持久产物]
+    K2 --> L
+    K3 --> L
+    L --> M{包含写入步骤?}
+    M -- 否 --> N{还有 ready 步骤?}
+    M -- 是 --> W[生成 PendingWrite 预览并暂停]
+    W --> X{用户决定}
+    X -- 拒绝 --> Y[跳过写入及相关依赖链]
+    X -- 批准 --> Z[重校验版本并幂等写入]
+    Y --> N
+    Z --> N
+    N -- 是 --> J
+    N -- 否 --> O[汇总成功、部分成功或失败]
+    O --> P[写入 Assistant Message / Job 终态]
+    P --> Q[计划卡首次进入终态时自动折叠]
+    Q --> R[用户可随时展开历史步骤]
+```
+
+各节点使用的 Prompt/Skill 与策略如下。这里的“Prompt”是版本化 AI 配置模块，不会通过计划事件发送到浏览器；“Skill”是同模块下用户可选的指令和工具默认参数版本。
+
+| 节点 | Prompt / Skill | 是否调用模型 | 平台强制策略 |
+|---|---|---:|---|
+| 持久化与快速回复 | 无 | 否 | 消息先落库；纯问候使用整句匹配，不能吞掉混合任务 |
+| 对话路由 | `conversation_route` Prompt + 当前激活 Skill | 是 | 只能选安全工具清单；输出必须符合 `conversation-route.v1`；写操作必须声明确认 |
+| 任务规划 | `agent_task_plan` Prompt + 当前激活 Skill | 复合任务是；原子任务可确定性规划 | 输出 `agent-task-plan.v1`，最多 12 步、深度最多 4；模型不能指定凭据、扩大范围或授予权限 |
+| 查询步骤 | 工具绑定的 `article-query-agent`；无额外规划 Prompt | 否 | 只访问当前用户数据；参数按工具 Schema 校验 |
+| 内容分析步骤 | `agent_content_analysis` Prompt + 当前激活 Skill；绑定 `editor-agent` | 是 | 只读取前置产物给出的文章 ID；输出结构化提案，不声称已保存 |
+| MCP 步骤 | 绑定 `mcp-tool-agent`；实际工具由服务端注册 | 视 MCP 工具而定 | 连接、授权、超时和参数 Schema 每次重校验；事件不含原始响应 |
+| 写入步骤 | 无可绕过确认的 Prompt/Skill | 否 | 先生成 `PendingWrite`；批准后才设置一次性写权限并校验对象版本 |
+| 协调与汇总 | 无 | 否 | PostgreSQL 是状态真相；依赖 ready 才入队；每计划最多并发 4；失败只阻断其后代 |
+| 实时 UI | 无 | 否 | 复用 `/events/jobs` SSE；只接受更高版本快照；活动展开、首次终态自动折叠、手动选择优先 |
+
+计划步骤之间不传自由文本 Prompt，而是传递带 Schema 的持久产物。这样 worker 重启、断线重连和失败链重试都能从数据库恢复，也避免把某个 Agent 的内部指令或原始输出扩散给其他节点。
+
+## 2. 最小可用配置
 
 先从示例创建 `.env`，并保留已有数据库、JWT 与 RabbitMQ 配置。要使用任务型对话路由，需要配置一个 LLM 提供商：
 
@@ -33,7 +84,7 @@ chown 10001 deploy/secrets/llm_provider_key
 
 生产环境通过 `./deploy/scripts/deploy.sh up` 发布。脚本会校验必需密钥、修复文件权限、执行迁移并检查 API 与 worker 健康状态。
 
-## 2. 可选：配置 MCP 外部工具
+## 3. 可选：配置 MCP 外部工具
 
 不使用 MCP 时无需创建文件；部署脚本会生成空占位文件，并将其视为“未配置 MCP”。如需启用 MCP：
 
@@ -51,15 +102,16 @@ chown 10001 deploy/secrets/llm_provider_key
 
 不要让浏览器或用户消息提供 MCP URL、令牌或连接字符串。Compose 会把该文件挂载为容器内的 `/run/secrets/mcp_connections`；`.env` 中的 `MCP_SECRETS_FILE` 会由部署配置覆盖，无需改成真实路径。
 
-## 3. 使用与排障
+## 4. 使用、确认与重试
 
-- 打开“Agent”，直接输入自然语言请求。任务会显示“正在理解请求”“等待确认”等状态。
+- 打开“Agent”，直接输入自然语言请求。任务计划会在对应用户消息下实时展开，显示每个 Agent、工具、依赖、状态和安全摘要。
+- 计划首次进入成功、部分成功、失败或取消等终态时会自动折叠；点击摘要可重新展开，后续轮询不会覆盖当前页面内的手动选择。
 - 打开“设置 → 管理 AI Prompt 与 Skill”，可按模块创建 Prompt/Skill 新版本、切换历史版本并执行安全试运行；修改这些行为不需要调整 `.env` 或重新部署。
 - “查一下最近文章”等未指定数量的请求使用对话路由 Skill 中的 `posts.list_recent.limit`，默认值为 10；用户明确说出的数量优先。
 - 配置中心只允许调整业务指令和已注册工具的默认参数。数据权限、参数 schema、最大数量和写入确认由平台强制执行，不能通过 Prompt 关闭。
 - 出现“等待确认”时，先核对预览再确认；未确认前不会执行写入。
-- 出现“可以安全重试”时，可在该轮消息上点击重试。消息与失败记录会保留。
+- 出现“可以安全重试”时，可在计划卡点击“重试失败步骤”。系统只重置可重试失败步骤及其后代，已经成功的步骤和写入不会重复。
 - 查看运行状态：`./deploy/scripts/deploy.sh ps`。
-- 查看日志：`./deploy/scripts/deploy.sh logs worker-heavy`，再按 turn ID 或 `conversation_turn_execution_failed` 检索。
+- 查看日志：`./deploy/scripts/deploy.sh logs worker-heavy`，再按 `plan_id`、`turn_id`、`task_id` 或 `conversation_turn_execution_failed` 检索。
 
 常见检查顺序：先确认 `LLM_PROVIDER` 与密钥文件是否匹配；再检查容器健康状态；最后检查 MCP 文件是否为有效 JSON（或保持为空/`{"connections": {}}`）。

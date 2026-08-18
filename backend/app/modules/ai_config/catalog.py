@@ -44,6 +44,26 @@ MODULES = {
         "Agent 内容分析",
         "你是内容分析 Agent。只基于给定文章生成结构化结果；不得修改原文、补造事实或声称已保存。",
     ),
+    "agent_task_plan": ModuleDefinition(
+        "agent_task_plan",
+        "协作 Agent 任务规划",
+        (
+            "把任务请求拆成 1 到 12 个有向无环步骤。每个步骤只能选择 candidate_tools 中的一个工具，"
+            "使用稳定的 step_key，并声明 depends_on、输入来源和预期输出。"
+            "互不依赖的工作应保持可并行；"
+            "原子任务只生成一个步骤。不得输出推理过程，不得自行授予权限或扩大对象范围。"
+            "写工具必须设置 requires_confirmation=true；只读工具必须为 false。"
+        ),
+        allowed_tool_keys=(
+            "agent.capabilities",
+            "posts.list_recent",
+            "taxonomy.categories",
+            "taxonomy.tags",
+            "content.extract_metadata",
+            "posts.apply_analysis",
+        ),
+        baseline_defaults={"posts.list_recent": {"limit": 10}},
+    ),
     "quick_plan": ModuleDefinition(
         "quick_plan",
         "快速待办规划",

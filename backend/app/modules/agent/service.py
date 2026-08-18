@@ -249,6 +249,9 @@ def decide_pending_write(
             "Agent run is not waiting for confirmation",
             code="agent_confirmation_conflict",
         )
+    from app.models.agent import AgentPlanStep
+
+    collaborative_step = session.scalar(select(AgentPlanStep).where(AgentPlanStep.run_id == run.id))
     now = datetime.now(UTC)
     confirmed_operations = list(task.scope_json.get("confirmed_operations", []))
     confirmed_operations.append(
@@ -276,18 +279,29 @@ def decide_pending_write(
         run.stage_label = "写入已取消"
         run.result_summary = "用户已拒绝写入，业务数据未修改"
         run.finished_at = now
-        task.status = "success"
-        task.finished_at = now
+        task.status = "running" if collaborative_step is not None else "success"
+        task.finished_at = None if collaborative_step is not None else now
         _update_confirmation_result(task, decision="rejected")
-        jobs_service.transition(
-            session,
-            task.job,
-            status="completed",
-            progress=100,
-            current_step="写入已取消",
-            result={"agent_task_id": str(task.id), "status": "success"},
-        )
+        if collaborative_step is None:
+            jobs_service.transition(
+                session,
+                task.job,
+                status="completed",
+                progress=100,
+                current_step="写入已取消",
+                result={"agent_task_id": str(task.id), "status": "success"},
+            )
+        else:
+            jobs_service.transition(
+                session,
+                task.job,
+                status="processing",
+                current_step="写入已取消，继续处理计划",
+            )
         publish_status(session, task, run)
+        _complete_plan_step_after_confirmation(
+            session, run=run, decision="rejected", summary=run.result_summary
+        )
         session.flush()
         return pending
 
@@ -321,8 +335,8 @@ def decide_pending_write(
     run.stage_label = "确认写入完成"
     run.result_summary = f"已保存 {len(saved) if isinstance(saved, list) else 1} 项"
     run.finished_at = finished
-    task.status = "success"
-    task.finished_at = finished
+    task.status = "running" if collaborative_step is not None else "success"
+    task.finished_at = None if collaborative_step is not None else finished
     _update_confirmation_result(
         task,
         decision="approved",
@@ -342,17 +356,50 @@ def decide_pending_write(
         result_summary=run.result_summary,
         started_at=now,
     )
-    jobs_service.transition(
-        session,
-        task.job,
-        status="completed",
-        progress=100,
-        current_step="确认写入完成",
-        result={"agent_task_id": str(task.id), "status": "success"},
-    )
+    if collaborative_step is None:
+        jobs_service.transition(
+            session,
+            task.job,
+            status="completed",
+            progress=100,
+            current_step="确认写入完成",
+            result={"agent_task_id": str(task.id), "status": "success"},
+        )
+    else:
+        jobs_service.transition(
+            session,
+            task.job,
+            status="processing",
+            current_step="确认写入完成，继续处理计划",
+        )
     publish_status(session, task, run)
+    _complete_plan_step_after_confirmation(
+        session, run=run, decision="approved", summary=run.result_summary
+    )
     session.flush()
     return pending
+
+
+def _complete_plan_step_after_confirmation(
+    session: Session, *, run: AgentRun, decision: str, summary: str | None
+) -> None:
+    """Resume a collaborative plan when an existing PendingWrite is decided."""
+    from app.models.agent import AgentExecutionPlan, AgentPlanStep
+    from app.modules.agent.status import publish_plan_event
+
+    step = session.scalar(select(AgentPlanStep).where(AgentPlanStep.run_id == run.id))
+    if step is None or step.status != "waiting_confirmation":
+        return
+    plan = session.get(AgentExecutionPlan, step.plan_id)
+    if plan is None:
+        return
+    step.status = "success" if decision == "approved" else "skipped"
+    step.stage_label = "确认写入完成" if decision == "approved" else "用户已拒绝写入"
+    step.result_summary = summary
+    step.finished_at = datetime.now(UTC)
+    plan.status = "running"
+    plan.version += 1
+    publish_plan_event(session, plan)
 
 
 def create_agent_task(

@@ -2,19 +2,22 @@
 import { ref } from 'vue'
 import type { AgentMessage } from '@/api/agentConversations'
 import ConversationTimeline from '@/components/agent/ConversationTimeline.vue'
+import type { AgentPlan } from '@/api/agentPlans'
 
 export interface ConversationPanelMessage extends AgentMessage {
   pending?: boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   messages: ConversationPanelMessage[]
   loading: boolean
   sending: boolean
   error: string
-}>()
+  plans?: AgentPlan[]
+  retryingPlanId?: string | null
+}>(), { plans: () => [], retryingPlanId: null })
 
-const emit = defineEmits<{ send: [text: string] }>()
+const emit = defineEmits<{ send: [text: string]; retryPlan: [planId: string] }>()
 
 const draft = ref('')
 
@@ -59,6 +62,9 @@ function onKeydown(event: KeyboardEvent): void {
       <ConversationTimeline
         v-else
         :messages="messages"
+        :plans="plans"
+        :retrying-plan-id="retryingPlanId"
+        @retry-plan="emit('retryPlan', $event)"
       />
     </div>
 

@@ -7,6 +7,7 @@ import {
   type AgentMessage,
   type Turn,
 } from '@/api/agentConversations'
+import { agentPlansApi, type AgentPlan } from '@/api/agentPlans'
 
 const LOCAL_ID_PREFIX = 'local-'
 const POLL_INTERVAL_MS = 700
@@ -24,6 +25,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
   const conversationId = ref<string | null>(null)
   const messages = ref<ConversationMessageView[]>([])
   const activeTurns = ref<Turn[]>([])
+  const plans = ref<AgentPlan[]>([])
   const nextCursor = ref<string | null>(null)
   const loadingHistory = ref(false)
   const loadingMore = ref(false)
@@ -54,6 +56,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     conversationId.value = null
     messages.value = []
     activeTurns.value = []
+    plans.value = []
     nextCursor.value = null
     loadingHistory.value = false
     error.value = ''
@@ -64,13 +67,15 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     loadingHistory.value = true
     try {
       const id = await ensureConversation()
-      const [page, detail] = await Promise.all([
+      const [page, detail, planItems] = await Promise.all([
         agentConversationsApi.listMessages(id),
         agentConversationsApi.getConversation(id),
+        agentPlansApi.listConversationPlans(id),
       ])
       messages.value = page.items
       nextCursor.value = page.next_cursor
       activeTurns.value = detail.active_turns
+      plans.value = planItems
       if (activeTurns.value.length) schedulePoll()
     } catch {
       error.value = '加载会话失败，请稍后重试。'
@@ -99,14 +104,16 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     try {
       const lastMessage = messages.value[messages.value.length - 1]
       const cursor = lastMessage && isServerId(lastMessage.id) ? lastMessage.id : null
-      const [page, detail] = await Promise.all([
+      const [page, detail, planItems] = await Promise.all([
         agentConversationsApi.listMessages(id, cursor),
         agentConversationsApi.getConversation(id),
+        agentPlansApi.listConversationPlans(id),
       ])
       if (page.items.length) {
         messages.value = [...messages.value, ...page.items]
       }
       activeTurns.value = detail.active_turns
+      for (const plan of planItems) applyPlan(plan)
       if (activeTurns.value.length) schedulePoll()
     } catch {
       // Best-effort refresh; the user can still send another message.
@@ -118,6 +125,31 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     activeTurns.value = items
       .filter((item) => item.conversation_id === conversationId.value)
       .map((item) => item as unknown as Turn)
+  }
+
+  function applyPlanSnapshot(items: Array<Record<string, unknown>>): void {
+    if (!conversationId.value) return
+    for (const item of items) applyPlan(item as unknown as AgentPlan)
+  }
+
+  function applyPlan(plan: AgentPlan): void {
+    if (!plan.turn_id) return
+    const turn = activeTurns.value.find((item) => item.id === plan.turn_id)
+    const belongsToConversation = turn?.conversation_id === conversationId.value
+      || messages.value.some((message) => message.id === plan.user_message_id)
+    if (!belongsToConversation) return
+    const existing = plans.value.find((item) => item.plan_id === plan.plan_id)
+    if (existing && existing.version >= plan.version) return
+    plans.value = [
+      ...plans.value.filter((item) => item.plan_id !== plan.plan_id),
+      plan,
+    ].sort((left, right) => left.created_at.localeCompare(right.created_at))
+  }
+
+  function applyPlanEvent(data: Record<string, unknown>): void {
+    if (data.event_type !== 'agent.plan_updated') return
+    const plan = data.plan
+    if (plan && typeof plan === 'object') applyPlan(plan as AgentPlan)
   }
 
   function applyConversationEvent(data: Record<string, unknown>): void {
@@ -202,6 +234,15 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     }
   }
 
+  async function retryPlan(planId: string): Promise<void> {
+    error.value = ''
+    try {
+      applyPlan(await agentPlansApi.retryPlan(planId))
+    } catch {
+      error.value = '无法重试这个执行计划，请刷新后再试。'
+    }
+  }
+
   function reset(): void {
     startFreshConversation()
   }
@@ -210,6 +251,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     conversationId,
     messages,
     activeTurns,
+    plans,
     nextCursor,
     loadingHistory,
     loadingMore,
@@ -222,6 +264,9 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     retryTurn,
     applyConversationEvent,
     applyConversationSnapshot,
+    applyPlanSnapshot,
+    applyPlanEvent,
+    retryPlan,
     reset,
   }
 })

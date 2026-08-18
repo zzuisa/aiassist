@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.agent import AgentRun, AgentTask
+from app.models.agent import AgentExecutionPlan, AgentRun, AgentTask
 from app.models.agent_conversation import AgentTurn
 from app.models.foundation import AsyncJob, AsyncJobEvent
 
@@ -18,6 +18,8 @@ SCHEMA_VERSION = "agent-status-event.v1"
 CONVERSATION_EVENT_SCHEMA_VERSION = "conversation-event.v1"
 CONVERSATION_MESSAGE_CREATED = "conversation.message_created"
 CONVERSATION_TURN_UPDATED = "conversation.turn_updated"
+PLAN_EVENT_NAME = "agent.plan_updated"
+PLAN_EVENT_SCHEMA_VERSION = "agent-plan-event.v1"
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -165,6 +167,35 @@ def publish_conversation_event(
         job_version=job.version,
         event_type=event_type,
         payload_json=payload,
+    )
+    session.add(event)
+    session.flush()
+    return event
+
+
+def build_plan_event_payload(session: Session, plan: AgentExecutionPlan) -> dict[str, Any]:
+    """Build one bounded public plan snapshot without parameters or private artifacts."""
+    from app.modules.agent.planning_service import serialize_plan
+
+    return {
+        "schema_version": PLAN_EVENT_SCHEMA_VERSION,
+        "event_type": PLAN_EVENT_NAME,
+        "plan": serialize_plan(session, plan).model_dump(mode="json"),
+        "timestamp": _iso(datetime.now(UTC)),
+    }
+
+
+def publish_plan_event(session: Session, plan: AgentExecutionPlan) -> AsyncJobEvent:
+    task = session.get(AgentTask, plan.task_id)
+    if task is None:  # pragma: no cover - protected by foreign key
+        raise RuntimeError("Agent plan has no task")
+    session.flush()
+    event = AsyncJobEvent(
+        user_id=plan.user_id,
+        job_id=task.job_id,
+        job_version=task.job.version,
+        event_type=PLAN_EVENT_NAME,
+        payload_json=build_plan_event_payload(session, plan),
     )
     session.add(event)
     session.flush()

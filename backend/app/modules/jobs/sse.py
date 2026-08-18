@@ -36,8 +36,9 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
     with session_scope() as s:
         from sqlalchemy import select
 
-        from app.models.agent import AgentRun, AgentTask
+        from app.models.agent import AgentExecutionPlan, AgentRun, AgentTask
         from app.models.agent_conversation import AgentConversation, AgentTurn
+        from app.modules.agent.planning_service import serialize_plan
         from app.modules.agent.status import build_status_payload
 
         jobs = jobs_service.list_jobs(
@@ -68,6 +69,19 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
             )
             .scalars()
             .all()
+        )
+        active_plans = list(
+            s.scalars(
+                select(AgentExecutionPlan)
+                .where(
+                    AgentExecutionPlan.user_id == user_id,
+                    AgentExecutionPlan.status.in_(
+                        ("planning", "pending", "running", "waiting_user", "stalled")
+                    ),
+                )
+                .order_by(AgentExecutionPlan.created_at)
+                .limit(50)
+            ).all()
         )
         payload = {
             "snapshot_at": datetime.now(UTC).isoformat(),
@@ -117,6 +131,7 @@ def _snapshot_payload(user_id: uuid.UUID) -> tuple[dict, int]:
                 for j in jobs
             ],
             "agents": [build_status_payload(task, run) for task, run in active_agents],
+            "plans": [serialize_plan(s, plan).model_dump(mode="json") for plan in active_plans],
             "notifications": _unread_notifications(s, user_id),
         }
         return payload, cursor

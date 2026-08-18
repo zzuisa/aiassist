@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies, architecture, project structure,
 contracts, and implementation constraints, read the current plan:
-`specs/010-prompt-skill-management/plan.md`.
+`specs/011-collaborative-agent-orchestration/plan.md`.
 <!-- SPECKIT END -->
 
 ## 修复复盘归档

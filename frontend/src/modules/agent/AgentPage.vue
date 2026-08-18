@@ -30,7 +30,9 @@ const taskError = ref('')
 const confirmations = ref<PendingWrite[]>([])
 const records = ref<ExecutionRecord[]>([])
 const decidingId = ref<string | null>(null)
+const retryingPlanId = ref<string | null>(null)
 let linkedTaskId: string | null = null
+let linkedPlanVersion = -1
 
 const reply = computed(() => parseAgentReply(task.value?.result_summary ?? null))
 const capabilityGap = computed(() => reply.value?.能力缺口 ?? null)
@@ -86,22 +88,39 @@ async function refreshLinkedTask(taskId: string): Promise<void> {
 }
 
 watch(
-  () => conversation.messages,
-  (messages) => {
-    const latest = [...messages]
+  [() => conversation.plans, () => conversation.messages],
+  ([plans, messages]) => {
+    const latestPlan = plans.at(-1)
+    const planTaskId = latestPlan?.task_id
+    const messageTaskId = [...messages]
       .reverse()
       .map((message) => message.content.task_id)
       .find((value): value is string => typeof value === 'string')
-    if (latest && latest !== linkedTaskId) {
+    const latest = planTaskId ?? messageTaskId
+    const planAdvanced = latestPlan !== undefined && latestPlan.version > linkedPlanVersion
+    if (latest && (latest !== linkedTaskId || planAdvanced)) {
       linkedTaskId = latest
+      linkedPlanVersion = latestPlan?.version ?? linkedPlanVersion
       void refreshLinkedTask(latest)
     }
   },
   { deep: true },
 )
 
-onMounted(conversation.startFreshConversation)
+onMounted(() => {
+  conversation.startFreshConversation()
+  void conversation.loadHistory()
+})
 onBeforeUnmount(() => conversation.reset())
+
+async function retryPlan(planId: string): Promise<void> {
+  retryingPlanId.value = planId
+  try {
+    await conversation.retryPlan(planId)
+  } finally {
+    retryingPlanId.value = null
+  }
+}
 </script>
 
 <template>
@@ -116,7 +135,10 @@ onBeforeUnmount(() => conversation.reset())
       :loading="conversation.loadingHistory"
       :sending="conversation.sending"
       :error="conversation.error"
+      :plans="conversation.plans"
+      :retrying-plan-id="retryingPlanId"
       @send="(text) => conversation.sendMessage(text)"
+      @retry-plan="retryPlan"
     />
 
     <AgentTurnRetry

@@ -724,50 +724,36 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
     turn.last_heartbeat_at = datetime.now(UTC)
     session.flush()
 
-    executed = (
-        _execute_mcp_task(
-            session,
-            task=task,
-            tool_name=outcome.selected_tool,
-            arguments=route.semantic_arguments,
-            requires_confirmation=route.requires_confirmation,
-        )
-        if outcome.selected_tool.startswith("mcp.")
-        else agent_service.execute_agent_task(session, task.id)
-    )
-    task_status = executed.status
-    turn.status = {
-        "success": "success",
-        "partial_success": "partial_success",
-        "waiting_confirmation": "waiting_confirmation",
-        "failed": "failed",
-    }.get(task_status, "executing")
-    turn.current_step = "等待确认" if turn.status == "waiting_confirmation" else "任务处理完成"
-    if turn.status in {"success", "partial_success", "failed"}:
-        turn.finished_at = datetime.now(UTC)
+    from app.modules.agent.planning_service import persist_plan, propose_plan
+    from app.modules.agent.status import publish_plan_event
 
-    result_text = executed.result_summary or (
-        "已生成修改预览，确认前不会写入。"
-        if turn.status == "waiting_confirmation"
-        else "任务已受理，正在处理。"
-    )
-    assistant_message = _create_assistant_message(
+    proposal = propose_plan(
         session,
-        turn=turn,
-        conversation=conversation,
-        user_message=user_message,
-        kind="result" if turn.status != "failed" else "error",
-        text=result_text,
-        extra={"task_id": str(task.id), "task_status": task_status},
+        user_id=conversation.user_id,
+        request_text=route_text,
+        objective=route.objective,
+        seed_tool_name=outcome.selected_tool,
+        seed_arguments=route.semantic_arguments,
+        context={**conversation.context_json, **scope},
+        run_reference=f"agent-turn:{turn.id}",
     )
-    turn.assistant_message_id = assistant_message.id
-    if executed.scope_json:
-        conversation.context_json = {
-            **conversation.context_json,
-            **executed.scope_json,
-            "object_type": route.target_scope.object_type or "post",
-            "last_task_id": str(task.id),
-        }
+    plan = persist_plan(session, task=task, proposal=proposal, turn=turn)
+    task.status = "pending"
+    turn.status = "executing"
+    turn.current_step = "计划已生成，等待调度"
+    jobs_service.transition(
+        session,
+        task.job,
+        status="processing",
+        progress=20,
+        current_step="计划已生成，等待调度",
+    )
+    publish_plan_event(session, plan)
+    conversation.context_json = {
+        **conversation.context_json,
+        "last_task_id": str(task.id),
+        "last_plan_id": str(plan.id),
+    }
     if parent_turn is not None and parent_turn.status == "waiting_clarification":
         parent_turn.status = "cancelled"
         parent_turn.current_step = "已由补充信息继续"
@@ -781,35 +767,18 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
                 current_step="已由补充信息继续",
             )
     if job is not None:
-        if turn.status == "waiting_confirmation":
-            jobs_service.transition(
-                session,
-                job,
-                status="waiting_user",
-                progress=90,
-                current_step="等待确认",
-                result={"turn_id": str(turn.id), "agent_task_id": str(task.id)},
-            )
-        elif turn.status in {"success", "partial_success"}:
-            jobs_service.transition(
-                session,
-                job,
-                status="completed",
-                progress=100,
-                current_step="任务处理完成",
-                result={"turn_id": str(turn.id), "agent_task_id": str(task.id)},
-            )
-        elif turn.status == "failed":
-            jobs_service.transition(
-                session,
-                job,
-                status="failed",
-                current_step="任务处理失败",
-                error_code="agent_task_failed",
-                error_message="任务执行失败，请查看对话中的结果。",
-                error_retryable=True,
-            )
-    _publish_reply_events(session, turn, assistant_message, result_text)
+        jobs_service.transition(
+            session,
+            job,
+            status="processing",
+            progress=20,
+            current_step="计划已生成，等待调度",
+            result={
+                "turn_id": str(turn.id),
+                "agent_task_id": str(task.id),
+                "plan_id": str(plan.id),
+            },
+        )
     session.flush()
     return turn
 

@@ -19,7 +19,17 @@ from app.models import scheduling as scheduling
 from app.models import search as search
 from app.models import tasks as tasks
 from app.models import voice as voice
-from app.models.agent import AgentRun, AgentTask, ExecutionRecord, PendingWrite
+from app.models.agent import (
+    AgentExecutionPlan,
+    AgentPlanStep,
+    AgentRun,
+    AgentStepArtifact,
+    AgentStepAttempt,
+    AgentStepDependency,
+    AgentTask,
+    ExecutionRecord,
+    PendingWrite,
+)
 from app.models.agent_conversation import (
     AgentConversation,
     AgentMessage,
@@ -34,9 +44,14 @@ metadata = Base.metadata
 
 __all__ = [
     "AgentConversation",
+    "AgentExecutionPlan",
     "AgentMessage",
+    "AgentPlanStep",
     "AgentRoutingDecision",
     "AgentRun",
+    "AgentStepArtifact",
+    "AgentStepAttempt",
+    "AgentStepDependency",
     "AgentTask",
     "AgentTurn",
     "Base",

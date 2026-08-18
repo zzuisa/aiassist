@@ -92,6 +92,9 @@ export const useJobsStore = defineStore('jobs', () => {
     useAgentConversationsStore().applyConversationSnapshot(
       (data.conversation_turns as Array<Record<string, unknown>>) ?? [],
     )
+    useAgentConversationsStore().applyPlanSnapshot(
+      (data.plans as Array<Record<string, unknown>>) ?? [],
+    )
   }
 
   function applyNotification(data: Record<string, unknown>): void {
@@ -162,6 +165,12 @@ export const useJobsStore = defineStore('jobs', () => {
         )
       })
     }
+    source.addEventListener('agent.plan_updated', (e) => {
+      lastEventId = (e as MessageEvent).lastEventId || lastEventId
+      useAgentConversationsStore().applyPlanEvent(
+        JSON.parse((e as MessageEvent).data),
+      )
+    })
     source.addEventListener('error', () => {
       connected.value = false
       reconnecting.value = true

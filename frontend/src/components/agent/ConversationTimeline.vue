@@ -3,9 +3,16 @@ import { messageText, type AgentMessage } from '@/api/agentConversations'
 import ClarificationCard from './ClarificationCard.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ToolActivityCard from './ToolActivityCard.vue'
+import AgentPlanCard from './AgentPlanCard.vue'
+import type { AgentPlan } from '@/api/agentPlans'
 
 type TimelineMessage = AgentMessage & { pending?: boolean }
-defineProps<{ messages: TimelineMessage[] }>()
+withDefaults(defineProps<{
+  messages: TimelineMessage[]
+  plans?: AgentPlan[]
+  retryingPlanId?: string | null
+}>(), { plans: () => [], retryingPlanId: null })
+const emit = defineEmits<{ retryPlan: [planId: string] }>()
 </script>
 <template>
   <div class="timeline">
@@ -25,6 +32,13 @@ defineProps<{ messages: TimelineMessage[] }>()
           status="确认前不会写入"
         />
       </template>
+      <AgentPlanCard
+        v-for="plan in plans.filter((item) => item.user_message_id === message.id)"
+        :key="plan.plan_id"
+        :plan="plan"
+        :retrying="retryingPlanId === plan.plan_id"
+        @retry="emit('retryPlan', $event)"
+      />
     </template>
   </div>
 </template>
