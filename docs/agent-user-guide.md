@@ -82,7 +82,7 @@ chown 10001 deploy/secrets/llm_provider_key
 | Ollama | `LLM_PROVIDER=ollama`、`LLM_BASE_URL=http://主机:11434`、`LLM_DEFAULT_MODEL=模型名` | 不需要 |
 | 不使用模型 | `LLM_PROVIDER=none` | 不需要；仅确定性问候与能力说明可直接回复，其他请求会提示稍后重试 |
 
-生产环境通过 `./deploy/scripts/deploy.sh up` 发布。脚本会提交并推送变更、等待 CI、构建镜像、执行迁移并检查 API 与 worker 健康状态。只需重新启动当前版本时使用 `./deploy/scripts/deploy.sh restart`；该命令复用现有镜像和配置，不提交代码、不运行 CI、不拉取或构建镜像，也不执行迁移。
+生产环境首次部署或中间件、Compose 配置发生变化时使用 `./deploy/scripts/deploy.sh up`。它会提交并推送变更、等待 CI、拉取中间件、构建镜像、执行迁移并检查 API 与 worker 健康状态。日常代码更新使用 `DEPLOY_COMMIT_MESSAGE='🐳 chore: 部署最新代码' ./deploy/scripts/deploy.sh fast-up`：它会提交并推送代码，让 CI 异步运行，同时利用 Docker 缓存构建前后端、执行迁移并只重建应用容器。只需重新启动当前版本时使用 `./deploy/scripts/deploy.sh restart`；该命令复用现有镜像和配置，不提交代码、不运行 CI、不拉取或构建镜像，也不执行迁移。
 
 ## 3. 可选：配置 MCP 外部工具
 
@@ -113,6 +113,7 @@ chown 10001 deploy/secrets/llm_provider_key
 - 出现“可以安全重试”时，可在计划卡点击“重试失败步骤”。系统只重置可重试失败步骤及其后代，已经成功的步骤和写入不会重复。
 - 打开会话默认只加载最近 12 条消息；需要查看旧记录时点击“加载更早消息”。终态失败最多提示 1 条并在 24 小时后自动退出提示区，历史记录不会从数据库删除。
 - 查看运行状态：`./deploy/scripts/deploy.sh ps`。
+- 快速发布代码到生产：`DEPLOY_COMMIT_MESSAGE='🐳 chore: 部署最新代码' ./deploy/scripts/deploy.sh fast-up`。它不等待 CI，也不拉取或重启 PostgreSQL、Redis、RabbitMQ；CI 会在 GitHub 上异步继续运行。
 - 秒级重启现有应用容器：`./deploy/scripts/deploy.sh restart`。它不重启 PostgreSQL、Redis 或 RabbitMQ；代码、依赖、镜像、Compose 配置或数据库结构有变化时仍必须使用 `up`。
 - 查看日志：`./deploy/scripts/deploy.sh logs worker-heavy`，再按 `plan_id`、`turn_id`、`task_id` 或 `conversation_turn_execution_failed` 检索。
 

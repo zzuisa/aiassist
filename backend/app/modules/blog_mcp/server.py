@@ -140,9 +140,7 @@ def build_blog_mcp_server() -> MCPServer:
         description="在当前用户的博客标题和正文中搜索，返回有界命中摘要。",
         structured_output=True,
     )
-    def search_posts(
-        ctx: Context, query: str, limit: int = 30, cursor: int = 0
-    ) -> dict[str, Any]:
+    def search_posts(ctx: Context, query: str, limit: int = 30, cursor: int = 0) -> dict[str, Any]:
         from app.modules.posts import query_service
 
         user_id = _owned_user_id(ctx)

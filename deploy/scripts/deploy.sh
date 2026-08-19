@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI Assist single-host deployment entry point. See deployment.md §9.
-# Usage: ./deploy/scripts/deploy.sh {up|restart|down|ps|logs|create-admin EMAIL}
+# Usage: ./deploy/scripts/deploy.sh {up|fast-up|restart|down|ps|logs|create-admin EMAIL}
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -12,6 +12,7 @@ RUNTIME_UID=10001
 RELEASE_HISTORY_FILE="frontend/public/release-history.json"
 RELEASE_PUSH_REMOTE="${DEPLOY_PUSH_REMOTE:-origin}"
 APP_SERVICES=(frontend backend outbox-publisher worker-fast worker-heavy celery-beat nginx)
+REDEPLOY_SERVICES=(frontend backend outbox-publisher worker-fast worker-heavy celery-beat)
 
 log() { printf '\033[1;34m[deploy]\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31m[deploy]\033[0m %s\n' "$*" >&2; }
@@ -169,6 +170,21 @@ PY
   push_current_branch
 }
 
+prepare_fast_deploy_commit() {
+  local commit_message
+  commit_message="${DEPLOY_COMMIT_MESSAGE:-🐳 chore: 快速部署最新代码}"
+
+  git diff --check
+  if [ -n "$(git status --porcelain)" ]; then
+    git add --all
+    git commit -m "$commit_message"
+  else
+    log "Working tree is clean; reusing commit $(git rev-parse --short HEAD)."
+  fi
+  log "Pushing source commit $(git rev-parse --short HEAD); CI will run asynchronously..."
+  push_current_branch
+}
+
 wait_for_ci_gate() {
   if [ "${DEPLOY_SKIP_CI_GATE:-0}" = "1" ]; then
     log "CI gate explicitly skipped by DEPLOY_SKIP_CI_GATE=1."
@@ -220,6 +236,15 @@ check_backend_health() {
     python -m app.cli.main healthcheck --url http://localhost:8000/health/ready
 }
 
+check_frontend_health() {
+  docker compose exec -T frontend wget -qO- http://localhost/
+}
+
+check_gateway_health() {
+  docker compose exec -T backend \
+    python -m app.cli.main healthcheck --url http://nginx/health/ready
+}
+
 check_worker_health() {
   local service="$1"
   local node_name="$2"
@@ -258,8 +283,10 @@ wait_for_check() {
 verify_application_health() {
   log "Verifying application health..."
   wait_for_check "backend" check_backend_health
+  wait_for_check "frontend" check_frontend_health
   wait_for_check "worker-fast" check_fast_worker_health
   wait_for_check "worker-heavy" check_heavy_worker_health
+  wait_for_check "nginx gateway" check_gateway_health
 }
 
 cmd_up() {
@@ -289,6 +316,37 @@ cmd_up() {
   verify_application_health
   docker compose ps
   log "Done. Gateway on http://127.0.0.1:18080 (front the host Nginx per deployment.md)."
+}
+
+cmd_fast_up() {
+  require_compose_v2
+  check_capacity
+  check_env_and_secrets
+  export_rabbitmq_pass
+  ensure_log_dirs
+  log "Validating compose configuration..."
+  docker compose config --quiet
+
+  local service
+  for service in postgres redis rabbitmq "${APP_SERVICES[@]}"; do
+    if [ -z "$(docker compose ps --all --quiet "$service")" ]; then
+      err "Service '$service' has no existing container; run '$0 up' first."
+      exit 1
+    fi
+  done
+
+  prepare_fast_deploy_commit
+  log "Fast deploy: building application images with Docker cache..."
+  docker compose build backend frontend
+  log "Fast deploy: applying database migrations without restarting infrastructure..."
+  docker compose run --rm --no-deps migrate
+  log "Fast deploy: recreating application containers only..."
+  docker compose up -d --no-deps --force-recreate "${REDEPLOY_SERVICES[@]}"
+  # Re-resolve backend/frontend container IPs after their recreation.
+  docker compose restart nginx
+  verify_application_health
+  docker compose ps
+  log "Fast deploy complete. CI continues asynchronously on GitHub."
 }
 
 cmd_restart() {
@@ -347,11 +405,12 @@ cmd_issue_blog_mcp_token() {
 
 case "${1:-}" in
   up)      cmd_up ;;
+  fast-up) cmd_fast_up ;;
   restart) cmd_restart ;;
   down)    cmd_down ;;
   ps)      export_rabbitmq_pass 2>/dev/null || true; docker compose ps ;;
   logs)    export_rabbitmq_pass 2>/dev/null || true; shift || true; docker compose logs -f "$@" ;;
   create-admin) shift; cmd_create_admin "$@" ;;
   issue-blog-mcp-token) shift; cmd_issue_blog_mcp_token "$@" ;;
-  *) err "Usage: $0 {up|restart|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
+  *) err "Usage: $0 {up|fast-up|restart|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
 esac

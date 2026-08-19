@@ -30,4 +30,3 @@ def test_normal_web_access_token_is_rejected_by_blog_mcp() -> None:
 
     with pytest.raises(BlogMcpTokenError):
         decode_blog_mcp_token(token)
-

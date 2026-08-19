@@ -206,9 +206,7 @@ def test_list_conversation_messages_is_owner_isolated_and_paginates(db_session, 
         conversation_service.list_conversation_messages(db_session, other.id, conversation.id)
 
 
-def test_recent_message_window_loads_newest_first_and_pages_backward(
-    db_session, make_user
-) -> None:
+def test_recent_message_window_loads_newest_first_and_pages_backward(db_session, make_user) -> None:
     from app.modules.agent import conversation_service
 
     owner = make_user()
@@ -271,9 +269,7 @@ def test_active_turns_hide_expired_failures_and_keep_only_latest_unresolved_retr
     retry.retry_of_id = superseded.id
     db_session.commit()
 
-    visible = conversation_service.list_active_turns(
-        db_session, owner.id, conversation.id
-    )
+    visible = conversation_service.list_active_turns(db_session, owner.id, conversation.id)
 
     assert {turn.id for turn in visible} == {unresolved.id, retry.id}
 

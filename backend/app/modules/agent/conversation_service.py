@@ -452,8 +452,7 @@ def list_recent_conversation_messages(
                 "Invalid message history cursor", code="agent_message_cursor_invalid"
             )
         stmt = stmt.where(
-            tuple_(AgentMessage.created_at, AgentMessage.id)
-            < tuple_(anchor.created_at, anchor.id)  # type: ignore[arg-type]
+            tuple_(AgentMessage.created_at, AgentMessage.id) < tuple_(anchor.created_at, anchor.id)  # type: ignore[arg-type]
         )
     stmt = stmt.order_by(AgentMessage.created_at.desc(), AgentMessage.id.desc()).limit(limit + 1)
     rows = list(session.scalars(stmt).all())

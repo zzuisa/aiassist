@@ -79,7 +79,7 @@ def test_restart_reuses_existing_images_without_release_side_effects() -> None:
         "\n}\n\ncmd_down()", maxsplit=1
     )[0]
 
-    assert 'restart) cmd_restart ;;' in deploy
+    assert "restart) cmd_restart ;;" in deploy
     assert 'docker compose restart "${APP_SERVICES[@]}"' in restart_body
     assert "verify_application_health" in restart_body
     assert "prepare_release_commit" not in restart_body
@@ -87,3 +87,20 @@ def test_restart_reuses_existing_images_without_release_side_effects() -> None:
     assert "docker compose pull" not in restart_body
     assert "docker compose build" not in restart_body
     assert "docker compose run --rm migrate" not in restart_body
+
+
+def test_fast_deploy_updates_code_without_waiting_for_ci_or_restarting_infrastructure() -> None:
+    deploy = DEPLOY_PATH.read_text(encoding="utf-8")
+    fast_body = deploy.split("cmd_fast_up() {", maxsplit=1)[1].split(
+        "\n}\n\ncmd_restart()", maxsplit=1
+    )[0]
+
+    assert "fast-up) cmd_fast_up ;;" in deploy
+    assert "prepare_fast_deploy_commit" in fast_body
+    assert "docker compose build backend frontend" in fast_body
+    assert "docker compose run --rm --no-deps migrate" in fast_body
+    assert 'docker compose up -d --no-deps --force-recreate "${REDEPLOY_SERVICES[@]}"' in fast_body
+    assert "verify_application_health" in fast_body
+    assert "wait_for_ci_gate" not in fast_body
+    assert "docker compose pull" not in fast_body
+    assert "postgres redis rabbitmq" not in fast_body.split("docker compose up", maxsplit=1)[-1]
