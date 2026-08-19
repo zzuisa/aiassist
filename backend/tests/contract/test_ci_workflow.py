@@ -104,3 +104,13 @@ def test_fast_deploy_updates_code_without_waiting_for_ci_or_restarting_infrastru
     assert "wait_for_ci_gate" not in fast_body
     assert "docker compose pull" not in fast_body
     assert "postgres redis rabbitmq" not in fast_body.split("docker compose up", maxsplit=1)[-1]
+
+
+def test_frontend_health_check_uses_the_container_ipv4_listener() -> None:
+    deploy = DEPLOY_PATH.read_text(encoding="utf-8")
+    frontend_health = deploy.split("check_frontend_health() {", maxsplit=1)[1].split(
+        "\n}", maxsplit=1
+    )[0]
+
+    assert "http://127.0.0.1/" in frontend_health
+    assert "http://localhost/" not in frontend_health

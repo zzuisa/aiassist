@@ -237,7 +237,7 @@ check_backend_health() {
 }
 
 check_frontend_health() {
-  docker compose exec -T frontend wget -qO- http://localhost/
+  docker compose exec -T frontend wget -qO- http://127.0.0.1/
 }
 
 check_gateway_health() {
