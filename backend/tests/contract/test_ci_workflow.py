@@ -71,3 +71,19 @@ def test_deployment_waits_for_the_pushed_commit_ci_result() -> None:
     assert "[skip ci]" in deploy
     assert deploy.index("prepare_release_commit") < deploy.index("wait_for_ci_gate")
     assert deploy.index("wait_for_ci_gate") < deploy.index('log "Building application images..."')
+
+
+def test_restart_reuses_existing_images_without_release_side_effects() -> None:
+    deploy = DEPLOY_PATH.read_text(encoding="utf-8")
+    restart_body = deploy.split("cmd_restart() {", maxsplit=1)[1].split(
+        "\n}\n\ncmd_down()", maxsplit=1
+    )[0]
+
+    assert 'restart) cmd_restart ;;' in deploy
+    assert 'docker compose restart "${APP_SERVICES[@]}"' in restart_body
+    assert "verify_application_health" in restart_body
+    assert "prepare_release_commit" not in restart_body
+    assert "wait_for_ci_gate" not in restart_body
+    assert "docker compose pull" not in restart_body
+    assert "docker compose build" not in restart_body
+    assert "docker compose run --rm migrate" not in restart_body

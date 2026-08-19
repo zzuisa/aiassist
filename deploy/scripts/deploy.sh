@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI Assist single-host deployment entry point. See deployment.md §9.
-# Usage: ./deploy/scripts/deploy.sh {up|down|ps|logs|create-admin EMAIL}
+# Usage: ./deploy/scripts/deploy.sh {up|restart|down|ps|logs|create-admin EMAIL}
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -11,6 +11,7 @@ REQUIRED_SECRETS=(postgres_password jwt_signing_key rabbitmq_password radio_serv
 RUNTIME_UID=10001
 RELEASE_HISTORY_FILE="frontend/public/release-history.json"
 RELEASE_PUSH_REMOTE="${DEPLOY_PUSH_REMOTE:-origin}"
+APP_SERVICES=(frontend backend outbox-publisher worker-fast worker-heavy celery-beat nginx)
 
 log() { printf '\033[1;34m[deploy]\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31m[deploy]\033[0m %s\n' "$*" >&2; }
@@ -214,6 +215,53 @@ wait_for_ci_gate() {
   log "CI passed for commit ${head_sha:0:7}."
 }
 
+check_backend_health() {
+  docker compose exec -T backend \
+    python -m app.cli.main healthcheck --url http://localhost:8000/health/ready
+}
+
+check_worker_health() {
+  local service="$1"
+  local node_name="$2"
+  local container_hostname
+  container_hostname="$(docker compose exec -T "$service" hostname)" || return 1
+  docker compose exec -T "$service" \
+    celery -A app.workers.celery_app.celery inspect ping \
+    --destination "${node_name}@${container_hostname}"
+}
+
+check_fast_worker_health() {
+  check_worker_health worker-fast fast
+}
+
+check_heavy_worker_health() {
+  check_worker_health worker-heavy heavy
+}
+
+wait_for_check() {
+  local label="$1"
+  shift
+  local timeout_seconds="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-180}"
+  local deadline=$(( $(date +%s) + timeout_seconds ))
+
+  until "$@" >/dev/null 2>&1; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      err "Timed out after ${timeout_seconds}s waiting for ${label}."
+      "$@" || true
+      return 1
+    fi
+    sleep 2
+  done
+  log "${label} is healthy."
+}
+
+verify_application_health() {
+  log "Verifying application health..."
+  wait_for_check "backend" check_backend_health
+  wait_for_check "worker-fast" check_fast_worker_health
+  wait_for_check "worker-heavy" check_heavy_worker_health
+}
+
 cmd_up() {
   require_compose_v2
   check_capacity
@@ -233,22 +281,37 @@ cmd_up() {
   log "Running database migrations..."
   docker compose run --rm migrate
   log "Starting application processes..."
-  docker compose up -d \
-    frontend backend outbox-publisher worker-fast worker-heavy celery-beat nginx
+  docker compose up -d "${APP_SERVICES[@]}"
   # Nginx resolves Compose service names when it starts. Restart it after any
   # backend/frontend recreation so it never retains a stale container IP.
   docker compose restart nginx
-  docker compose up -d --wait --wait-timeout 180 \
-    frontend backend outbox-publisher worker-fast worker-heavy celery-beat nginx
-  log "Verifying gateway health..."
-  docker compose exec -T backend \
-    python -m app.cli.main healthcheck --url http://localhost:8000/health/ready
-  docker compose exec -T worker-fast \
-    celery -A app.workers.celery_app.celery inspect ping --destination "fast@$(docker compose exec -T worker-fast hostname)"
-  docker compose exec -T worker-heavy \
-    celery -A app.workers.celery_app.celery inspect ping --destination "heavy@$(docker compose exec -T worker-heavy hostname)"
+  docker compose up -d --wait --wait-timeout 180 "${APP_SERVICES[@]}"
+  verify_application_health
   docker compose ps
   log "Done. Gateway on http://127.0.0.1:18080 (front the host Nginx per deployment.md)."
+}
+
+cmd_restart() {
+  require_compose_v2
+  check_env_and_secrets
+  export_rabbitmq_pass
+  ensure_log_dirs
+  log "Validating compose configuration..."
+  docker compose config --quiet
+
+  local service
+  for service in "${APP_SERVICES[@]}"; do
+    if [ -z "$(docker compose ps --all --quiet "$service")" ]; then
+      err "Service '$service' has no existing container; run '$0 up' first."
+      exit 1
+    fi
+  done
+
+  log "Restarting existing application containers (no Git, CI, pull, build, or migration)..."
+  docker compose restart "${APP_SERVICES[@]}"
+  verify_application_health
+  docker compose ps
+  log "Restart complete. Existing images and configuration were preserved."
 }
 
 cmd_down() {
@@ -283,11 +346,12 @@ cmd_issue_blog_mcp_token() {
 }
 
 case "${1:-}" in
-  up)   cmd_up ;;
-  down) cmd_down ;;
-  ps)   export_rabbitmq_pass 2>/dev/null || true; docker compose ps ;;
-  logs) export_rabbitmq_pass 2>/dev/null || true; shift || true; docker compose logs -f "$@" ;;
+  up)      cmd_up ;;
+  restart) cmd_restart ;;
+  down)    cmd_down ;;
+  ps)      export_rabbitmq_pass 2>/dev/null || true; docker compose ps ;;
+  logs)    export_rabbitmq_pass 2>/dev/null || true; shift || true; docker compose logs -f "$@" ;;
   create-admin) shift; cmd_create_admin "$@" ;;
   issue-blog-mcp-token) shift; cmd_issue_blog_mcp_token "$@" ;;
-  *)    err "Usage: $0 {up|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
+  *) err "Usage: $0 {up|restart|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
 esac

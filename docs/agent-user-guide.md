@@ -82,7 +82,7 @@ chown 10001 deploy/secrets/llm_provider_key
 | Ollama | `LLM_PROVIDER=ollama`、`LLM_BASE_URL=http://主机:11434`、`LLM_DEFAULT_MODEL=模型名` | 不需要 |
 | 不使用模型 | `LLM_PROVIDER=none` | 不需要；仅确定性问候与能力说明可直接回复，其他请求会提示稍后重试 |
 
-生产环境通过 `./deploy/scripts/deploy.sh up` 发布。脚本会校验必需密钥、修复文件权限、执行迁移并检查 API 与 worker 健康状态。
+生产环境通过 `./deploy/scripts/deploy.sh up` 发布。脚本会提交并推送变更、等待 CI、构建镜像、执行迁移并检查 API 与 worker 健康状态。只需重新启动当前版本时使用 `./deploy/scripts/deploy.sh restart`；该命令复用现有镜像和配置，不提交代码、不运行 CI、不拉取或构建镜像，也不执行迁移。
 
 ## 3. 可选：配置 MCP 外部工具
 
@@ -113,6 +113,7 @@ chown 10001 deploy/secrets/llm_provider_key
 - 出现“可以安全重试”时，可在计划卡点击“重试失败步骤”。系统只重置可重试失败步骤及其后代，已经成功的步骤和写入不会重复。
 - 打开会话默认只加载最近 12 条消息；需要查看旧记录时点击“加载更早消息”。终态失败最多提示 1 条并在 24 小时后自动退出提示区，历史记录不会从数据库删除。
 - 查看运行状态：`./deploy/scripts/deploy.sh ps`。
+- 秒级重启现有应用容器：`./deploy/scripts/deploy.sh restart`。它不重启 PostgreSQL、Redis 或 RabbitMQ；代码、依赖、镜像、Compose 配置或数据库结构有变化时仍必须使用 `up`。
 - 查看日志：`./deploy/scripts/deploy.sh logs worker-heavy`，再按 `plan_id`、`turn_id`、`task_id` 或 `conversation_turn_execution_failed` 检索。
 
 ## 5. 使用 MCPJam 检查内部博客能力
