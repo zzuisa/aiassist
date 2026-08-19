@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "id": "2026.08.19.151212-23a4b47",
+      "version": "2026.08.19.151212",
+      "commit": "23a4b47357f560100befe8d68b17ea67ab2eabfe",
+      "commit_short": "23a4b47",
+      "message": "🐳 chore: 部署最新代码",
+      "changes": [
+        "🐳 chore: 部署最新代码",
+        "部署版本与运行状态更新"
+      ],
+      "changed_files": [],
+      "deployed_at": "2026-08-19T15:12:12Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.18.111058-567f21a",
       "version": "2026.08.18.111058",
       "commit": "567f21a016b1b36c9c34109a22a92456b1237678",
@@ -1345,25 +1362,6 @@
         "frontend/tests/unit/api-client.spec.ts"
       ],
       "deployed_at": "2026-07-31T23:49:00Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.07.31.233804-a55dc1f",
-      "version": "2026.07.31.233804",
-      "commit": "a55dc1ffaa39bd6fc47bb2867177f7cc1c69c54b",
-      "commit_short": "a55dc1f",
-      "message": "fix: resolve CJK regular font path in production",
-      "changes": [
-        "fix: resolve CJK regular font path in production",
-        "后端接口与业务逻辑更新"
-      ],
-      "changed_files": [
-        "backend/app/modules/posts/visuals.py"
-      ],
-      "deployed_at": "2026-07-31T23:38:04Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
