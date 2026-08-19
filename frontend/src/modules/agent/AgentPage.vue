@@ -115,7 +115,6 @@ watch(
 
 onMounted(() => {
   conversation.startFreshConversation()
-  void conversation.loadHistory()
 })
 onBeforeUnmount(() => conversation.reset())
 
@@ -138,15 +137,11 @@ async function retryPlan(planId: string): Promise<void> {
 
     <ConversationPanel
       :messages="conversation.messages"
-      :loading="conversation.loadingHistory"
       :sending="conversation.sending"
       :error="conversation.error"
-      :has-more="Boolean(conversation.nextCursor)"
-      :loading-more="conversation.loadingMore"
       :plans="conversation.plans"
       :retrying-plan-id="retryingPlanId"
       @send="(text) => conversation.sendMessage(text)"
-      @load-more="conversation.loadMore"
       @retry-plan="retryPlan"
     />
 
@@ -186,22 +181,30 @@ async function retryPlan(planId: string): Promise<void> {
       :gap="capabilityGap"
     />
 
-    <section
-      v-if="articles.length"
-      class="results"
-      aria-label="文章查询结果"
+    <details
+      v-if="articles.length || textualResult"
+      class="result-panel"
     >
-      <ArticleResultCard
-        v-for="article in articles"
-        :key="article.id"
-        :article="article"
-      />
-    </section>
-
-    <pre
-      v-else-if="textualResult"
-      class="text-result"
-    >{{ textualResult }}</pre>
+      <summary>
+        处理结果
+        <span v-if="articles.length">（{{ articles.length }} 项）</span>
+      </summary>
+      <section
+        v-if="articles.length"
+        class="results"
+        aria-label="文章查询结果"
+      >
+        <ArticleResultCard
+          v-for="article in articles"
+          :key="article.id"
+          :article="article"
+        />
+      </section>
+      <pre
+        v-else
+        class="text-result"
+      >{{ textualResult }}</pre>
+    </details>
   </main>
 </template>
 
@@ -216,14 +219,28 @@ async function retryPlan(planId: string): Promise<void> {
 .results {
   display: grid;
   gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .confirmations {
   display: grid;
   gap: var(--space-3);
 }
 .text-result {
+  max-height: 16rem;
+  margin: var(--space-2) 0 0;
+  overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.result-panel {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+.result-panel summary {
+  cursor: pointer;
+  font-weight: 600;
 }
 .error {
   color: var(--status-overdue);

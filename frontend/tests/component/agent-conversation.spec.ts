@@ -80,26 +80,18 @@ describe('Agent ConversationPanel', () => {
     expect(assistantBubble.text()).toContain('你好！我可以帮你查询')
   })
 
-  it('loads older messages only when the user asks for them', async () => {
+  it('does not offer historical messages on the current session page', () => {
     const wrapper = mount(ConversationPanel, {
       props: {
         messages: [message()],
         loading: false,
         sending: false,
         error: '',
-        hasMore: true,
-        loadingMore: false,
       },
     })
 
-    const button = wrapper.get('.load-history')
-    expect(button.text()).toBe('加载更早消息')
-    await button.trigger('click')
-    expect(wrapper.emitted('loadMore')).toHaveLength(1)
-
-    await wrapper.setProps({ loadingMore: true })
-    expect(wrapper.get('.load-history').text()).toBe('正在加载…')
-    expect((wrapper.get('.load-history').element as HTMLButtonElement).disabled).toBe(true)
+    expect(wrapper.find('.load-history').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('加载更早消息')
   })
 
   it('renders clarification and pending-confirmation guidance', () => {
@@ -116,6 +108,7 @@ describe('Agent ConversationPanel', () => {
     })
     expect(wrapper.text()).toContain('需要你补充信息后才能继续')
     expect(wrapper.text()).toContain('确认前不会写入')
+    expect(wrapper.get('details.result-message').attributes('open')).toBeUndefined()
   })
 
   it('submits the draft on Enter and clears the input', async () => {

@@ -10,7 +10,7 @@ const props = defineProps<{ plan: AgentPlan; retrying?: boolean }>()
 const emit = defineEmits<{ retry: [planId: string] }>()
 
 const isTerminal = computed(() => PLAN_TERMINAL_STATUSES.includes(props.plan.status))
-const expanded = ref(!isTerminal.value)
+const expanded = ref(false)
 const userControlled = ref(false)
 let previousTerminal = isTerminal.value
 
@@ -19,7 +19,6 @@ watch(
   () => {
     const terminal = isTerminal.value
     if (!previousTerminal && terminal && !userControlled.value) expanded.value = false
-    if (!terminal && !userControlled.value) expanded.value = true
     previousTerminal = terminal
   },
 )
@@ -122,7 +121,8 @@ function toggle(): void {
 .plan-card { margin: var(--space-2) 0 var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); overflow: hidden; }
 .plan-card.active { border-inline-start: 3px solid var(--color-primary); }
 .plan-summary { width: 100%; display: grid; grid-template-columns: 1.25rem 1fr; gap: var(--space-2); padding: var(--space-3); border: 0; text-align: start; background: transparent; color: inherit; }
-.summary-main { display: grid; gap: .2rem; }
+.summary-main { min-width: 0; display: grid; gap: .2rem; }
+.summary-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary-main small { color: var(--color-text-muted); }
 .chevron { padding-top: .1rem; }
 .plan-details { padding: 0 var(--space-3) var(--space-3); }

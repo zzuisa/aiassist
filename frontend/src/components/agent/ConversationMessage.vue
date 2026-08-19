@@ -5,10 +5,27 @@ import { messageText, type AgentMessage } from '@/api/agentConversations'
 const props = defineProps<{ message: AgentMessage & { pending?: boolean } }>()
 const text = computed(() => messageText(props.message))
 const timestamp = computed(() => new Date(props.message.created_at).toLocaleString())
+const resultPreview = computed(() => {
+  const compact = text.value.replace(/\s+/g, ' ').trim()
+  return compact.length > 88 ? `${compact.slice(0, 88)}…` : compact
+})
 </script>
 
 <template>
+  <details
+    v-if="message.kind === 'result'"
+    class="message result-message"
+    :class="`role-${message.role}`"
+  >
+    <summary>
+      <strong>处理结果</strong>
+      <span v-if="resultPreview">{{ resultPreview }}</span>
+    </summary>
+    <p>{{ text }}</p>
+    <time :datetime="message.created_at">{{ timestamp }}</time>
+  </details>
   <article
+    v-else
     class="message"
     :class="[`role-${message.role}`, { pending: message.pending, error: message.kind === 'error' }]"
   >
@@ -24,4 +41,8 @@ const timestamp = computed(() => new Date(props.message.created_at).toLocaleStri
 .pending { opacity: .7; }
 .error { color: var(--status-overdue); }
 time { display: block; color: var(--color-text-muted); font-size: .75rem; }
+.result-message { width: min(100%, 38rem); }
+.result-message summary { cursor: pointer; display: grid; gap: .2rem; }
+.result-message summary span { color: var(--color-text-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-message p { max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>

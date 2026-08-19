@@ -4,8 +4,11 @@ import { useAgentStore } from '@/stores/agent'
 
 const props = defineProps<{ taskId?: string }>()
 const store = useAgentStore()
+const ACTIVE_STATUSES = ['pending', 'running', 'waiting_confirmation']
 const visibleAgents = computed(() =>
-  props.taskId ? store.forTask(props.taskId) : store.activeAgents,
+  props.taskId
+    ? store.forTask(props.taskId).filter((agent) => ACTIVE_STATUSES.includes(agent.status))
+    : store.activeAgents,
 )
 
 function statusLabel(status: string): string {

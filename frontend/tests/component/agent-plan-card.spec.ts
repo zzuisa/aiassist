@@ -45,13 +45,13 @@ function plan(status: AgentPlan['status'], version = 1): AgentPlan {
 }
 
 describe('AgentPlanCard', () => {
-  it('shows active plans expanded and collapses on the first terminal transition', async () => {
+  it('shows a compact active summary and keeps details collapsed by default', async () => {
     const wrapper = mount(AgentPlanCard, { props: { plan: plan('running') } })
-    expect(wrapper.find('.plan-details').exists()).toBe(true)
-
-    await wrapper.setProps({ plan: plan('success', 2) })
     expect(wrapper.find('.plan-details').exists()).toBe(false)
-    expect(wrapper.text()).toContain('2/2 完成')
+    expect(wrapper.text()).toContain('执行中')
+
+    await wrapper.get('.plan-summary').trigger('click')
+    expect(wrapper.find('.plan-details').exists()).toBe(true)
   })
 
   it('preserves a manual expansion across later terminal snapshots', async () => {

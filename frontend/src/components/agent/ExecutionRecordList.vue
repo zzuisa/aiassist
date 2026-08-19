@@ -21,12 +21,11 @@ function durationLabel(durationMs: number | null): string {
 </script>
 
 <template>
-  <section
+  <details
     v-if="records.length"
     class="execution-records"
-    aria-label="执行记录"
   >
-    <h2>执行记录</h2>
+    <summary>执行记录（{{ records.length }}）</summary>
     <ol>
       <li
         v-for="record in records"
@@ -51,20 +50,26 @@ function durationLabel(durationMs: number | null): string {
         </p>
       </li>
     </ol>
-  </section>
+  </details>
 </template>
 
 <style scoped>
-.execution-records,
 ol {
   display: grid;
   gap: var(--space-3);
 }
-h2 {
-  margin: 0;
+.execution-records {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
 }
 ol {
-  margin: 0;
+  margin: var(--space-2) 0 0;
   padding-left: var(--space-5);
 }
 li {

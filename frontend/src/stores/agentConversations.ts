@@ -11,7 +11,6 @@ import { agentPlansApi, type AgentPlan } from '@/api/agentPlans'
 
 const LOCAL_ID_PREFIX = 'local-'
 const POLL_INTERVAL_MS = 700
-const RECENT_MESSAGE_LIMIT = 12
 
 export interface ConversationMessageView extends AgentMessage {
   /** True only for an optimistically-inserted message awaiting the server echo. */
@@ -27,9 +26,6 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
   const messages = ref<ConversationMessageView[]>([])
   const activeTurns = ref<Turn[]>([])
   const plans = ref<AgentPlan[]>([])
-  const nextCursor = ref<string | null>(null)
-  const loadingHistory = ref(false)
-  const loadingMore = ref(false)
   const sending = ref(false)
   const error = ref('')
   let pollTimer: number | null = null
@@ -50,8 +46,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
 
   async function ensureConversation(): Promise<string> {
     if (conversationId.value) return conversationId.value
-    const existing = await agentConversationsApi.listConversations(1, 'active')
-    const conversation = existing[0] ?? (await agentConversationsApi.createConversation())
+    const conversation = await agentConversationsApi.createConversation()
     conversationId.value = conversation.id
     return conversation.id
   }
@@ -62,49 +57,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     messages.value = []
     activeTurns.value = []
     plans.value = []
-    nextCursor.value = null
-    loadingHistory.value = false
     error.value = ''
-  }
-
-  async function loadHistory(): Promise<void> {
-    error.value = ''
-    loadingHistory.value = true
-    try {
-      const id = await ensureConversation()
-      const [page, detail, planItems] = await Promise.all([
-        agentConversationsApi.listRecentMessages(id, null, RECENT_MESSAGE_LIMIT),
-        agentConversationsApi.getConversation(id),
-        agentPlansApi.listConversationPlans(id),
-      ])
-      messages.value = page.items
-      nextCursor.value = page.next_cursor
-      activeTurns.value = detail.active_turns
-      plans.value = planItems
-      if (hasRunningTurn()) schedulePoll()
-    } catch {
-      error.value = '加载会话失败，请稍后重试。'
-    } finally {
-      loadingHistory.value = false
-    }
-  }
-
-  async function loadMore(): Promise<void> {
-    if (!conversationId.value || !nextCursor.value || loadingMore.value) return
-    loadingMore.value = true
-    try {
-      const page = await agentConversationsApi.listRecentMessages(
-        conversationId.value,
-        nextCursor.value,
-        RECENT_MESSAGE_LIMIT,
-      )
-      messages.value = [...page.items, ...messages.value]
-      nextCursor.value = page.next_cursor
-    } catch {
-      error.value = '加载更早消息失败，请稍后重试。'
-    } finally {
-      loadingMore.value = false
-    }
   }
 
   async function poll(): Promise<void> {
@@ -261,14 +214,9 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     messages,
     activeTurns,
     plans,
-    nextCursor,
-    loadingHistory,
-    loadingMore,
     sending,
     error,
     startFreshConversation,
-    loadHistory,
-    loadMore,
     sendMessage,
     retryTurn,
     applyConversationEvent,

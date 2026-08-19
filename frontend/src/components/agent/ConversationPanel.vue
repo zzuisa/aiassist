@@ -10,23 +10,19 @@ export interface ConversationPanelMessage extends AgentMessage {
 
 const props = withDefaults(defineProps<{
   messages: ConversationPanelMessage[]
-  loading: boolean
+  loading?: boolean
   sending: boolean
   error: string
-  hasMore?: boolean
-  loadingMore?: boolean
   plans?: AgentPlan[]
   retryingPlanId?: string | null
 }>(), {
-  hasMore: false,
-  loadingMore: false,
+  loading: false,
   plans: () => [],
   retryingPlanId: null,
 })
 
 const emit = defineEmits<{
   send: [text: string]
-  loadMore: []
   retryPlan: [planId: string]
 }>()
 
@@ -71,15 +67,6 @@ function onKeydown(event: KeyboardEvent): void {
         开始一次新对话：直接说说你想查询或处理什么。
       </p>
       <template v-else>
-        <button
-          v-if="hasMore"
-          type="button"
-          class="load-history"
-          :disabled="loadingMore"
-          @click="emit('loadMore')"
-        >
-          {{ loadingMore ? '正在加载…' : '加载更早消息' }}
-        </button>
         <ConversationTimeline
           :messages="messages"
           :plans="plans"
@@ -175,9 +162,6 @@ textarea {
 }
 button {
   min-height: var(--tap-target);
-}
-.load-history {
-  justify-self: center;
 }
 .error-banner {
   color: var(--status-overdue);
