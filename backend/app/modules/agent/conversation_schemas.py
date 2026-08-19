@@ -154,6 +154,15 @@ class TargetScope(BaseModel):
         return value
 
 
+class ConversationToolCall(BaseModel):
+    """One schema-constrained tool proposal produced by the routing model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Annotated[str, Field(min_length=1, max_length=160)]
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
 class ConversationRoute(BaseModel):
     """Structured, versioned routing fact. No chain-of-thought fields exist —
     only route kind, objective, scope, semantic args, and candidates."""
@@ -166,6 +175,7 @@ class ConversationRoute(BaseModel):
     operation_type: RouteOperationType
     target_scope: TargetScope
     semantic_arguments: dict[str, Any] = Field(default_factory=dict)
+    tool_call: ConversationToolCall | None = None
     candidate_tool_keys: list[Annotated[str, Field(max_length=160)]] = Field(
         default_factory=list, max_length=12
     )

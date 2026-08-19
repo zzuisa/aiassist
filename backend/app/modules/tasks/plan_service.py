@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.models.foundation import User
 from app.models.tasks import Task
+from app.modules.ai_config.service import bind as resolve_ai_config
 from app.modules.voice.service import _calendar_bounds, _now_context
 from app.services.llm.base import StructuredRequest
 from app.services.llm.gateway import LLMGatewayImpl, get_llm_gateway
@@ -88,7 +89,7 @@ def analyze(
     return llm.structured(
         StructuredRequest(
             scenario="quick_plan",
-            system=_PLAN_SYSTEM,
+            system=resolve_ai_config(session, user_id, "quick_plan").system_instruction,
             user=user_prompt,
             schema=QuickPlanV1,
         )

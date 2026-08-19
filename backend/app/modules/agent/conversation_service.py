@@ -17,7 +17,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import select, tuple_
@@ -46,6 +46,8 @@ from app.services.outbox.publisher import append_event
 MAX_MESSAGE_TEXT_LENGTH = 4000
 DEFAULT_PAGE_LIMIT = 50
 MAX_PAGE_LIMIT = 200
+RECENT_RETRYABLE_TURN_TTL = timedelta(hours=24)
+MAX_RECENT_RETRYABLE_TURNS = 1
 
 # Terminal Turn states that a worker must never re-execute (idempotent replay
 # guard: Celery's own at-least-once delivery plus a possible watchdog retry
@@ -348,17 +350,55 @@ def finalize_turn_failure(session: Session, turn_id: uuid.UUID, exc: Exception) 
 def list_active_turns(
     session: Session, user_id: uuid.UUID, conversation_id: uuid.UUID
 ) -> list[AgentTurn]:
+    """Return running turns plus at most one recent unresolved failure.
+
+    Terminal failures remain durable for audit/retry, but they must not build up
+    as permanent banners every time a conversation is opened. A failure is
+    visible for one day and disappears as soon as a retry child exists.
+    """
     get_owned_conversation(session, user_id, conversation_id)
-    return list(
+    active = list(
         session.scalars(
             select(AgentTurn)
             .where(
                 AgentTurn.conversation_id == conversation_id,
-                AgentTurn.status.notin_(("success", "partial_success", "cancelled")),
+                AgentTurn.status.in_(
+                    (
+                        "accepted",
+                        "routing",
+                        "waiting_clarification",
+                        "executing",
+                        "waiting_confirmation",
+                    )
+                ),
             )
             .order_by(AgentTurn.created_at)
         ).all()
     )
+    cutoff = datetime.now(UTC) - RECENT_RETRYABLE_TURN_TTL
+    recent_terminals = list(
+        session.scalars(
+            select(AgentTurn)
+            .where(
+                AgentTurn.conversation_id == conversation_id,
+                AgentTurn.status.in_(("failed", "stalled")),
+                AgentTurn.finished_at.is_not(None),
+                AgentTurn.finished_at >= cutoff,
+            )
+            .order_by(AgentTurn.created_at.desc())
+            .limit(20)
+        ).all()
+    )
+    unresolved: list[AgentTurn] = []
+    for turn in recent_terminals:
+        retry_exists = session.scalar(
+            select(AgentTurn.id).where(AgentTurn.retry_of_id == turn.id).limit(1)
+        )
+        if retry_exists is None:
+            unresolved.append(turn)
+        if len(unresolved) >= MAX_RECENT_RETRYABLE_TURNS:
+            break
+    return sorted([*active, *unresolved], key=lambda turn: turn.created_at)
 
 
 def list_conversation_messages(
@@ -386,6 +426,41 @@ def list_conversation_messages(
     if len(rows) > limit:
         next_cursor = rows[limit - 1].id
         rows = rows[:limit]
+    return rows, next_cursor
+
+
+def list_recent_conversation_messages(
+    session: Session,
+    user_id: uuid.UUID,
+    conversation_id: uuid.UUID,
+    *,
+    before: uuid.UUID | None = None,
+    limit: int = DEFAULT_PAGE_LIMIT,
+) -> tuple[list[AgentMessage], uuid.UUID | None]:
+    """Return the newest message window in chronological display order.
+
+    ``next_cursor`` points to the oldest returned message and can be supplied as
+    ``before`` to explicitly load an earlier window.
+    """
+    get_owned_conversation(session, user_id, conversation_id)
+    limit = min(max(limit, 1), MAX_PAGE_LIMIT)
+    stmt = select(AgentMessage).where(AgentMessage.conversation_id == conversation_id)
+    if before is not None:
+        anchor = session.get(AgentMessage, before)
+        if anchor is None or anchor.conversation_id != conversation_id:
+            raise ValidationError(
+                "Invalid message history cursor", code="agent_message_cursor_invalid"
+            )
+        stmt = stmt.where(
+            tuple_(AgentMessage.created_at, AgentMessage.id)
+            < tuple_(anchor.created_at, anchor.id)  # type: ignore[arg-type]
+        )
+    stmt = stmt.order_by(AgentMessage.created_at.desc(), AgentMessage.id.desc()).limit(limit + 1)
+    rows = list(session.scalars(stmt).all())
+    has_earlier = len(rows) > limit
+    rows = rows[:limit]
+    next_cursor = rows[-1].id if has_earlier and rows else None
+    rows.reverse()
     return rows, next_cursor
 
 
@@ -619,6 +694,7 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
         session=session,
         user_id=conversation.user_id,
         context=conversation.context_json,
+        run_reference=f"agent-turn:{turn.id}",
     )
     route = outcome.route
     decision = AgentRoutingDecision(
@@ -698,6 +774,13 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
     from app.modules.agent import service as agent_service
 
     scope = _scope_for_route(conversation.context_json, route.target_scope.model_dump(mode="json"))
+    # The model may supply semantic arguments, but only the selected built-in
+    # article query currently accepts a bounded integer limit.  This is a
+    # policy validation point, not a natural-language parser.
+    if outcome.selected_tool == "posts.list_recent":
+        requested_limit = route.semantic_arguments.get("limit")
+        if isinstance(requested_limit, int) and not isinstance(requested_limit, bool):
+            scope["tool_parameters"] = {"limit": min(max(requested_limit, 1), 100)}
     task = agent_service.create_agent_task(
         session,
         user_id=conversation.user_id,
@@ -716,50 +799,36 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
     turn.last_heartbeat_at = datetime.now(UTC)
     session.flush()
 
-    executed = (
-        _execute_mcp_task(
-            session,
-            task=task,
-            tool_name=outcome.selected_tool,
-            arguments=route.semantic_arguments,
-            requires_confirmation=route.requires_confirmation,
-        )
-        if outcome.selected_tool.startswith("mcp.")
-        else agent_service.execute_agent_task(session, task.id)
-    )
-    task_status = executed.status
-    turn.status = {
-        "success": "success",
-        "partial_success": "partial_success",
-        "waiting_confirmation": "waiting_confirmation",
-        "failed": "failed",
-    }.get(task_status, "executing")
-    turn.current_step = "等待确认" if turn.status == "waiting_confirmation" else "任务处理完成"
-    if turn.status in {"success", "partial_success", "failed"}:
-        turn.finished_at = datetime.now(UTC)
+    from app.modules.agent.planning_service import persist_plan, propose_plan
+    from app.modules.agent.status import publish_plan_event
 
-    result_text = executed.result_summary or (
-        "已生成修改预览，确认前不会写入。"
-        if turn.status == "waiting_confirmation"
-        else "任务已受理，正在处理。"
-    )
-    assistant_message = _create_assistant_message(
+    proposal = propose_plan(
         session,
-        turn=turn,
-        conversation=conversation,
-        user_message=user_message,
-        kind="result" if turn.status != "failed" else "error",
-        text=result_text,
-        extra={"task_id": str(task.id), "task_status": task_status},
+        user_id=conversation.user_id,
+        request_text=route_text,
+        objective=route.objective,
+        seed_tool_name=outcome.selected_tool,
+        seed_arguments=route.semantic_arguments,
+        context={**conversation.context_json, **scope},
+        run_reference=f"agent-turn:{turn.id}",
     )
-    turn.assistant_message_id = assistant_message.id
-    if executed.scope_json:
-        conversation.context_json = {
-            **conversation.context_json,
-            **executed.scope_json,
-            "object_type": route.target_scope.object_type or "post",
-            "last_task_id": str(task.id),
-        }
+    plan = persist_plan(session, task=task, proposal=proposal, turn=turn)
+    task.status = "pending"
+    turn.status = "executing"
+    turn.current_step = "计划已生成，等待调度"
+    jobs_service.transition(
+        session,
+        task.job,
+        status="processing",
+        progress=20,
+        current_step="计划已生成，等待调度",
+    )
+    publish_plan_event(session, plan)
+    conversation.context_json = {
+        **conversation.context_json,
+        "last_task_id": str(task.id),
+        "last_plan_id": str(plan.id),
+    }
     if parent_turn is not None and parent_turn.status == "waiting_clarification":
         parent_turn.status = "cancelled"
         parent_turn.current_step = "已由补充信息继续"
@@ -773,35 +842,18 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
                 current_step="已由补充信息继续",
             )
     if job is not None:
-        if turn.status == "waiting_confirmation":
-            jobs_service.transition(
-                session,
-                job,
-                status="waiting_user",
-                progress=90,
-                current_step="等待确认",
-                result={"turn_id": str(turn.id), "agent_task_id": str(task.id)},
-            )
-        elif turn.status in {"success", "partial_success"}:
-            jobs_service.transition(
-                session,
-                job,
-                status="completed",
-                progress=100,
-                current_step="任务处理完成",
-                result={"turn_id": str(turn.id), "agent_task_id": str(task.id)},
-            )
-        elif turn.status == "failed":
-            jobs_service.transition(
-                session,
-                job,
-                status="failed",
-                current_step="任务处理失败",
-                error_code="agent_task_failed",
-                error_message="任务执行失败，请查看对话中的结果。",
-                error_retryable=True,
-            )
-    _publish_reply_events(session, turn, assistant_message, result_text)
+        jobs_service.transition(
+            session,
+            job,
+            status="processing",
+            progress=20,
+            current_step="计划已生成，等待调度",
+            result={
+                "turn_id": str(turn.id),
+                "agent_task_id": str(task.id),
+                "plan_id": str(plan.id),
+            },
+        )
     session.flush()
     return turn
 

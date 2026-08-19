@@ -193,3 +193,178 @@ class PendingWrite(Base):
         CheckConstraint("affected_count >= 0", name="agent_pending_write_affected_nonnegative"),
         Index("ix_agent_pending_writes_task_decision", "task_id", "decision"),
     )
+
+
+class AgentExecutionPlan(Base, TimestampMixin):
+    """One durable, bounded dependency graph for an AgentTask."""
+
+    __tablename__ = "agent_execution_plans"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    turn_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agent_turns.id", ondelete="CASCADE")
+    )
+    schema_version: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="agent-task-plan.v1"
+    )
+    objective: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="planning")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    step_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_summary: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    error_retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('planning','pending','running','waiting_user','success',"
+            "'partial_success','failed','stalled','cancelled')",
+            name="agent_execution_plan_status",
+        ),
+        CheckConstraint("version >= 1", name="agent_execution_plan_version_positive"),
+        CheckConstraint("step_count >= 1 and step_count <= 12", name="agent_plan_step_count"),
+        UniqueConstraint("task_id", name="uq_agent_execution_plans_task_id"),
+        UniqueConstraint("turn_id", name="uq_agent_execution_plans_turn_id"),
+        Index("ix_agent_execution_plans_user_created", "user_id", "created_at"),
+        Index("ix_agent_execution_plans_status_updated", "status", "updated_at"),
+    )
+
+
+class AgentPlanStep(Base, TimestampMixin):
+    """One independently schedulable unit in a durable execution plan."""
+
+    __tablename__ = "agent_plan_steps"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_execution_plans.id", ondelete="CASCADE"), nullable=False
+    )
+    step_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    responsibility: Mapped[str] = mapped_column(String(300), nullable=False)
+    agent_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    agent_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    operation_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    arguments_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    input_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    expected_output: Mapped[str] = mapped_column(String(300), nullable=False)
+    requires_confirmation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    progress_current: Mapped[int | None] = mapped_column(Integer)
+    progress_total: Mapped[int | None] = mapped_column(Integer)
+    stage_label: Mapped[str | None] = mapped_column(String(120))
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_summary: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    error_retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="SET NULL")
+    )
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('pending','queued','running','waiting_confirmation','success',"
+            "'partial_success','failed','blocked','skipped','stalled','cancelled')",
+            name="agent_plan_step_status",
+        ),
+        CheckConstraint("position >= 1", name="agent_plan_step_position_positive"),
+        CheckConstraint("attempt_count >= 0 and attempt_count <= 2", name="agent_plan_attempts"),
+        UniqueConstraint("plan_id", "step_key", name="uq_agent_plan_steps_plan_key"),
+        UniqueConstraint("plan_id", "position", name="uq_agent_plan_steps_plan_position"),
+        Index("ix_agent_plan_steps_plan_status", "plan_id", "status"),
+    )
+
+
+class AgentStepDependency(Base):
+    __tablename__ = "agent_step_dependencies"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_execution_plans.id", ondelete="CASCADE"), nullable=False
+    )
+    step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_plan_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    depends_on_step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_plan_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    accepted_statuses_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=lambda: ["success", "partial_success"]
+    )
+
+    __table_args__ = (
+        CheckConstraint("step_id <> depends_on_step_id", name="agent_step_dependency_no_self"),
+        UniqueConstraint("step_id", "depends_on_step_id", name="uq_agent_step_dependency_edge"),
+        Index("ix_agent_step_dependencies_plan", "plan_id"),
+    )
+
+
+class AgentStepArtifact(Base):
+    __tablename__ = "agent_step_artifacts"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_execution_plans.id", ondelete="CASCADE"), nullable=False
+    )
+    step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_plan_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    artifact_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    payload_json: Mapped[dict | list] = mapped_column(JSONB, nullable=False)
+    object_scope_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    content_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (Index("ix_agent_step_artifacts_plan_step", "plan_id", "step_id"),)
+
+
+class AgentStepAttempt(Base):
+    __tablename__ = "agent_step_attempts"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_plan_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint(
+            "attempt_number >= 1 and attempt_number <= 2", name="agent_step_attempt_no"
+        ),
+        CheckConstraint(
+            "status in ('running','success','failed')", name="agent_step_attempt_status"
+        ),
+        UniqueConstraint("step_id", "attempt_number", name="uq_agent_step_attempt_number"),
+        UniqueConstraint("idempotency_key", name="uq_agent_step_attempt_idempotency"),
+    )

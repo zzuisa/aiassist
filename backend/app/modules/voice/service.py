@@ -19,6 +19,7 @@ from app.models.foundation import AsyncJob, User
 from app.models.relations import EntityRelation
 from app.models.tasks import Task
 from app.models.voice import UploadSession, VoiceRecord
+from app.modules.ai_config.service import bind as resolve_ai_config
 from app.modules.jobs import service as jobs_service
 from app.services.llm.base import LLMError, StructuredRequest
 from app.services.llm.gateway import LLMGatewayImpl, get_llm_gateway
@@ -230,7 +231,12 @@ def run_pipeline(
         parsed = llm.structured(
             StructuredRequest(
                 scenario="parse_voice_task",
-                system=_PARSE_SYSTEM,
+                system=resolve_ai_config(
+                    session,
+                    record.user_id,
+                    "voice_task_parse",
+                    run_reference=f"voice-record:{record.id}",
+                ).system_instruction,
                 user=f"{_now_context(tz_name)}\n{record.transcript or ''}",
                 schema=VoiceTasksV1,
             )

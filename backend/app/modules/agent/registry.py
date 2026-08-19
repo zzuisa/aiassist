@@ -443,6 +443,7 @@ def _read_post_bodies(context: ToolContext, params: Mapping[str, Any]) -> list[d
 def _analyze_post_content(context: ToolContext, params: Mapping[str, Any]) -> dict[str, Any]:
     """Analyze one already-authorized article through the provider-neutral gateway."""
     from app.modules.agent.schemas import ContentAnalysisResult
+    from app.modules.ai_config.service import bind as resolve_ai_config
     from app.services.llm.base import EntityRef, StructuredRequest
     from app.services.llm.gateway import get_llm_gateway
 
@@ -461,10 +462,12 @@ def _analyze_post_content(context: ToolContext, params: Mapping[str, Any]) -> di
     result = get_llm_gateway().structured(
         StructuredRequest(
             scenario="agent_content_analysis",
-            system=(
-                "你是内容分析 Agent。只基于给定文章生成结构化结果；不得修改原文，"
-                "不得声称结果已保存，不得补造文章中不存在的事实。"
-            ),
+            system=resolve_ai_config(
+                context.session,
+                context.user_id,
+                "agent_content_analysis",
+                run_reference=f"agent-task:{context.task_id}",
+            ).system_instruction,
             user=json.dumps(
                 {
                     "post": {"id": post_id, "title": title, "markdown": markdown},
@@ -576,6 +579,12 @@ tool_registry.register(
         responsibility="按时间返回归属用户的轻量文章元数据，不读取正文",
         required_permission="posts:read",
         handler=_list_recent_posts,
+        input_schema={
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}},
+            "required": ["limit"],
+            "additionalProperties": False,
+        },
     )
 )
 tool_registry.register(

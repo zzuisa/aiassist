@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.observability import get_logger, safe_blog_context, set_trace_id
 from app.db.session import session_scope
 from app.models.blog import PostSource
+from app.modules.ai_config.service import bind as resolve_ai_config
 from app.services.llm.base import ChatRequest, LLMError
 from app.workers.celery_app import celery
 
@@ -44,7 +45,18 @@ def generate_revision(post_id: uuid.UUID, scenario: str, instruction: str | None
             f"现有正文：\n{post.markdown}"
         )
         try:
-            result = gateway.chat(ChatRequest(scenario=scenario, system=_SYSTEM, user=prompt))
+            result = gateway.chat(
+                ChatRequest(
+                    scenario=scenario,
+                    system=resolve_ai_config(
+                        s,
+                        post.user_id,
+                        "blog_generate",
+                        run_reference=f"post:{post.id}",
+                    ).system_instruction,
+                    user=prompt,
+                )
+            )
             markdown = result.text  # type: ignore[attr-defined]
         except LLMError as exc:
             log.warning("blog_generate_failed", post_id=str(post_id), error=exc.code)
@@ -524,6 +536,7 @@ def _build_system(
     instruction: str | None,
     *,
     scope: str = "all",
+    base_instruction: str,
 ) -> str:
     goal = config.get("processing_goal", "")
     rules = []
@@ -535,7 +548,7 @@ def _build_system(
     for key in rule_keys:
         for r in config.get(key, []) or []:
             rules.append(f"- {r}")
-    parts = [_OPT_SYSTEM, f"优化类型：{optimization_type}", f"目标：{goal}"]
+    parts = [base_instruction, f"优化类型：{optimization_type}", f"目标：{goal}"]
     if scope == "body":
         parts.append("仅优化正文，并返回完整 Markdown；不要生成标题、摘要、分类或其他元数据。")
     if rules:
@@ -677,7 +690,17 @@ def run_skill_test(
             session, job, status="processing", current_step="正在执行技能测试", progress=20
         )
         session.commit()
-        system = _build_system(config, "skill_test", instruction)
+        system = _build_system(
+            config,
+            "skill_test",
+            instruction,
+            base_instruction=resolve_ai_config(
+                session,
+                job.user_id,
+                "blog_optimize",
+                run_reference=f"job:{job.id}",
+            ).system_instruction,
+        )
         user_payload = f"标题：{title}\n\n正文：\n{markdown}"
         try:
             result = get_llm_gateway().structured(
@@ -882,9 +905,30 @@ def optimize_run(
         )
         s.commit()
         system = (
-            build_system_prompt(config, orchestration_plan, instruction)
+            build_system_prompt(
+                config,
+                orchestration_plan,
+                instruction,
+                base_instruction=resolve_ai_config(
+                    s,
+                    post.user_id,
+                    "blog_optimize",
+                    run_reference=f"blog-run:{run.id}",
+                ).system_instruction,
+            )
             if scope != "body"
-            else _build_system(config, run.optimization_type, instruction, scope=scope)
+            else _build_system(
+                config,
+                run.optimization_type,
+                instruction,
+                scope=scope,
+                base_instruction=resolve_ai_config(
+                    s,
+                    post.user_id,
+                    "blog_optimize",
+                    run_reference=f"blog-run:{run.id}",
+                ).system_instruction,
+            )
         )
         user = (
             build_user_payload(

@@ -21,6 +21,7 @@ _SYSTEM = (
 
 def analyze_capture(capture_id: uuid.UUID) -> str:
     from app.models.captures import Capture, CaptureAiTag
+    from app.modules.ai_config.service import bind as resolve_ai_config
     from app.modules.captures import service as capture_service
 
     with session_scope() as s:
@@ -34,7 +35,12 @@ def analyze_capture(capture_id: uuid.UUID) -> str:
             analysis = get_llm_gateway().structured(
                 StructuredRequest(
                     scenario="classify_capture",
-                    system=_SYSTEM,
+                    system=resolve_ai_config(
+                        s,
+                        capture.user_id,
+                        "capture_analysis",
+                        run_reference=f"capture:{capture.id}",
+                    ).system_instruction,
                     user=user_text or capture.type,
                     schema=CaptureAnalysisV1,
                 )

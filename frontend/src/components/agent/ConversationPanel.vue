@@ -2,19 +2,33 @@
 import { ref } from 'vue'
 import type { AgentMessage } from '@/api/agentConversations'
 import ConversationTimeline from '@/components/agent/ConversationTimeline.vue'
+import type { AgentPlan } from '@/api/agentPlans'
 
 export interface ConversationPanelMessage extends AgentMessage {
   pending?: boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   messages: ConversationPanelMessage[]
   loading: boolean
   sending: boolean
   error: string
-}>()
+  hasMore?: boolean
+  loadingMore?: boolean
+  plans?: AgentPlan[]
+  retryingPlanId?: string | null
+}>(), {
+  hasMore: false,
+  loadingMore: false,
+  plans: () => [],
+  retryingPlanId: null,
+})
 
-const emit = defineEmits<{ send: [text: string] }>()
+const emit = defineEmits<{
+  send: [text: string]
+  loadMore: []
+  retryPlan: [planId: string]
+}>()
 
 const draft = ref('')
 
@@ -54,12 +68,25 @@ function onKeydown(event: KeyboardEvent): void {
         v-else-if="!messages.length"
         class="state-message"
       >
-        跟我打个招呼，或者直接说说你想做什么。
+        开始一次新对话：直接说说你想查询或处理什么。
       </p>
-      <ConversationTimeline
-        v-else
-        :messages="messages"
-      />
+      <template v-else>
+        <button
+          v-if="hasMore"
+          type="button"
+          class="load-history"
+          :disabled="loadingMore"
+          @click="emit('loadMore')"
+        >
+          {{ loadingMore ? '正在加载…' : '加载更早消息' }}
+        </button>
+        <ConversationTimeline
+          :messages="messages"
+          :plans="plans"
+          :retrying-plan-id="retryingPlanId"
+          @retry-plan="emit('retryPlan', $event)"
+        />
+      </template>
     </div>
 
     <p
@@ -148,6 +175,9 @@ textarea {
 }
 button {
   min-height: var(--tap-target);
+}
+.load-history {
+  justify-self: center;
 }
 .error-banner {
   color: var(--status-overdue);

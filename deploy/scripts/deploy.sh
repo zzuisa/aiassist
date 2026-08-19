@@ -69,10 +69,11 @@ export_rabbitmq_pass() {
 }
 
 ensure_log_dirs() {
-  # Create per-service log directories under /www/wwwlogs/aiassist/ and make
+  # Keep AI Assist file logs on the dedicated observability disk rather than
+  # the host root volume. Containers need a shared, writable log root.
   # them world-writable so containers (uid 10001 backend, root nginx) can write
   # without requiring a matching host user.
-  local log_root="/www/wwwlogs/aiassist"
+  local log_root="/mnt/docker-ext4/observability/aiassist/logs"
   for svc in backend outbox-publisher worker-fast worker-heavy celery-beat nginx; do
     mkdir -p "$log_root/$svc"
   done
@@ -267,11 +268,26 @@ cmd_create_admin() {
   docker compose run --rm backend python -m app.cli.main create-admin --email "$email"
 }
 
+cmd_issue_blog_mcp_token() {
+  local email="${1:-}"
+  local days="${2:-30}"
+  [ -n "$email" ] || {
+    err "Usage: $0 issue-blog-mcp-token EMAIL [DAYS]"
+    exit 2
+  }
+  require_compose_v2
+  check_env_and_secrets
+  export_rabbitmq_pass
+  docker compose exec -T backend \
+    python -m app.cli.main issue-blog-mcp-token --email "$email" --days "$days"
+}
+
 case "${1:-}" in
   up)   cmd_up ;;
   down) cmd_down ;;
   ps)   export_rabbitmq_pass 2>/dev/null || true; docker compose ps ;;
   logs) export_rabbitmq_pass 2>/dev/null || true; shift || true; docker compose logs -f "$@" ;;
   create-admin) shift; cmd_create_admin "$@" ;;
-  *)    err "Usage: $0 {up|down|ps|logs|create-admin EMAIL}"; exit 2 ;;
+  issue-blog-mcp-token) shift; cmd_issue_blog_mcp_token "$@" ;;
+  *)    err "Usage: $0 {up|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
 esac

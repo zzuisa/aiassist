@@ -7,9 +7,11 @@ import {
   type AgentMessage,
   type Turn,
 } from '@/api/agentConversations'
+import { agentPlansApi, type AgentPlan } from '@/api/agentPlans'
 
 const LOCAL_ID_PREFIX = 'local-'
 const POLL_INTERVAL_MS = 700
+const RECENT_MESSAGE_LIMIT = 12
 
 export interface ConversationMessageView extends AgentMessage {
   /** True only for an optimistically-inserted message awaiting the server echo. */
@@ -24,6 +26,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
   const conversationId = ref<string | null>(null)
   const messages = ref<ConversationMessageView[]>([])
   const activeTurns = ref<Turn[]>([])
+  const plans = ref<AgentPlan[]>([])
   const nextCursor = ref<string | null>(null)
   const loadingHistory = ref(false)
   const loadingMore = ref(false)
@@ -41,6 +44,10 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     pollTimer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS)
   }
 
+  function hasRunningTurn(): boolean {
+    return activeTurns.value.some((turn) => !TURN_TERMINAL_STATUSES.includes(turn.status))
+  }
+
   async function ensureConversation(): Promise<string> {
     if (conversationId.value) return conversationId.value
     const existing = await agentConversationsApi.listConversations(1, 'active')
@@ -49,19 +56,32 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     return conversation.id
   }
 
+  function startFreshConversation(): void {
+    stopPolling()
+    conversationId.value = null
+    messages.value = []
+    activeTurns.value = []
+    plans.value = []
+    nextCursor.value = null
+    loadingHistory.value = false
+    error.value = ''
+  }
+
   async function loadHistory(): Promise<void> {
     error.value = ''
     loadingHistory.value = true
     try {
       const id = await ensureConversation()
-      const [page, detail] = await Promise.all([
-        agentConversationsApi.listMessages(id),
+      const [page, detail, planItems] = await Promise.all([
+        agentConversationsApi.listRecentMessages(id, null, RECENT_MESSAGE_LIMIT),
         agentConversationsApi.getConversation(id),
+        agentPlansApi.listConversationPlans(id),
       ])
       messages.value = page.items
       nextCursor.value = page.next_cursor
       activeTurns.value = detail.active_turns
-      if (activeTurns.value.length) schedulePoll()
+      plans.value = planItems
+      if (hasRunningTurn()) schedulePoll()
     } catch {
       error.value = '加载会话失败，请稍后重试。'
     } finally {
@@ -73,11 +93,15 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     if (!conversationId.value || !nextCursor.value || loadingMore.value) return
     loadingMore.value = true
     try {
-      const page = await agentConversationsApi.listMessages(conversationId.value, nextCursor.value)
+      const page = await agentConversationsApi.listRecentMessages(
+        conversationId.value,
+        nextCursor.value,
+        RECENT_MESSAGE_LIMIT,
+      )
       messages.value = [...page.items, ...messages.value]
       nextCursor.value = page.next_cursor
     } catch {
-      error.value = '加载更多消息失败，请稍后重试。'
+      error.value = '加载更早消息失败，请稍后重试。'
     } finally {
       loadingMore.value = false
     }
@@ -89,15 +113,17 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     try {
       const lastMessage = messages.value[messages.value.length - 1]
       const cursor = lastMessage && isServerId(lastMessage.id) ? lastMessage.id : null
-      const [page, detail] = await Promise.all([
+      const [page, detail, planItems] = await Promise.all([
         agentConversationsApi.listMessages(id, cursor),
         agentConversationsApi.getConversation(id),
+        agentPlansApi.listConversationPlans(id),
       ])
       if (page.items.length) {
         messages.value = [...messages.value, ...page.items]
       }
       activeTurns.value = detail.active_turns
-      if (activeTurns.value.length) schedulePoll()
+      for (const plan of planItems) applyPlan(plan)
+      if (hasRunningTurn()) schedulePoll()
     } catch {
       // Best-effort refresh; the user can still send another message.
     }
@@ -108,6 +134,31 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     activeTurns.value = items
       .filter((item) => item.conversation_id === conversationId.value)
       .map((item) => item as unknown as Turn)
+  }
+
+  function applyPlanSnapshot(items: Array<Record<string, unknown>>): void {
+    if (!conversationId.value) return
+    for (const item of items) applyPlan(item as unknown as AgentPlan)
+  }
+
+  function applyPlan(plan: AgentPlan): void {
+    if (!plan.turn_id) return
+    const turn = activeTurns.value.find((item) => item.id === plan.turn_id)
+    const belongsToConversation = turn?.conversation_id === conversationId.value
+      || messages.value.some((message) => message.id === plan.user_message_id)
+    if (!belongsToConversation) return
+    const existing = plans.value.find((item) => item.plan_id === plan.plan_id)
+    if (existing && existing.version >= plan.version) return
+    plans.value = [
+      ...plans.value.filter((item) => item.plan_id !== plan.plan_id),
+      plan,
+    ].sort((left, right) => left.created_at.localeCompare(right.created_at))
+  }
+
+  function applyPlanEvent(data: Record<string, unknown>): void {
+    if (data.event_type !== 'agent.plan_updated') return
+    const plan = data.plan
+    if (plan && typeof plan === 'object') applyPlan(plan as AgentPlan)
   }
 
   function applyConversationEvent(data: Record<string, unknown>): void {
@@ -192,30 +243,39 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     }
   }
 
-  function reset(): void {
-    stopPolling()
-    conversationId.value = null
-    messages.value = []
-    activeTurns.value = []
-    nextCursor.value = null
+  async function retryPlan(planId: string): Promise<void> {
     error.value = ''
+    try {
+      applyPlan(await agentPlansApi.retryPlan(planId))
+    } catch {
+      error.value = '无法重试这个执行计划，请刷新后再试。'
+    }
+  }
+
+  function reset(): void {
+    startFreshConversation()
   }
 
   return {
     conversationId,
     messages,
     activeTurns,
+    plans,
     nextCursor,
     loadingHistory,
     loadingMore,
     sending,
     error,
+    startFreshConversation,
     loadHistory,
     loadMore,
     sendMessage,
     retryTurn,
     applyConversationEvent,
     applyConversationSnapshot,
+    applyPlanSnapshot,
+    applyPlanEvent,
+    retryPlan,
     reset,
   }
 })

@@ -12,6 +12,7 @@ import {
 import { useAgentConversationsStore } from '@/stores/agentConversations'
 import AgentStatusPanel from '@/components/agent/AgentStatusPanel.vue'
 import AgentTurnRetry from '@/components/agent/AgentTurnRetry.vue'
+import ArticleResultCard from '@/components/agent/ArticleResultCard.vue'
 import CapabilityGapNotice from '@/components/agent/CapabilityGapNotice.vue'
 import ConfirmationCard from '@/components/agent/ConfirmationCard.vue'
 import ConversationPanel from '@/components/agent/ConversationPanel.vue'
@@ -29,7 +30,9 @@ const taskError = ref('')
 const confirmations = ref<PendingWrite[]>([])
 const records = ref<ExecutionRecord[]>([])
 const decidingId = ref<string | null>(null)
+const retryingPlanId = ref<string | null>(null)
 let linkedTaskId: string | null = null
+let linkedPlanVersion = -1
 
 const reply = computed(() => parseAgentReply(task.value?.result_summary ?? null))
 const capabilityGap = computed(() => reply.value?.能力缺口 ?? null)
@@ -43,6 +46,12 @@ const textualResult = computed(() => {
   if (result && !Array.isArray(result)) return JSON.stringify(result, null, 2)
   return ''
 })
+const retryableTurns = computed(() =>
+  conversation.activeTurns
+    .filter((item) => item.status === 'stalled' || item.status === 'failed')
+    .sort((left, right) => right.created_at.localeCompare(left.created_at))
+    .slice(0, 1),
+)
 
 async function decide(confirmation: PendingWrite, decision: ConfirmationDecision): Promise<void> {
   if (!task.value || decidingId.value) return
@@ -85,22 +94,39 @@ async function refreshLinkedTask(taskId: string): Promise<void> {
 }
 
 watch(
-  () => conversation.messages,
-  (messages) => {
-    const latest = [...messages]
+  [() => conversation.plans, () => conversation.messages],
+  ([plans, messages]) => {
+    const latestPlan = plans.at(-1)
+    const planTaskId = latestPlan?.task_id
+    const messageTaskId = [...messages]
       .reverse()
       .map((message) => message.content.task_id)
       .find((value): value is string => typeof value === 'string')
-    if (latest && latest !== linkedTaskId) {
+    const latest = planTaskId ?? messageTaskId
+    const planAdvanced = latestPlan !== undefined && latestPlan.version > linkedPlanVersion
+    if (latest && (latest !== linkedTaskId || planAdvanced)) {
       linkedTaskId = latest
+      linkedPlanVersion = latestPlan?.version ?? linkedPlanVersion
       void refreshLinkedTask(latest)
     }
   },
   { deep: true },
 )
 
-onMounted(() => void conversation.loadHistory())
+onMounted(() => {
+  conversation.startFreshConversation()
+  void conversation.loadHistory()
+})
 onBeforeUnmount(() => conversation.reset())
+
+async function retryPlan(planId: string): Promise<void> {
+  retryingPlanId.value = planId
+  try {
+    await conversation.retryPlan(planId)
+  } finally {
+    retryingPlanId.value = null
+  }
+}
 </script>
 
 <template>
@@ -115,11 +141,17 @@ onBeforeUnmount(() => conversation.reset())
       :loading="conversation.loadingHistory"
       :sending="conversation.sending"
       :error="conversation.error"
+      :has-more="Boolean(conversation.nextCursor)"
+      :loading-more="conversation.loadingMore"
+      :plans="conversation.plans"
+      :retrying-plan-id="retryingPlanId"
       @send="(text) => conversation.sendMessage(text)"
+      @load-more="conversation.loadMore"
+      @retry-plan="retryPlan"
     />
 
     <AgentTurnRetry
-      :turns="conversation.activeTurns.filter((item) => item.status === 'stalled' || item.status === 'failed')"
+      :turns="retryableTurns"
       @retry="conversation.retryTurn"
     />
 
@@ -159,25 +191,11 @@ onBeforeUnmount(() => conversation.reset())
       class="results"
       aria-label="文章查询结果"
     >
-      <article
+      <ArticleResultCard
         v-for="article in articles"
         :key="article.id"
-        class="result-card"
-      >
-        <RouterLink :to="article.link">
-          {{ article.title }}
-        </RouterLink>
-        <p
-          v-if="article.category || article.tags.length"
-          class="meta"
-        >
-          <span v-if="article.category">{{ article.category }}</span>
-          <span
-            v-for="tag in article.tags"
-            :key="tag"
-          >#{{ tag }}</span>
-        </p>
-      </article>
+        :article="article"
+      />
     </section>
 
     <pre
@@ -202,17 +220,6 @@ onBeforeUnmount(() => conversation.reset())
 .confirmations {
   display: grid;
   gap: var(--space-3);
-}
-.result-card {
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
 }
 .text-result {
   white-space: pre-wrap;

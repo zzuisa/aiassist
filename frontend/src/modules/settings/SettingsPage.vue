@@ -78,6 +78,12 @@ async function onLogout(): Promise<void> {
     >
       查看更新历史与版本状态 →
     </RouterLink>
+    <RouterLink
+      class="updates-link"
+      to="/settings/ai-config"
+    >
+      管理 AI Prompt 与 Skill →
+    </RouterLink>
 
     <fieldset>
       <legend>账户</legend>

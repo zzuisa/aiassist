@@ -90,6 +90,24 @@ def test_prompt_is_provider_neutral_and_payload_reuses_plan(monkeypatch):
     assert json.loads(payload)["available_capabilities"]
 
 
+def test_central_prompt_is_composed_with_existing_blog_skill_rules(monkeypatch):
+    from app.core.config import reload_settings
+    from app.modules.posts import orchestrator
+
+    monkeypatch.setenv("BLOG_CAPABILITIES_JSON", "[]")
+    reload_settings()
+    plan = orchestrator.build_plan("标题", "正文" * 100)
+    system = orchestrator.build_system_prompt(
+        {"content_rules": ["保留用户原始事实"]},
+        plan,
+        None,
+        base_instruction="配置中心 Prompt",
+    )
+
+    assert system.startswith("配置中心 Prompt")
+    assert "保留用户原始事实" in system
+
+
 def test_explicit_board_request_allows_visual_agent_for_essay(monkeypatch):
     from app.core.config import reload_settings
     from app.modules.posts import orchestrator

@@ -7,6 +7,7 @@ Every feature module's models are imported here as they are added. Importing
 from app.db.base import Base
 from app.models import agent as agent
 from app.models import agent_conversation as agent_conversation
+from app.models import ai_config as ai_config
 from app.models import blog as blog
 from app.models import captures as captures
 from app.models import foundation as foundation
@@ -18,7 +19,17 @@ from app.models import scheduling as scheduling
 from app.models import search as search
 from app.models import tasks as tasks
 from app.models import voice as voice
-from app.models.agent import AgentRun, AgentTask, ExecutionRecord, PendingWrite
+from app.models.agent import (
+    AgentExecutionPlan,
+    AgentPlanStep,
+    AgentRun,
+    AgentStepArtifact,
+    AgentStepAttempt,
+    AgentStepDependency,
+    AgentTask,
+    ExecutionRecord,
+    PendingWrite,
+)
 from app.models.agent_conversation import (
     AgentConversation,
     AgentMessage,
@@ -33,9 +44,14 @@ metadata = Base.metadata
 
 __all__ = [
     "AgentConversation",
+    "AgentExecutionPlan",
     "AgentMessage",
+    "AgentPlanStep",
     "AgentRoutingDecision",
     "AgentRun",
+    "AgentStepArtifact",
+    "AgentStepAttempt",
+    "AgentStepDependency",
     "AgentTask",
     "AgentTurn",
     "Base",

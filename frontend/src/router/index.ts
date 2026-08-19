@@ -158,6 +158,11 @@ const routes: RouteRecordRaw[] = [
         name: 'settings-updates',
         component: () => import('@/modules/releases/ReleaseHistoryPage.vue'),
       },
+      {
+        path: 'settings/ai-config',
+        name: 'settings-ai-config',
+        component: () => import('@/modules/settings/AIConfigPage.vue'),
+      },
     ],
   },
 ]

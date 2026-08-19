@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, get_current_user, require_csrf
@@ -12,10 +13,17 @@ from app.core.errors import NotFoundError, ValidationError
 from app.db.session import get_db
 from app.models.agent import AgentRun as AgentRunModel
 from app.models.agent_conversation import AgentMessage as AgentMessageModel
-from app.modules.agent import conversation_schemas, conversation_service, schemas, service
+from app.modules.agent import (
+    conversation_schemas,
+    conversation_service,
+    planning_schemas,
+    planning_service,
+    schemas,
+    service,
+)
 from app.modules.agent.audit import list_execution_records
 from app.modules.agent.intents import classify_request
-from app.workers.tasks.agent import execute_conversation_turn, execute_task
+from app.workers.tasks.agent import coordinate_plan, execute_conversation_turn, execute_task
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -176,6 +184,12 @@ def decide_confirmation(
     )
     db.commit()
     db.refresh(pending)
+    if pending.run_id is not None:
+        from app.models.agent import AgentPlanStep
+
+        plan_step = db.scalar(select(AgentPlanStep).where(AgentPlanStep.run_id == pending.run_id))
+        if plan_step is not None:
+            coordinate_plan.delay(str(plan_step.plan_id))
     return schemas.PendingWrite.model_validate(pending)
 
 
@@ -271,10 +285,17 @@ def submit_message(
 def list_messages(
     conversation_id: uuid.UUID,
     cursor: str | None = None,
+    before: str | None = None,
+    latest: bool = False,
     limit: int = Query(default=50, ge=1, le=200),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> conversation_schemas.MessagePage:
+    if cursor and (before or latest):
+        raise ValidationError(
+            "Choose either forward polling or recent history pagination",
+            code="agent_message_cursor_conflict",
+        )
     parsed_cursor: uuid.UUID | None = None
     if cursor:
         try:
@@ -283,17 +304,95 @@ def list_messages(
             raise ValidationError(
                 "Invalid pagination cursor", code="agent_message_cursor_invalid"
             ) from exc
-    messages, next_cursor = conversation_service.list_conversation_messages(
-        db,
-        user.id,
-        conversation_id,
-        cursor=parsed_cursor,
-        limit=limit,
-    )
+    parsed_before: uuid.UUID | None = None
+    if before:
+        try:
+            parsed_before = uuid.UUID(before)
+        except ValueError as exc:
+            raise ValidationError(
+                "Invalid history cursor", code="agent_message_cursor_invalid"
+            ) from exc
+    if latest or parsed_before is not None:
+        messages, next_cursor = conversation_service.list_recent_conversation_messages(
+            db,
+            user.id,
+            conversation_id,
+            before=parsed_before,
+            limit=limit,
+        )
+    else:
+        messages, next_cursor = conversation_service.list_conversation_messages(
+            db,
+            user.id,
+            conversation_id,
+            cursor=parsed_cursor,
+            limit=limit,
+        )
     return conversation_schemas.MessagePage(
         items=[conversation_schemas.Message.model_validate(m) for m in messages],
         next_cursor=str(next_cursor) if next_cursor is not None else None,
     )
+
+
+@router.get(
+    "/conversations/{conversation_id}/plans",
+    response_model=list[planning_schemas.AgentPlanView],
+)
+def list_conversation_plans(
+    conversation_id: uuid.UUID,
+    limit: int = Query(default=20, ge=1, le=50),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[planning_schemas.AgentPlanView]:
+    conversation_service.get_owned_conversation(db, user.id, conversation_id)
+    return [
+        planning_service.serialize_plan(db, plan)
+        for plan in reversed(
+            planning_service.list_conversation_plans(db, user.id, conversation_id, limit=limit)
+        )
+    ]
+
+
+@router.get("/turns/{turn_id}/plan", response_model=planning_schemas.AgentPlanView)
+def get_turn_plan(
+    turn_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> planning_schemas.AgentPlanView:
+    conversation_service.get_owned_turn(db, user.id, turn_id)
+    return planning_service.serialize_plan(db, planning_service.plan_for_turn(db, user.id, turn_id))
+
+
+@router.get("/plans/{plan_id}", response_model=planning_schemas.AgentPlanView)
+def get_plan(
+    plan_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> planning_schemas.AgentPlanView:
+    return planning_service.serialize_plan(
+        db, planning_service.get_owned_plan(db, user.id, plan_id)
+    )
+
+
+@router.post(
+    "/plans/{plan_id}/retry",
+    response_model=planning_schemas.AgentPlanView,
+    status_code=202,
+)
+def retry_plan(
+    plan_id: uuid.UUID,
+    _body: planning_schemas.PlanRetryRequest,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> planning_schemas.AgentPlanView:
+    from app.modules.agent.scheduler import retry_failed_chain
+
+    plan = retry_failed_chain(db, user_id=user.id, plan_id=plan_id)
+    db.commit()
+    db.refresh(plan)
+    result = planning_service.serialize_plan(db, plan)
+    coordinate_plan.delay(str(plan.id))
+    return result
 
 
 @router.get("/capabilities")

@@ -30,8 +30,12 @@ def test_migration_head_revision_chains_from_agent_runtime() -> None:
     script = ScriptDirectory.from_config(cfg)
     head = script.get_revision("head")
     assert head is not None
-    assert head.revision == "0020_conversational_agent"
-    assert head.down_revision == "0019_agent_runtime"
+    agent_revision = script.get_revision("0020_conversational_agent")
+    assert agent_revision is not None
+    assert agent_revision.down_revision == "0019_agent_runtime"
+    assert "0020_conversational_agent" in {
+        revision.revision for revision in script.walk_revisions("base", head.revision)
+    }
 
 
 def test_upgrade_creates_all_tables_and_downgrade_removes_them() -> None:

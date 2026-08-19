@@ -21,6 +21,15 @@
       }
     },
     "semantic_arguments": { "type": "object" },
+    "tool_call": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "arguments"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "arguments": { "type": "object" }
+      }
+    },
     "candidate_tool_keys": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 160 }, "uniqueItems": true },
     "clarification_question": { "type": ["string", "null"], "maxLength": 500 },
     "requires_confirmation": { "type": "boolean" },

@@ -22,7 +22,7 @@ describe('Agent ConversationPanel', () => {
       props: { messages: [], loading: false, sending: false, error: '' },
     })
 
-    expect(wrapper.text()).toContain('跟我打个招呼')
+    expect(wrapper.text()).toContain('开始一次新对话')
   })
 
   it('shows a loading state instead of the empty guide while history loads', () => {
@@ -31,7 +31,7 @@ describe('Agent ConversationPanel', () => {
     })
 
     expect(wrapper.find('[role="status"]').text()).toContain('正在加载会话')
-    expect(wrapper.text()).not.toContain('跟我打个招呼')
+    expect(wrapper.text()).not.toContain('开始一次新对话')
   })
 
   it('shows an error banner when an error is present', () => {
@@ -78,6 +78,28 @@ describe('Agent ConversationPanel', () => {
     const assistantBubble = wrapper.find('.message.role-assistant')
     expect(assistantBubble.exists()).toBe(true)
     expect(assistantBubble.text()).toContain('你好！我可以帮你查询')
+  })
+
+  it('loads older messages only when the user asks for them', async () => {
+    const wrapper = mount(ConversationPanel, {
+      props: {
+        messages: [message()],
+        loading: false,
+        sending: false,
+        error: '',
+        hasMore: true,
+        loadingMore: false,
+      },
+    })
+
+    const button = wrapper.get('.load-history')
+    expect(button.text()).toBe('加载更早消息')
+    await button.trigger('click')
+    expect(wrapper.emitted('loadMore')).toHaveLength(1)
+
+    await wrapper.setProps({ loadingMore: true })
+    expect(wrapper.get('.load-history').text()).toBe('正在加载…')
+    expect((wrapper.get('.load-history').element as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('renders clarification and pending-confirmation guidance', () => {

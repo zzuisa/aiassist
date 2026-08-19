@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -203,6 +204,78 @@ def test_list_conversation_messages_is_owner_isolated_and_paginates(db_session, 
 
     with pytest.raises(NotFoundError):
         conversation_service.list_conversation_messages(db_session, other.id, conversation.id)
+
+
+def test_recent_message_window_loads_newest_first_and_pages_backward(
+    db_session, make_user
+) -> None:
+    from app.modules.agent import conversation_service
+
+    owner = make_user()
+    conversation = conversation_service.create_conversation(db_session, user_id=owner.id)
+    message_ids = []
+    for index in range(5):
+        turn = conversation_service.accept_message(
+            db_session,
+            user_id=owner.id,
+            conversation_id=conversation.id,
+            client_message_id=str(uuid.uuid4()),
+            text=f"msg-{index}",
+        )
+        message_ids.append(turn.user_message_id)
+        db_session.flush()
+    db_session.commit()
+
+    recent, before = conversation_service.list_recent_conversation_messages(
+        db_session, owner.id, conversation.id, limit=2
+    )
+    assert [message.id for message in recent] == message_ids[-2:]
+    assert before == message_ids[-2]
+
+    earlier, before_2 = conversation_service.list_recent_conversation_messages(
+        db_session, owner.id, conversation.id, before=before, limit=2
+    )
+    assert [message.id for message in earlier] == message_ids[1:3]
+    assert before_2 == message_ids[1]
+
+
+def test_active_turns_hide_expired_failures_and_keep_only_latest_unresolved_retry(
+    db_session, make_user
+) -> None:
+    from app.modules.agent import conversation_service
+
+    owner = make_user()
+    conversation = conversation_service.create_conversation(db_session, user_id=owner.id)
+
+    def make_turn(label: str):
+        return conversation_service.accept_message(
+            db_session,
+            user_id=owner.id,
+            conversation_id=conversation.id,
+            client_message_id=str(uuid.uuid4()),
+            text=label,
+        )
+
+    expired = make_turn("expired")
+    expired.status = "failed"
+    expired.finished_at = datetime.now(UTC) - timedelta(days=2)
+
+    unresolved = make_turn("unresolved")
+    unresolved.status = "failed"
+    unresolved.finished_at = datetime.now(UTC) - timedelta(hours=1)
+
+    superseded = make_turn("superseded")
+    superseded.status = "failed"
+    superseded.finished_at = datetime.now(UTC) - timedelta(minutes=30)
+    retry = make_turn("retry")
+    retry.retry_of_id = superseded.id
+    db_session.commit()
+
+    visible = conversation_service.list_active_turns(
+        db_session, owner.id, conversation.id
+    )
+
+    assert {turn.id for turn in visible} == {unresolved.id, retry.id}
 
 
 def test_accept_message_requires_owned_conversation(db_session, make_user) -> None:

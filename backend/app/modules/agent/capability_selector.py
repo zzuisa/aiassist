@@ -155,6 +155,10 @@ def validate_route(
 
     errors: list[str] = []
     proposed = list(route.candidate_tool_keys)
+    if route.tool_call is not None:
+        if proposed and proposed[0] != route.tool_call.name:
+            errors.append("tool_call_candidate_mismatch")
+        proposed = [route.tool_call.name]
     if not proposed or any(key not in allowed_candidates for key in proposed):
         errors.append("candidate_not_allowed")
     selected = proposed[0] if proposed else None

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-plan-event.v1.json",
+  "title": "AgentPlanEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_type", "plan", "timestamp"],
+  "properties": {
+    "schema_version": {"const": "agent-plan-event.v1"},
+    "event_type": {"const": "agent.plan_updated"},
+    "plan": {
+      "type": "object",
+      "required": ["schema_version", "plan_id", "task_id", "objective", "status", "version", "counts", "steps", "created_at"],
+      "properties": {
+        "schema_version": {"const": "agent-plan-view.v1"},
+        "plan_id": {"type": "string", "format": "uuid"},
+        "turn_id": {"type": ["string", "null"], "format": "uuid"},
+        "task_id": {"type": "string", "format": "uuid"},
+        "user_message_id": {"type": ["string", "null"], "format": "uuid"},
+        "objective": {"type": "string", "maxLength": 500},
+        "status": {"enum": ["planning", "pending", "running", "waiting_user", "success", "partial_success", "failed", "stalled", "cancelled"]},
+        "version": {"type": "integer", "minimum": 1},
+        "counts": {"type": "object"},
+        "elapsed_ms": {"type": ["integer", "null"], "minimum": 0},
+        "result_summary": {"type": ["string", "null"], "maxLength": 4000},
+        "error": {"type": ["object", "null"]},
+        "steps": {"type": "array", "maxItems": 12},
+        "created_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "timestamp": {"type": "string", "format": "date-time"}
+  }
+}
+
