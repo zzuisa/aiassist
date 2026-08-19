@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -59,7 +60,7 @@ def create_app() -> FastAPI:
     blog_mcp_app = build_blog_mcp_asgi(blog_mcp_server)
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI):
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         async with blog_mcp_server.session_manager.run():
             yield
 
