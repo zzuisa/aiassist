@@ -180,12 +180,14 @@ def test_message_pagination_cursor(client, make_user, monkeypatch) -> None:
     headers = _login(client, user.email)
     conversation_id = client.post("/api/v1/agent/conversations", headers=headers).json()["id"]
 
+    message_ids = []
     for _ in range(3):
-        client.post(
+        response = client.post(
             f"/api/v1/agent/conversations/{conversation_id}/messages",
             headers=headers,
             json={"client_message_id": str(uuid.uuid4()), "text": "hi"},
         )
+        message_ids.append(response.json()["message"]["id"])
 
     first_page = client.get(
         f"/api/v1/agent/conversations/{conversation_id}/messages",
@@ -209,3 +211,22 @@ def test_message_pagination_cursor(client, make_user, monkeypatch) -> None:
     assert {m["id"] for m in first_body["items"]} & {m["id"] for m in second_body["items"]} == (
         set()
     )
+
+    recent_page = client.get(
+        f"/api/v1/agent/conversations/{conversation_id}/messages",
+        headers=headers,
+        params={"limit": 2, "latest": True},
+    )
+    assert recent_page.status_code == 200
+    recent_body = recent_page.json()
+    assert [item["id"] for item in recent_body["items"]] == message_ids[-2:]
+    assert recent_body["next_cursor"] == message_ids[-2]
+
+    earlier_page = client.get(
+        f"/api/v1/agent/conversations/{conversation_id}/messages",
+        headers=headers,
+        params={"limit": 2, "latest": True, "before": recent_body["next_cursor"]},
+    )
+    assert earlier_page.status_code == 200
+    assert [item["id"] for item in earlier_page.json()["items"]] == message_ids[:1]
+    assert earlier_page.json()["next_cursor"] is None

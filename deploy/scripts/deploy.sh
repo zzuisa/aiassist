@@ -268,11 +268,26 @@ cmd_create_admin() {
   docker compose run --rm backend python -m app.cli.main create-admin --email "$email"
 }
 
+cmd_issue_blog_mcp_token() {
+  local email="${1:-}"
+  local days="${2:-30}"
+  [ -n "$email" ] || {
+    err "Usage: $0 issue-blog-mcp-token EMAIL [DAYS]"
+    exit 2
+  }
+  require_compose_v2
+  check_env_and_secrets
+  export_rabbitmq_pass
+  docker compose exec -T backend \
+    python -m app.cli.main issue-blog-mcp-token --email "$email" --days "$days"
+}
+
 case "${1:-}" in
   up)   cmd_up ;;
   down) cmd_down ;;
   ps)   export_rabbitmq_pass 2>/dev/null || true; docker compose ps ;;
   logs) export_rabbitmq_pass 2>/dev/null || true; shift || true; docker compose logs -f "$@" ;;
   create-admin) shift; cmd_create_admin "$@" ;;
-  *)    err "Usage: $0 {up|down|ps|logs|create-admin EMAIL}"; exit 2 ;;
+  issue-blog-mcp-token) shift; cmd_issue_blog_mcp_token "$@" ;;
+  *)    err "Usage: $0 {up|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
 esac

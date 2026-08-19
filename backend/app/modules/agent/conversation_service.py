@@ -17,7 +17,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import select, tuple_
@@ -46,6 +46,8 @@ from app.services.outbox.publisher import append_event
 MAX_MESSAGE_TEXT_LENGTH = 4000
 DEFAULT_PAGE_LIMIT = 50
 MAX_PAGE_LIMIT = 200
+RECENT_RETRYABLE_TURN_TTL = timedelta(hours=24)
+MAX_RECENT_RETRYABLE_TURNS = 1
 
 # Terminal Turn states that a worker must never re-execute (idempotent replay
 # guard: Celery's own at-least-once delivery plus a possible watchdog retry
@@ -348,17 +350,55 @@ def finalize_turn_failure(session: Session, turn_id: uuid.UUID, exc: Exception) 
 def list_active_turns(
     session: Session, user_id: uuid.UUID, conversation_id: uuid.UUID
 ) -> list[AgentTurn]:
+    """Return running turns plus at most one recent unresolved failure.
+
+    Terminal failures remain durable for audit/retry, but they must not build up
+    as permanent banners every time a conversation is opened. A failure is
+    visible for one day and disappears as soon as a retry child exists.
+    """
     get_owned_conversation(session, user_id, conversation_id)
-    return list(
+    active = list(
         session.scalars(
             select(AgentTurn)
             .where(
                 AgentTurn.conversation_id == conversation_id,
-                AgentTurn.status.notin_(("success", "partial_success", "cancelled")),
+                AgentTurn.status.in_(
+                    (
+                        "accepted",
+                        "routing",
+                        "waiting_clarification",
+                        "executing",
+                        "waiting_confirmation",
+                    )
+                ),
             )
             .order_by(AgentTurn.created_at)
         ).all()
     )
+    cutoff = datetime.now(UTC) - RECENT_RETRYABLE_TURN_TTL
+    recent_terminals = list(
+        session.scalars(
+            select(AgentTurn)
+            .where(
+                AgentTurn.conversation_id == conversation_id,
+                AgentTurn.status.in_(("failed", "stalled")),
+                AgentTurn.finished_at.is_not(None),
+                AgentTurn.finished_at >= cutoff,
+            )
+            .order_by(AgentTurn.created_at.desc())
+            .limit(20)
+        ).all()
+    )
+    unresolved: list[AgentTurn] = []
+    for turn in recent_terminals:
+        retry_exists = session.scalar(
+            select(AgentTurn.id).where(AgentTurn.retry_of_id == turn.id).limit(1)
+        )
+        if retry_exists is None:
+            unresolved.append(turn)
+        if len(unresolved) >= MAX_RECENT_RETRYABLE_TURNS:
+            break
+    return sorted([*active, *unresolved], key=lambda turn: turn.created_at)
 
 
 def list_conversation_messages(
@@ -386,6 +426,41 @@ def list_conversation_messages(
     if len(rows) > limit:
         next_cursor = rows[limit - 1].id
         rows = rows[:limit]
+    return rows, next_cursor
+
+
+def list_recent_conversation_messages(
+    session: Session,
+    user_id: uuid.UUID,
+    conversation_id: uuid.UUID,
+    *,
+    before: uuid.UUID | None = None,
+    limit: int = DEFAULT_PAGE_LIMIT,
+) -> tuple[list[AgentMessage], uuid.UUID | None]:
+    """Return the newest message window in chronological display order.
+
+    ``next_cursor`` points to the oldest returned message and can be supplied as
+    ``before`` to explicitly load an earlier window.
+    """
+    get_owned_conversation(session, user_id, conversation_id)
+    limit = min(max(limit, 1), MAX_PAGE_LIMIT)
+    stmt = select(AgentMessage).where(AgentMessage.conversation_id == conversation_id)
+    if before is not None:
+        anchor = session.get(AgentMessage, before)
+        if anchor is None or anchor.conversation_id != conversation_id:
+            raise ValidationError(
+                "Invalid message history cursor", code="agent_message_cursor_invalid"
+            )
+        stmt = stmt.where(
+            tuple_(AgentMessage.created_at, AgentMessage.id)
+            < tuple_(anchor.created_at, anchor.id)  # type: ignore[arg-type]
+        )
+    stmt = stmt.order_by(AgentMessage.created_at.desc(), AgentMessage.id.desc()).limit(limit + 1)
+    rows = list(session.scalars(stmt).all())
+    has_earlier = len(rows) > limit
+    rows = rows[:limit]
+    next_cursor = rows[-1].id if has_earlier and rows else None
+    rows.reverse()
     return rows, next_cursor
 
 

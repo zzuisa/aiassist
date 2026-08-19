@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -15,6 +17,11 @@ from app.modules.agent.router import router as agent_router
 from app.modules.ai_config.router import router as ai_config_router
 from app.modules.assistant.router import router as assistant_router
 from app.modules.auth.router import router as auth_router
+from app.modules.blog_mcp.server import (
+    MCP_MOUNT_PATH,
+    build_blog_mcp_asgi,
+    build_blog_mcp_server,
+)
 from app.modules.captures.router import router as captures_router
 from app.modules.habits.router import router as habits_router
 from app.modules.jobs.router import router as jobs_router
@@ -48,7 +55,19 @@ def create_app() -> FastAPI:
     ensure_dev_signing_key()
     settings.validate_startup()
 
-    app = FastAPI(title="AI Assist Personal Life OS API", version="1.0.0")
+    blog_mcp_server = build_blog_mcp_server()
+    blog_mcp_app = build_blog_mcp_asgi(blog_mcp_server)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        async with blog_mcp_server.session_manager.run():
+            yield
+
+    app = FastAPI(
+        title="AI Assist Personal Life OS API",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
     app.add_middleware(TraceContextMiddleware)
     register_exception_handlers(app)
 
@@ -102,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_config_router, prefix=API_PREFIX)
     app.include_router(assistant_router, prefix=API_PREFIX)
     app.include_router(settings_router, prefix=API_PREFIX)
+    app.mount(MCP_MOUNT_PATH, blog_mcp_app, name="blog-mcp")
 
     return app
 

@@ -13,11 +13,22 @@ const props = withDefaults(defineProps<{
   loading: boolean
   sending: boolean
   error: string
+  hasMore?: boolean
+  loadingMore?: boolean
   plans?: AgentPlan[]
   retryingPlanId?: string | null
-}>(), { plans: () => [], retryingPlanId: null })
+}>(), {
+  hasMore: false,
+  loadingMore: false,
+  plans: () => [],
+  retryingPlanId: null,
+})
 
-const emit = defineEmits<{ send: [text: string]; retryPlan: [planId: string] }>()
+const emit = defineEmits<{
+  send: [text: string]
+  loadMore: []
+  retryPlan: [planId: string]
+}>()
 
 const draft = ref('')
 
@@ -59,13 +70,23 @@ function onKeydown(event: KeyboardEvent): void {
       >
         开始一次新对话：直接说说你想查询或处理什么。
       </p>
-      <ConversationTimeline
-        v-else
-        :messages="messages"
-        :plans="plans"
-        :retrying-plan-id="retryingPlanId"
-        @retry-plan="emit('retryPlan', $event)"
-      />
+      <template v-else>
+        <button
+          v-if="hasMore"
+          type="button"
+          class="load-history"
+          :disabled="loadingMore"
+          @click="emit('loadMore')"
+        >
+          {{ loadingMore ? '正在加载…' : '加载更早消息' }}
+        </button>
+        <ConversationTimeline
+          :messages="messages"
+          :plans="plans"
+          :retrying-plan-id="retryingPlanId"
+          @retry-plan="emit('retryPlan', $event)"
+        />
+      </template>
     </div>
 
     <p
@@ -154,6 +175,9 @@ textarea {
 }
 button {
   min-height: var(--tap-target);
+}
+.load-history {
+  justify-self: center;
 }
 .error-banner {
   color: var(--status-overdue);

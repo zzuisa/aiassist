@@ -111,7 +111,31 @@ chown 10001 deploy/secrets/llm_provider_key
 - 配置中心只允许调整业务指令和已注册工具的默认参数。数据权限、参数 schema、最大数量和写入确认由平台强制执行，不能通过 Prompt 关闭。
 - 出现“等待确认”时，先核对预览再确认；未确认前不会执行写入。
 - 出现“可以安全重试”时，可在计划卡点击“重试失败步骤”。系统只重置可重试失败步骤及其后代，已经成功的步骤和写入不会重复。
+- 打开会话默认只加载最近 12 条消息；需要查看旧记录时点击“加载更早消息”。终态失败最多提示 1 条并在 24 小时后自动退出提示区，历史记录不会从数据库删除。
 - 查看运行状态：`./deploy/scripts/deploy.sh ps`。
 - 查看日志：`./deploy/scripts/deploy.sh logs worker-heavy`，再按 `plan_id`、`turn_id`、`task_id` 或 `conversation_turn_execution_failed` 检索。
+
+## 5. 使用 MCPJam 检查内部博客能力
+
+AI Assist 在 `/api/v1/mcp/blog/mcp` 提供独立的 Streamable HTTP MCP
+入口。它与 Agent 作为 MCP Client 访问外部服务的配置无关；此入口只暴露经过筛选的博客只读工具，
+不会自动映射全部 REST API，也不提供创建、修改、删除或发布操作。
+
+先为已有用户签发最长 90 天的只读 Token：
+
+```bash
+./deploy/scripts/deploy.sh issue-blog-mcp-token USER@example.com 30
+```
+
+Token 只显示一次，不得写入仓库、日志、Prompt 或普通配置文件。在 MCPJam Desktop 中新增：
+
+- Transport：`Streamable HTTP`
+- URL：`https://llm.roguelife.de/api/v1/mcp/blog/mcp`
+- Header：`Authorization: Bearer <刚签发的 Token>`
+
+连接后应看到 `blog_list_posts`、`blog_get_post`、`blog_search_posts`、`blog_timeline`、
+`blog_list_categories` 和 `blog_list_tags`。这些名称同时兼容 Claude/Anthropic 的工具命名限制。
+Token 过期、用户被停用或 Token 类型/作用域不符时，
+入口统一返回 `401`；普通网页登录 Access Token 不能用于该入口。
 
 常见检查顺序：先确认 `LLM_PROVIDER` 与密钥文件是否匹配；再检查容器健康状态；最后检查 MCP 文件是否为有效 JSON（或保持为空/`{"connections": {}}`）。

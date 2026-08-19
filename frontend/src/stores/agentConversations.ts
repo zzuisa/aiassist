@@ -11,6 +11,7 @@ import { agentPlansApi, type AgentPlan } from '@/api/agentPlans'
 
 const LOCAL_ID_PREFIX = 'local-'
 const POLL_INTERVAL_MS = 700
+const RECENT_MESSAGE_LIMIT = 12
 
 export interface ConversationMessageView extends AgentMessage {
   /** True only for an optimistically-inserted message awaiting the server echo. */
@@ -43,6 +44,10 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     pollTimer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS)
   }
 
+  function hasRunningTurn(): boolean {
+    return activeTurns.value.some((turn) => !TURN_TERMINAL_STATUSES.includes(turn.status))
+  }
+
   async function ensureConversation(): Promise<string> {
     if (conversationId.value) return conversationId.value
     const existing = await agentConversationsApi.listConversations(1, 'active')
@@ -68,7 +73,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     try {
       const id = await ensureConversation()
       const [page, detail, planItems] = await Promise.all([
-        agentConversationsApi.listMessages(id),
+        agentConversationsApi.listRecentMessages(id, null, RECENT_MESSAGE_LIMIT),
         agentConversationsApi.getConversation(id),
         agentPlansApi.listConversationPlans(id),
       ])
@@ -76,7 +81,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
       nextCursor.value = page.next_cursor
       activeTurns.value = detail.active_turns
       plans.value = planItems
-      if (activeTurns.value.length) schedulePoll()
+      if (hasRunningTurn()) schedulePoll()
     } catch {
       error.value = '加载会话失败，请稍后重试。'
     } finally {
@@ -88,11 +93,15 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     if (!conversationId.value || !nextCursor.value || loadingMore.value) return
     loadingMore.value = true
     try {
-      const page = await agentConversationsApi.listMessages(conversationId.value, nextCursor.value)
+      const page = await agentConversationsApi.listRecentMessages(
+        conversationId.value,
+        nextCursor.value,
+        RECENT_MESSAGE_LIMIT,
+      )
       messages.value = [...page.items, ...messages.value]
       nextCursor.value = page.next_cursor
     } catch {
-      error.value = '加载更多消息失败，请稍后重试。'
+      error.value = '加载更早消息失败，请稍后重试。'
     } finally {
       loadingMore.value = false
     }
@@ -114,7 +123,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
       }
       activeTurns.value = detail.active_turns
       for (const plan of planItems) applyPlan(plan)
-      if (activeTurns.value.length) schedulePoll()
+      if (hasRunningTurn()) schedulePoll()
     } catch {
       // Best-effort refresh; the user can still send another message.
     }

@@ -95,6 +95,12 @@ export const agentConversationsApi = {
       cursor: cursor ?? undefined,
       limit,
     }),
+  listRecentMessages: (conversationId: string, before?: string | null, limit = 12) =>
+    api.get<MessagePage>(`/agent/conversations/${conversationId}/messages`, {
+      latest: true,
+      before: before ?? undefined,
+      limit,
+    }),
 }
 
 export function messageText(message: AgentMessage): string {

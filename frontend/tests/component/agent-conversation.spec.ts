@@ -80,6 +80,28 @@ describe('Agent ConversationPanel', () => {
     expect(assistantBubble.text()).toContain('你好！我可以帮你查询')
   })
 
+  it('loads older messages only when the user asks for them', async () => {
+    const wrapper = mount(ConversationPanel, {
+      props: {
+        messages: [message()],
+        loading: false,
+        sending: false,
+        error: '',
+        hasMore: true,
+        loadingMore: false,
+      },
+    })
+
+    const button = wrapper.get('.load-history')
+    expect(button.text()).toBe('加载更早消息')
+    await button.trigger('click')
+    expect(wrapper.emitted('loadMore')).toHaveLength(1)
+
+    await wrapper.setProps({ loadingMore: true })
+    expect(wrapper.get('.load-history').text()).toBe('正在加载…')
+    expect((wrapper.get('.load-history').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('renders clarification and pending-confirmation guidance', () => {
     const wrapper = mount(ConversationPanel, {
       props: {

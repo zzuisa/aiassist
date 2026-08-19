@@ -133,6 +133,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("flush-voice-queue")
     p_mcp = sub.add_parser("mcp-diagnose")
     p_mcp.add_argument("--user-id", required=True)
+    p_blog_mcp = sub.add_parser("issue-blog-mcp-token")
+    p_blog_mcp.add_argument("--email", required=True)
+    p_blog_mcp.add_argument("--days", type=int, default=30, choices=range(1, 91))
 
     args = parser.parse_args(argv)
     if args.command == "migrate":
@@ -149,6 +152,10 @@ def main(argv: list[str] | None = None) -> int:
         from app.cli.mcp import diagnose_mcp
 
         return diagnose_mcp(args.user_id)
+    if args.command == "issue-blog-mcp-token":
+        from app.cli.mcp import issue_blog_token
+
+        return issue_blog_token(args.email, args.days)
     parser.error("unknown command")
     return 2
 

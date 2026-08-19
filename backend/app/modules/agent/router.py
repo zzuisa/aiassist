@@ -285,10 +285,17 @@ def submit_message(
 def list_messages(
     conversation_id: uuid.UUID,
     cursor: str | None = None,
+    before: str | None = None,
+    latest: bool = False,
     limit: int = Query(default=50, ge=1, le=200),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> conversation_schemas.MessagePage:
+    if cursor and (before or latest):
+        raise ValidationError(
+            "Choose either forward polling or recent history pagination",
+            code="agent_message_cursor_conflict",
+        )
     parsed_cursor: uuid.UUID | None = None
     if cursor:
         try:
@@ -297,13 +304,30 @@ def list_messages(
             raise ValidationError(
                 "Invalid pagination cursor", code="agent_message_cursor_invalid"
             ) from exc
-    messages, next_cursor = conversation_service.list_conversation_messages(
-        db,
-        user.id,
-        conversation_id,
-        cursor=parsed_cursor,
-        limit=limit,
-    )
+    parsed_before: uuid.UUID | None = None
+    if before:
+        try:
+            parsed_before = uuid.UUID(before)
+        except ValueError as exc:
+            raise ValidationError(
+                "Invalid history cursor", code="agent_message_cursor_invalid"
+            ) from exc
+    if latest or parsed_before is not None:
+        messages, next_cursor = conversation_service.list_recent_conversation_messages(
+            db,
+            user.id,
+            conversation_id,
+            before=parsed_before,
+            limit=limit,
+        )
+    else:
+        messages, next_cursor = conversation_service.list_conversation_messages(
+            db,
+            user.id,
+            conversation_id,
+            cursor=parsed_cursor,
+            limit=limit,
+        )
     return conversation_schemas.MessagePage(
         items=[conversation_schemas.Message.model_validate(m) for m in messages],
         next_cursor=str(next_cursor) if next_cursor is not None else None,

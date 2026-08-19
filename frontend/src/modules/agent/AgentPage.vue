@@ -46,6 +46,12 @@ const textualResult = computed(() => {
   if (result && !Array.isArray(result)) return JSON.stringify(result, null, 2)
   return ''
 })
+const retryableTurns = computed(() =>
+  conversation.activeTurns
+    .filter((item) => item.status === 'stalled' || item.status === 'failed')
+    .sort((left, right) => right.created_at.localeCompare(left.created_at))
+    .slice(0, 1),
+)
 
 async function decide(confirmation: PendingWrite, decision: ConfirmationDecision): Promise<void> {
   if (!task.value || decidingId.value) return
@@ -135,14 +141,17 @@ async function retryPlan(planId: string): Promise<void> {
       :loading="conversation.loadingHistory"
       :sending="conversation.sending"
       :error="conversation.error"
+      :has-more="Boolean(conversation.nextCursor)"
+      :loading-more="conversation.loadingMore"
       :plans="conversation.plans"
       :retrying-plan-id="retryingPlanId"
       @send="(text) => conversation.sendMessage(text)"
+      @load-more="conversation.loadMore"
       @retry-plan="retryPlan"
     />
 
     <AgentTurnRetry
-      :turns="conversation.activeTurns.filter((item) => item.status === 'stalled' || item.status === 'failed')"
+      :turns="retryableTurns"
       @retry="conversation.retryTurn"
     />
 
