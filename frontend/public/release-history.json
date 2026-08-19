@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "id": "2026.08.19.152408-ceaa420",
+      "version": "2026.08.19.152408",
+      "commit": "ceaa420b337cee2cfffdee1703f7523c0d13572b",
+      "commit_short": "ceaa420",
+      "message": "🐳 chore: 部署最新代码",
+      "changes": [
+        "🐳 chore: 部署最新代码",
+        "后端接口与业务逻辑更新",
+        "规格与文档更新",
+        "部署与运行配置更新"
+      ],
+      "changed_files": [
+        "backend/tests/contract/test_ci_workflow.py",
+        "deploy/scripts/deploy.sh",
+        "docs/agent-user-guide.md"
+      ],
+      "deployed_at": "2026-08-19T15:24:08Z",
+      "environment": "production",
+      "git_pushed": true,
+      "deployment_status": "verified",
+      "migration_head": null
+    },
+    {
       "id": "2026.08.19.151917-5daeb05",
       "version": "2026.08.19.151917",
       "commit": "5daeb057200c056c1b07f38cf65d38fc07308633",
@@ -1338,27 +1361,6 @@
         "backend/app/workers/tasks/blog.py"
       ],
       "deployed_at": "2026-08-01T00:14:08Z",
-      "environment": "production",
-      "git_pushed": true,
-      "deployment_status": "verified",
-      "migration_head": null
-    },
-    {
-      "id": "2026.08.01.000755-0c57c4b",
-      "version": "2026.08.01.000755",
-      "commit": "0c57c4b73b964a36901b38097d6dbd6b9ccd45a6",
-      "commit_short": "0c57c4b",
-      "message": "feat: auto-detect reader-friendly blog enhancements",
-      "changes": [
-        "feat: auto-detect reader-friendly blog enhancements",
-        "后端接口与业务逻辑更新"
-      ],
-      "changed_files": [
-        "backend/app/modules/posts/orchestrator.py",
-        "backend/app/workers/tasks/blog.py",
-        "backend/tests/unit/test_blog_orchestrator.py"
-      ],
-      "deployed_at": "2026-08-01T00:07:55Z",
       "environment": "production",
       "git_pushed": true,
       "deployment_status": "verified",
