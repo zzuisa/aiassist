@@ -492,6 +492,7 @@ def retry_failed_chain(
         step.result_summary = None
         step.run_id = None
     plan.status = "pending"
+    plan.runtime_state = "checkpointed"
     plan.finished_at = None
     plan.result_summary = None
     plan.completed_count = 0
@@ -537,6 +538,7 @@ def repair_stalled_plans(session: Session, *, now: datetime | None = None) -> in
     for plan_id in plan_ids:
         plan = _load_plan_locked(session, plan_id)
         plan.status = "stalled"
+        plan.runtime_state = "failed"
         plan.error_code = "agent_plan_stalled"
         plan.error_message = "部分步骤长时间没有进展，可以安全重试。"
         plan.error_retryable = True

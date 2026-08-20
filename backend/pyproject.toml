@@ -28,6 +28,8 @@ dependencies = [
     "tzdata>=2025.1",
     "mcp>=2.0,<3",
     "jsonschema>=4.23,<5",
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-postgres>=3.0,<4",
 ]
 
 [project.optional-dependencies]

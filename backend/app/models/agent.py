@@ -54,7 +54,7 @@ class AgentTask(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint(
             "status in ('pending','running','waiting_confirmation',"
-            "'success','partial_success','failed')",
+            "'success','partial_success','failed','cancelled')",
             name="agent_task_status",
         ),
         UniqueConstraint("job_id", name="uq_agent_tasks_job_id"),
@@ -224,6 +224,9 @@ class AgentExecutionPlan(Base, TimestampMixin):
     error_code: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
     error_retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    graph_thread_id: Mapped[str | None] = mapped_column(String(128), unique=True)
+    graph_run_id: Mapped[str | None] = mapped_column(String(128))
+    runtime_state: Mapped[str] = mapped_column(String(24), nullable=False, default="checkpointed")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -234,6 +237,10 @@ class AgentExecutionPlan(Base, TimestampMixin):
             name="agent_execution_plan_status",
         ),
         CheckConstraint("version >= 1", name="agent_execution_plan_version_positive"),
+        CheckConstraint(
+            "runtime_state in ('checkpointed','running','interrupted','completed','failed')",
+            name="agent_execution_plan_runtime_state",
+        ),
         CheckConstraint("step_count >= 1 and step_count <= 12", name="agent_plan_step_count"),
         UniqueConstraint("task_id", name="uq_agent_execution_plans_task_id"),
         UniqueConstraint("turn_id", name="uq_agent_execution_plans_turn_id"),

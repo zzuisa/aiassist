@@ -398,6 +398,7 @@ def _complete_plan_step_after_confirmation(
     step.result_summary = summary
     step.finished_at = datetime.now(UTC)
     plan.status = "running"
+    plan.runtime_state = "checkpointed"
     plan.version += 1
     publish_plan_event(session, plan)
 

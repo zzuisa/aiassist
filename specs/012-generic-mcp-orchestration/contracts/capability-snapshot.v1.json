@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capability-snapshot.v1.json",
+  "title": "AgentCapabilitySnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_id", "created_at", "content_digest", "capabilities"],
+  "properties": {
+    "schema_version": {"const": "capability-snapshot.v1"},
+    "snapshot_id": {"type": "string", "format": "uuid"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "content_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "capabilities": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "safe_name", "source", "definition_version", "type", "responsibility",
+          "input_schema", "output_schema", "risk", "required_permission", "available",
+          "batch_policy", "idempotency_mode", "verification_mode", "timeout_seconds",
+          "max_retries"
+        ],
+        "properties": {
+          "safe_name": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+          "source": {"enum": ["internal_api", "mcp"]},
+          "definition_version": {"type": "string", "minLength": 1, "maxLength": 64},
+          "type": {"enum": ["read", "write"]},
+          "responsibility": {"type": "string", "minLength": 1, "maxLength": 500},
+          "input_schema": {"type": "object"},
+          "output_schema": {"type": ["object", "null"]},
+          "risk": {"type": "object", "maxProperties": 20},
+          "required_permission": {"type": ["string", "null"], "maxLength": 120},
+          "available": {"type": "boolean"},
+          "unavailable_reason": {"type": ["string", "null"], "maxLength": 500},
+          "batch_policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["max_items", "page_size", "max_concurrency"],
+            "properties": {
+              "max_items": {"type": "integer", "minimum": 1, "maximum": 1000},
+              "page_size": {"type": "integer", "minimum": 1, "maximum": 100},
+              "max_concurrency": {"type": "integer", "minimum": 1, "maximum": 4}
+            }
+          },
+          "idempotency_mode": {"enum": ["none", "supported", "required"]},
+          "verification_mode": {"enum": ["none", "read_back", "required"]},
+          "timeout_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 120},
+          "max_retries": {"type": "integer", "minimum": 0, "maximum": 2}
+        }
+      }
+    }
+  }
+}

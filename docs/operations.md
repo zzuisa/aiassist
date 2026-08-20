@@ -58,6 +58,41 @@ configure concurrency above 8. If sustained workloads cannot meet their queue
 latency target at conservative settings, move Agent work to a dedicated worker
 in a separate deployment change instead of increasing the in-task thread count.
 
+## LangGraph Agent runtime
+
+Agent plans execute as one fixed LangGraph run on `worker-heavy`. The durable
+thread key is the plan UUID, and checkpoints live in the same PostgreSQL
+instance through `langgraph-checkpoint-postgres`. The `agent_execution_plans`
+and step tables are public/audit projections; they are not a second scheduler.
+
+Deployment order:
+
+1. Build the backend image so the locked LangGraph packages are present.
+2. Run the normal Alembic migration, including `0024_langgraph_runtime_refs`.
+3. Start one Graph run once. Its first invocation calls the idempotent
+   PostgreSQL checkpointer `setup()` before executing nodes.
+4. Recreate `backend`, `worker-heavy`, `worker-fast`, `outbox-publisher`, and
+   `celery-beat`, then verify both workers and the gateway.
+
+Safe diagnostics:
+
+```sql
+SELECT id, status, runtime_state, graph_thread_id, graph_run_id, updated_at
+FROM agent_execution_plans
+ORDER BY updated_at DESC
+LIMIT 20;
+```
+
+- `runtime_state=interrupted` means the graph is waiting for an approved or
+  rejected frozen preview; the confirmation endpoint resumes the same thread.
+- `runtime_state=failed` with `status=stalled|failed` is retried through the
+  plan retry endpoint; do not enqueue individual step tasks.
+- A cancelled plan preserves completed business effects and cancels only
+  pending, queued, or confirmation-waiting work.
+- Never edit LangGraph checkpoint rows manually. Recover through the plan API
+  so projection events, permissions, idempotency keys, and audit records stay
+  consistent.
+
 ## One-click Agent API validation
 
 Use the dedicated Playwright flow to watch and verify the production-safe,

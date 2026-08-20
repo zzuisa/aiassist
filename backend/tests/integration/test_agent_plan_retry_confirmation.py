@@ -70,3 +70,4 @@ def test_retry_resets_only_retryable_failed_chain(db_session, make_user) -> None
     assert steps["step_query"].status == "success"
     assert steps["step_analyze"].status == "pending"
     assert plan.status == "pending"
+    assert plan.runtime_state == "checkpointed"

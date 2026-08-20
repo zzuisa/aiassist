@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import NotFoundError, ValidationError
+from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.models.agent import (
     AgentExecutionPlan,
     AgentPlanStep,
@@ -31,6 +31,7 @@ from app.modules.agent.planning_schemas import (
     PlanStepView,
 )
 from app.modules.agent.registry import ToolDefinition, tool_registry
+from app.modules.jobs import service as jobs_service
 from app.services.llm.base import LLMError, StructuredRequest
 
 _WRITE_OPERATIONS = {"create", "update", "delete", "publish", "rollback", "external_effect"}
@@ -408,6 +409,9 @@ def persist_plan(
     )
     session.add(plan)
     session.flush()
+    # LangGraph uses the durable plan identity as its resumable thread key.
+    plan.graph_thread_id = str(plan.id)
+    plan.runtime_state = "checkpointed"
     step_rows: dict[str, AgentPlanStep] = {}
     for position, step in enumerate(proposal.steps, start=1):
         agent_key, agent_name, agent_version = _agent_for_tool(step.tool_name)
@@ -479,6 +483,56 @@ def get_owned_plan(session: Session, user_id: uuid.UUID, plan_id: uuid.UUID) -> 
     )
     if plan is None:
         raise NotFoundError("Agent plan not found")
+    return plan
+
+
+def cancel_plan(session: Session, *, user_id: uuid.UUID, plan_id: uuid.UUID) -> AgentExecutionPlan:
+    """Cooperatively cancel future Graph work while preserving applied effects."""
+    plan = session.scalar(
+        select(AgentExecutionPlan)
+        .where(AgentExecutionPlan.id == plan_id, AgentExecutionPlan.user_id == user_id)
+        .with_for_update()
+    )
+    if plan is None:
+        raise NotFoundError("Agent plan not found")
+    if plan.status in {"success", "partial_success", "failed", "cancelled"}:
+        if plan.status == "cancelled":
+            return plan
+        raise ConflictError("Plan is already terminal", code="agent_plan_cancel_conflict")
+
+    now = datetime.now(UTC)
+    steps = list(
+        session.scalars(
+            select(AgentPlanStep)
+            .where(AgentPlanStep.plan_id == plan.id)
+            .order_by(AgentPlanStep.position)
+        ).all()
+    )
+    for step in steps:
+        if step.status in {"pending", "queued", "waiting_confirmation"}:
+            step.status = "cancelled"
+            step.stage_label = "已取消"
+            step.finished_at = now
+    plan.status = "cancelled"
+    plan.runtime_state = "checkpointed"
+    plan.skipped_count = sum(step.status in {"blocked", "skipped", "cancelled"} for step in steps)
+    plan.finished_at = now
+    plan.version += 1
+    task = session.get(AgentTask, plan.task_id)
+    if task is not None:
+        task.status = "cancelled"
+        task.finished_at = now
+        if task.job.status not in {"completed", "failed", "cancelled"}:
+            jobs_service.transition(
+                session,
+                task.job,
+                status="cancelled",
+                current_step="协作计划已取消",
+            )
+    from app.modules.agent.status import publish_plan_event
+
+    publish_plan_event(session, plan)
+    session.flush()
     return plan
 
 
@@ -598,6 +652,8 @@ def serialize_plan(session: Session, plan: AgentExecutionPlan) -> AgentPlanView:
         user_message_id=turn.user_message_id if turn else None,
         objective=plan.objective,
         status=plan.status,
+        runtime_state=plan.runtime_state,
+        graph_run_id=plan.graph_run_id,
         version=plan.version,
         counts=PlanCounts(
             total=plan.step_count,

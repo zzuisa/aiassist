@@ -124,6 +124,8 @@ class AgentPlanView(BaseModel):
     user_message_id: uuid.UUID | None = None
     objective: str
     status: str
+    runtime_state: Literal["checkpointed", "running", "interrupted", "completed", "failed"]
+    graph_run_id: str | None = None
     version: int
     counts: PlanCounts
     elapsed_ms: int | None = None

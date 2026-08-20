@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-plan-event.v2.json",
+  "title": "AgentPlanEventV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_type", "plan", "timestamp"],
+  "properties": {
+    "schema_version": {"const": "agent-plan-event.v2"},
+    "event_type": {"const": "agent.plan_updated"},
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "plan_id", "task_id", "objective", "status", "phase", "version",
+        "runtime_state", "graph_run_id",
+        "step_counts", "work_counts", "active_step_keys", "required_action", "report",
+        "steps", "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "agent-plan-view.v2"},
+        "plan_id": {"type": "string", "format": "uuid"},
+        "turn_id": {"type": ["string", "null"], "format": "uuid"},
+        "task_id": {"type": "string", "format": "uuid"},
+        "user_message_id": {"type": ["string", "null"], "format": "uuid"},
+        "objective": {"type": "string", "maxLength": 500},
+        "status": {"enum": ["planning", "pending", "running", "waiting_user", "success", "partial_success", "failed", "stalled", "cancelled"]},
+        "phase": {"enum": ["planning", "executing", "waiting_confirmation", "verifying", "reporting", "complete"]},
+        "version": {"type": "integer", "minimum": 1},
+        "runtime_state": {"enum": ["checkpointed", "running", "interrupted", "completed", "failed"]},
+        "graph_run_id": {"type": ["string", "null"], "maxLength": 160},
+        "step_counts": {"type": "object"},
+        "work_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["processed", "total", "verified", "failed", "conflicted", "manual_review"],
+          "properties": {
+            "processed": {"type": "integer", "minimum": 0},
+            "total": {"type": "integer", "minimum": 0},
+            "verified": {"type": "integer", "minimum": 0},
+            "failed": {"type": "integer", "minimum": 0},
+            "conflicted": {"type": "integer", "minimum": 0},
+            "manual_review": {"type": "integer", "minimum": 0}
+          }
+        },
+        "active_step_keys": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
+        "required_action": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "reference_id", "affected_count"],
+              "properties": {
+                "type": {"enum": ["confirm_mutation", "clarify", "manual_review"]},
+                "reference_id": {"type": "string", "maxLength": 160},
+                "affected_count": {"type": "integer", "minimum": 0, "maximum": 1000}
+              }
+            }
+          ]
+        },
+        "report": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "report_id", "summary"],
+          "properties": {
+            "status": {"enum": ["none", "pending", "ready", "failed"]},
+            "report_id": {"type": ["string", "null"], "format": "uuid"},
+            "summary": {"type": ["string", "null"], "maxLength": 1000}
+          }
+        },
+        "steps": {"type": "array", "maxItems": 12, "items": {"type": "object"}},
+        "elapsed_ms": {"type": ["integer", "null"], "minimum": 0},
+        "created_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "timestamp": {"type": "string", "format": "date-time"}
+  }
+}
