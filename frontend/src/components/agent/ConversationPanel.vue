@@ -76,6 +76,8 @@ function onKeydown(event: KeyboardEvent): void {
       </template>
     </div>
 
+    <slot name="status" />
+
     <p
       v-if="error"
       class="error-banner"

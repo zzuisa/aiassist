@@ -51,7 +51,15 @@ const retryableTurns = computed(() =>
     .sort((left, right) => right.created_at.localeCompare(left.created_at))
     .slice(0, 1),
 )
-const latestPlan = computed(() => conversation.plans.at(-1) ?? null)
+const latestUserMessageId = computed(() => [...conversation.messages]
+  .reverse()
+  .find((message) => message.role === 'user')?.id ?? null)
+const latestPlan = computed(() => [...conversation.plans]
+  .reverse()
+  .find((plan) => plan.user_message_id === latestUserMessageId.value) ?? null)
+const latestTurn = computed(() => [...conversation.activeTurns]
+  .sort((left, right) => left.created_at.localeCompare(right.created_at))
+  .at(-1) ?? null)
 
 async function decide(confirmation: PendingWrite, decision: ConfirmationDecision): Promise<void> {
   if (!task.value || decidingId.value) return
@@ -153,9 +161,15 @@ async function retryPlan(planId: string): Promise<void> {
       :retrying-plan-id="retryingPlanId"
       @send="(text) => conversation.sendMessage(text)"
       @retry-plan="retryPlan"
-    />
-
-    <AgentProgressStrip :plan="latestPlan" />
+    >
+      <template #status>
+        <AgentProgressStrip
+          :plan="latestPlan"
+          :turn="latestTurn"
+          :sending="conversation.sending"
+        />
+      </template>
+    </ConversationPanel>
 
     <AgentTurnRetry
       :turns="retryableTurns"

@@ -121,14 +121,6 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
     const trimmed = text.trim()
     if (!trimmed || sending.value) return
     error.value = ''
-    let id: string
-    try {
-      id = await ensureConversation()
-    } catch {
-      error.value = '无法开始会话，请稍后重试。'
-      return
-    }
-
     const clientMessageId = newClientMessageId()
     const optimisticId = `${LOCAL_ID_PREFIX}${clientMessageId}`
     const optimistic: ConversationMessageView = {
@@ -141,7 +133,21 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
       pending: true,
     }
     messages.value = [...messages.value, optimistic]
+    // Enter the visible thinking state synchronously.  Creating a first
+    // conversation is a network request too, so waiting for it before setting
+    // ``sending`` left a user-visible silent gap after pressing Enter.
     sending.value = true
+    let id: string
+    try {
+      id = await ensureConversation()
+    } catch {
+      messages.value = messages.value.map((message) =>
+        message.id === optimisticId ? { ...message, pending: false, kind: 'error' } : message,
+      )
+      error.value = '无法开始会话，请稍后重试。'
+      sending.value = false
+      return
+    }
     try {
       const accepted = await agentConversationsApi.submitMessage(id, trimmed, clientMessageId)
       messages.value = messages.value.map((message) =>

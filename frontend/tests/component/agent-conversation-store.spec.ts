@@ -54,4 +54,28 @@ describe('Agent conversation session', () => {
     expect(store.messages.map((message) => message.id)).toEqual(['message-new'])
     store.reset()
   })
+
+  it('shows an optimistic message and busy state before a new conversation request resolves', async () => {
+    let resolveConversation: ((value: Awaited<ReturnType<typeof agentConversationsApi.createConversation>>) => void) | undefined
+    vi.spyOn(agentConversationsApi, 'createConversation').mockImplementation(() => new Promise((resolve) => {
+      resolveConversation = resolve
+    }))
+
+    const store = useAgentConversationsStore()
+    const pending = store.sendMessage('分析一个复杂任务')
+
+    expect(store.sending).toBe(true)
+    expect(store.messages).toHaveLength(1)
+    expect(store.messages[0]?.pending).toBe(true)
+
+    resolveConversation?.({
+      id: 'conversation-new',
+      title: null,
+      status: 'active',
+      last_message_at: null,
+      created_at: '2026-08-21T00:00:00Z',
+    })
+    vi.spyOn(agentConversationsApi, 'submitMessage').mockRejectedValue(new Error('stop'))
+    await pending
+  })
 })
