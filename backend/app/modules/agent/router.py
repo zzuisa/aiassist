@@ -395,6 +395,24 @@ def retry_plan(
     return result
 
 
+@router.post(
+    "/plans/{plan_id}/cancel",
+    response_model=planning_schemas.AgentPlanView,
+    status_code=202,
+)
+def cancel_plan(
+    plan_id: uuid.UUID,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> planning_schemas.AgentPlanView:
+    plan = planning_service.cancel_plan(db, user_id=user.id, plan_id=plan_id)
+    db.commit()
+    db.refresh(plan)
+    result = planning_service.serialize_plan(db, plan)
+    coordinate_plan.delay(str(plan.id))
+    return result
+
+
 @router.get("/capabilities")
 def list_capabilities(
     user: CurrentUser = Depends(get_current_user),

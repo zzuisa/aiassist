@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-step-artifact.v2.json",
+  "title": "AgentStepArtifactEnvelopeV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_id", "artifact_key", "artifact_type", "contract",
+    "producer_step_key", "sequence", "content_digest", "item_count", "byte_size",
+    "truncated", "validation_status", "object_scope", "payload", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "agent-step-artifact.v2"},
+    "artifact_id": {"type": "string", "format": "uuid"},
+    "artifact_key": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$"},
+    "artifact_type": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$"},
+    "contract": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,79}$"},
+    "producer_step_key": {"type": "string", "pattern": "^step_[a-z0-9_]{1,48}$"},
+    "sequence": {"type": "integer", "minimum": 0},
+    "content_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "item_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "byte_size": {"type": "integer", "minimum": 0, "maximum": 262144},
+    "truncated": {"type": "boolean"},
+    "validation_status": {"enum": ["valid", "invalid"]},
+    "object_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "object_type": {"type": ["string", "null"], "maxLength": 40},
+        "items": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id"],
+            "properties": {
+              "id": {"type": "string", "maxLength": 160},
+              "version": {"type": ["integer", "null"], "minimum": 1}
+            }
+          }
+        }
+      }
+    },
+    "payload": {"type": ["object", "array"]},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

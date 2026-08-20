@@ -12,7 +12,7 @@ pytestmark = [pytest.mark.integration]
 
 
 def test_ready_batch_uses_bounded_real_concurrency(monkeypatch) -> None:
-    from app.workers.tasks import agent as worker
+    from app.modules.agent import graph_runtime
 
     lock = threading.Lock()
     active = 0
@@ -28,9 +28,12 @@ def test_ready_batch_uses_bounded_real_concurrency(monkeypatch) -> None:
             active -= 1
         return step_id
 
-    monkeypatch.setattr(worker, "_execute_claimed_step", execute)
+    monkeypatch.setattr(graph_runtime, "_execute_claimed_step", execute)
     ids = [uuid.uuid4() for _ in range(4)]
-    assert set(worker._execute_ready_batch(ids)) == set(ids)
+    result = graph_runtime._execute_ready(
+        {"plan_id": str(uuid.uuid4()), "ready_step_ids": [str(value) for value in ids]}
+    )
+    assert result == {"ready_step_ids": []}
     assert maximum > 1
 
 
