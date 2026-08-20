@@ -27,7 +27,12 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
 from app.modules.agent.capability_selector import reduce_candidates, validate_route
-from app.modules.agent.conversation_schemas import ConversationRoute, TargetScope
+from app.modules.agent.conversation_schemas import (
+    ConversationRoute,
+    RouteKind,
+    RouteOperationType,
+    TargetScope,
+)
 from app.modules.agent.registry import tool_registry
 from app.services.llm.base import LLMError, StructuredRequest
 
@@ -359,8 +364,11 @@ def route_message(
             )
         route = route.model_copy(
             update={
-                "route_kind": "task",
-                "operation_type": "query",
+                # ``model_copy(update=...)`` deliberately skips Pydantic
+                # validation.  Keep enum-typed fields enum-typed so the
+                # persistence boundary can safely read ``.value``.
+                "route_kind": RouteKind.task,
+                "operation_type": RouteOperationType.query,
                 "candidate_tool_keys": [semantic_name],
                 "requires_confirmation": False,
                 "confidence": max(route.confidence, 0.95),

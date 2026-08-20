@@ -14,6 +14,33 @@ def test_emotion_blog_request_preserves_topic_and_exact_limit() -> None:
     assert _requested_limit(request) == 8
 
 
+def test_semantic_route_override_keeps_persistable_enum_types() -> None:
+    from app.modules.agent.conversation_schemas import (
+        ConversationRoute,
+        RouteKind,
+        RouteOperationType,
+        TargetScope,
+    )
+
+    route = ConversationRoute(
+        route_kind="task",
+        objective="查询情感博客",
+        operation_type="analyze",
+        target_scope=TargetScope(source="current_message", object_type="post"),
+        requires_confirmation=False,
+        confidence=0.9,
+    )
+    overridden = route.model_copy(
+        update={
+            "route_kind": RouteKind.task,
+            "operation_type": RouteOperationType.query,
+        }
+    )
+
+    assert overridden.route_kind.value == "task"
+    assert overridden.operation_type.value == "query"
+
+
 def test_reviewed_workflow_only_writes_tags() -> None:
     from app.modules.agent.planning_service import _missing_tag_workflow
     from app.modules.agent.registry import ToolDefinition
