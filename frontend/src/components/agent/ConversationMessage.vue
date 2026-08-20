@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { messageText, type AgentMessage } from '@/api/agentConversations'
+import AgentResultList from './AgentResultList.vue'
+import { parseResultText, presentAgentResult } from './resultPresentation'
 
 const props = defineProps<{ message: AgentMessage & { pending?: boolean } }>()
 const text = computed(() => messageText(props.message))
 const timestamp = computed(() => new Date(props.message.created_at).toLocaleString())
+const structuredResult = computed(() => parseResultText(text.value))
+const presentedResult = computed(() => presentAgentResult(structuredResult.value))
 const resultPreview = computed(() => {
+  if (presentedResult.value.summary) return presentedResult.value.summary
   const compact = text.value.replace(/\s+/g, ' ').trim()
   return compact.length > 88 ? `${compact.slice(0, 88)}…` : compact
 })
@@ -21,7 +26,14 @@ const resultPreview = computed(() => {
       <strong>处理结果</strong>
       <span v-if="resultPreview">{{ resultPreview }}</span>
     </summary>
-    <p>{{ text }}</p>
+    <AgentResultList
+      v-if="structuredResult && presentedResult.items.length"
+      :items="presentedResult.items"
+      :summary="presentedResult.summary"
+    />
+    <p v-else>
+      {{ text }}
+    </p>
     <time :datetime="message.created_at">{{ timestamp }}</time>
   </details>
   <article

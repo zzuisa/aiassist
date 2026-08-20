@@ -111,6 +111,37 @@ describe('Agent ConversationPanel', () => {
     expect(wrapper.get('details.result-message').attributes('open')).toBeUndefined()
   })
 
+  it('renders structured result messages as friendly items instead of raw JSON', () => {
+    const wrapper = mount(ConversationPanel, {
+      props: {
+        messages: [message({
+          id: 'result-json',
+          role: 'assistant',
+          kind: 'result',
+          content: {
+            text: JSON.stringify({
+              query: '情感',
+              total: 1,
+              items: [{
+                id: '10000000-0000-4000-8000-000000000001',
+                title: '情感与边界',
+                tags: ['成长'],
+              }],
+            }),
+          },
+        })],
+        loading: false,
+        sending: false,
+        error: '',
+      },
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
+
+    expect(wrapper.text()).toContain('“情感”共找到 1 项')
+    expect(wrapper.text()).not.toContain('{"query"')
+    expect(wrapper.text()).toContain('情感与边界')
+  })
+
   it('submits the draft on Enter and clears the input', async () => {
     const wrapper = mount(ConversationPanel, {
       props: { messages: [], loading: false, sending: false, error: '' },

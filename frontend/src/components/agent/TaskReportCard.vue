@@ -1,30 +1,47 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { AgentTaskReport } from '@/api/agentPlans'
+import AgentResultList from './AgentResultList.vue'
+import { presentReportResults } from './resultPresentation'
 
-defineProps<{ report: AgentTaskReport }>()
+const props = defineProps<{ report: AgentTaskReport }>()
+const presented = computed(() => presentReportResults(props.report))
 </script>
 
 <template>
-  <details class="task-report">
-    <summary>
-      Markdown 任务报告
+  <section
+    class="task-report"
+    aria-labelledby="task-report-heading"
+  >
+    <header>
+      <strong id="task-report-heading">任务结果</strong>
       <small>
         匹配 {{ report.totals.matched ?? 0 }} · 写入 {{ report.totals.applied ?? 0 }} ·
         验证 {{ report.totals.verified ?? 0 }}
       </small>
-    </summary>
-    <pre>{{ report.markdown }}</pre>
-  </details>
+    </header>
+    <AgentResultList
+      v-if="presented.items.length"
+      :items="presented.items"
+      :summary="presented.summary"
+    />
+    <details class="markdown-report">
+      <summary>查看 Markdown 完整报告</summary>
+      <pre>{{ report.markdown }}</pre>
+    </details>
+  </section>
 </template>
 
 <style scoped>
 .task-report {
+  display: grid;
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
-summary {
+.markdown-report summary {
   cursor: pointer;
   font-weight: 600;
 }
@@ -46,4 +63,5 @@ pre {
   font: inherit;
   line-height: 1.6;
 }
+.markdown-report { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
 </style>

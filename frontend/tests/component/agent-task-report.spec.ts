@@ -18,7 +18,12 @@ const report: AgentTaskReport = {
   skipped: [],
   unprocessed: [],
   next_actions: [],
-  results: [],
+  results: [{
+    id: '10000000-0000-4000-8000-000000000001',
+    title: '如何理解情感',
+    tags: ['情感', '心理'],
+    status: 'private',
+  }],
   markdown: '# 处理情感博客标签\n\n匹配：8\n',
   report_digest: 'b'.repeat(64),
   generation_method: 'deterministic',
@@ -26,11 +31,16 @@ const report: AgentTaskReport = {
 }
 
 describe('TaskReportCard', () => {
-  it('keeps the full Markdown compact and available on demand', async () => {
-    const wrapper = mount(TaskReportCard, { props: { report } })
+  it('renders interactive result items and keeps Markdown available on demand', async () => {
+    const wrapper = mount(TaskReportCard, {
+      props: { report },
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
 
     expect(wrapper.text()).toContain('匹配 8')
-    expect(wrapper.get('details').attributes('open')).toBeUndefined()
+    expect(wrapper.text()).toContain('如何理解情感')
+    expect(wrapper.text()).toContain('#情感')
+    expect(wrapper.get('.markdown-report').attributes('open')).toBeUndefined()
     expect(wrapper.get('pre').text()).toContain('# 处理情感博客标签')
   })
 })
