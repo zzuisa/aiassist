@@ -168,7 +168,9 @@ class Settings(BaseSettings):
     agent_turn_heartbeat_timeout_seconds: int = Field(default=45, ge=10, le=600)
     agent_turn_watchdog_interval_seconds: int = Field(default=30, ge=5, le=300)
     agent_plan_max_steps: int = Field(default=12, ge=1, le=24)
-    agent_plan_max_depth: int = Field(default=4, ge=1, le=8)
+    # The reviewed blog tag workflow is a five-stage read/analyse/confirm/write/
+    # verify chain.  Keep the policy bounded, but allow that complete workflow.
+    agent_plan_max_depth: int = Field(default=5, ge=1, le=8)
     agent_plan_max_concurrency: int = Field(default=4, ge=1, le=8)
 
     # ---------------------------------------------------------------- secrets

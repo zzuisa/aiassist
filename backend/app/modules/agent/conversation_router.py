@@ -277,7 +277,19 @@ def _semantic_search_candidate(
         for item in manifest.get("tools", [])
         if isinstance(item, Mapping) and item.get("available") is True
     }
-    for key in candidates:
+    # Prefer a capability explicitly advertised as search over a generic list
+    # endpoint that happens to expose a search filter.  Candidate reduction can
+    # otherwise put the generic tool first when both have equal relevance.
+    ordered_candidates = sorted(
+        enumerate(candidates),
+        key=lambda item: (
+            0
+            if any(marker in item[1].casefold() for marker in ("search", "semantic", "搜索"))
+            else 1,
+            item[0],
+        ),
+    )
+    for _, key in ordered_candidates:
         properties = _schema_properties(entries.get(key, {}))
         query_field = (
             "query" if "query" in properties else "search" if "search" in properties else None

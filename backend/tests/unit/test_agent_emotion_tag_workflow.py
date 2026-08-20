@@ -6,12 +6,34 @@ pytestmark = [pytest.mark.unit]
 
 
 def test_emotion_blog_request_preserves_topic_and_exact_limit() -> None:
-    from app.modules.agent.conversation_router import _requested_limit, _semantic_topic
+    from app.modules.agent.conversation_router import (
+        _requested_limit,
+        _semantic_search_candidate,
+        _semantic_topic,
+    )
 
     request = "帮我查询8篇关于情感的博客，并且查看是否都有标签，如果没有则生成标签"
 
     assert _semantic_topic(request) == "情感"
     assert _requested_limit(request) == 8
+
+    manifest = {
+        "tools": [
+            {
+                "key": "blog-list-posts",
+                "available": True,
+                "input_schema": {"properties": {"search": {}, "limit": {}, "cursor": {}}},
+            },
+            {
+                "key": "blog-search-posts",
+                "available": True,
+                "input_schema": {"properties": {"query": {}, "limit": {}, "cursor": {}}},
+            },
+        ]
+    }
+    assert _semantic_search_candidate(
+        manifest, ["blog-list-posts", "blog-search-posts"], request
+    ) == ("blog-search-posts", {"query": "情感", "limit": 8, "cursor": 0})
 
 
 def test_semantic_route_override_keeps_persistable_enum_types() -> None:
@@ -42,7 +64,7 @@ def test_semantic_route_override_keeps_persistable_enum_types() -> None:
 
 
 def test_reviewed_workflow_only_writes_tags() -> None:
-    from app.modules.agent.planning_service import _missing_tag_workflow
+    from app.modules.agent.planning_service import _missing_tag_workflow, validate_plan_graph
     from app.modules.agent.registry import ToolDefinition
 
     search_tool = ToolDefinition(
@@ -82,3 +104,4 @@ def test_reviewed_workflow_only_writes_tags() -> None:
     assert proposal.steps[0].arguments == {"query": "情感", "limit": 8, "cursor": 0}
     assert proposal.steps[3].arguments == {"fields": ["tags"]}
     assert proposal.steps[3].requires_confirmation is True
+    validate_plan_graph(proposal, max_depth=5)
