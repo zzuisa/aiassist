@@ -226,7 +226,9 @@ class AgentExecutionPlan(Base, TimestampMixin):
     error_retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     graph_thread_id: Mapped[str | None] = mapped_column(String(128), unique=True)
     graph_run_id: Mapped[str | None] = mapped_column(String(128))
-    runtime_state: Mapped[str] = mapped_column(String(24), nullable=False, default="checkpointed")
+    runtime_state: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="checkpointed", server_default="checkpointed"
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
