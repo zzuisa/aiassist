@@ -10,7 +10,6 @@ import {
 import { agentPlansApi, type AgentPlan } from '@/api/agentPlans'
 
 const LOCAL_ID_PREFIX = 'local-'
-const POLL_INTERVAL_MS = 700
 
 export interface ConversationMessageView extends AgentMessage {
   /** True only for an optimistically-inserted message awaiting the server echo. */
@@ -28,22 +27,6 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
   const plans = ref<AgentPlan[]>([])
   const sending = ref(false)
   const error = ref('')
-  let pollTimer: number | null = null
-
-  function stopPolling(): void {
-    if (pollTimer !== null) window.clearTimeout(pollTimer)
-    pollTimer = null
-  }
-
-  function schedulePoll(): void {
-    stopPolling()
-    pollTimer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS)
-  }
-
-  function hasRunningTurn(): boolean {
-    return activeTurns.value.some((turn) => !TURN_TERMINAL_STATUSES.includes(turn.status))
-  }
-
   async function ensureConversation(): Promise<string> {
     if (conversationId.value) return conversationId.value
     const conversation = await agentConversationsApi.createConversation()
@@ -52,7 +35,6 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
   }
 
   function startFreshConversation(): void {
-    stopPolling()
     conversationId.value = null
     messages.value = []
     activeTurns.value = []
@@ -76,7 +58,6 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
       }
       activeTurns.value = detail.active_turns
       for (const plan of planItems) applyPlan(plan)
-      if (hasRunningTurn()) schedulePoll()
     } catch {
       // Best-effort refresh; the user can still send another message.
     }
@@ -171,7 +152,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
         ...activeTurns.value.filter((turn) => turn.id !== accepted.turn.id),
         ...(isActive ? [accepted.turn] : []),
       ]
-      schedulePoll()
+      void poll()
     } catch {
       messages.value = messages.value.map((message) =>
         message.id === optimisticId ? { ...message, pending: false, kind: 'error' } : message,
@@ -190,7 +171,7 @@ export const useAgentConversationsStore = defineStore('agentConversations', () =
         ...activeTurns.value.filter((turn) => turn.id !== accepted.turn.id),
         accepted.turn,
       ]
-      schedulePoll()
+      void poll()
     } catch {
       error.value = '无法重试这条消息，请刷新后再试。'
     }

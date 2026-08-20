@@ -169,3 +169,27 @@ class ContentAnalysisResult(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=30)
     keywords: list[str] = Field(default_factory=list, max_length=50)
     summary: str = Field(max_length=2000)
+
+
+class AgentTaskReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["task-report.v1"] = "task-report.v1"
+    report_id: uuid.UUID
+    plan_id: uuid.UUID
+    revision: int = Field(ge=1)
+    source_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    objective: str
+    executed_steps: list[dict[str, Any]]
+    totals: dict[str, int]
+    verified_changes: list[dict[str, Any]]
+    conflicts: list[dict[str, Any]]
+    failures: list[dict[str, Any]]
+    skipped: list[dict[str, Any]]
+    unprocessed: list[dict[str, Any]]
+    next_actions: list[str]
+    results: list[dict[str, Any]] = Field(default_factory=list)
+    markdown: str
+    report_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    generation_method: Literal["deterministic", "llm_enhanced"]
+    generated_at: datetime

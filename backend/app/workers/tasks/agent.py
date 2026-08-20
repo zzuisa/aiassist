@@ -58,6 +58,8 @@ def execute_conversation_turn(self, turn_id: str) -> str:  # type: ignore[no-unt
                 job = session.get(AsyncJob, persisted.job_id)
                 if job is not None:
                     set_trace_id(job.trace_id)
+            conversation_service.begin_turn_routing(session, parsed_id)
+        with session_scope() as session:
             turn = conversation_service.execute_turn(session, parsed_id)
             plan_id = session.scalar(
                 select(AgentExecutionPlan.id).where(AgentExecutionPlan.turn_id == turn.id)

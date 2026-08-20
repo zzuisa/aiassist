@@ -35,6 +35,15 @@ const statusLabel = computed(() => ({
   cancelled: '已取消',
 }[props.plan.status]))
 
+const phaseLabel = computed(() => ({
+  planning: '规划任务',
+  executing: '执行编排',
+  waiting_confirmation: '等待确认',
+  verifying: '回读验证',
+  reporting: '生成报告',
+  complete: '编排完成',
+}[props.plan.phase]))
+
 const elapsed = computed(() => {
   if (props.plan.elapsed_ms === null) return null
   return props.plan.elapsed_ms < 1000
@@ -72,7 +81,7 @@ function toggle(): void {
       <span class="summary-main">
         <strong>{{ plan.objective }}</strong>
         <small>
-          {{ statusLabel }} · {{ plan.counts.completed }}/{{ plan.counts.total }} 完成
+          {{ phaseLabel }} · {{ statusLabel }} · {{ plan.counts.completed }}/{{ plan.counts.total }} 完成
           <template v-if="plan.counts.failed"> · {{ plan.counts.failed }} 失败</template>
           <template v-if="plan.counts.skipped"> · {{ plan.counts.skipped }} 跳过</template>
           <template v-if="elapsed"> · {{ elapsed }}</template>

@@ -78,11 +78,35 @@ def _scope_ids(task: AgentTask, artifacts: list[AgentStepArtifact]) -> list[str]
         raw = artifact.object_scope_json.get("object_ids", [])
         if isinstance(raw, list):
             values.extend(str(value) for value in raw)
-    if not values:
+    if not artifacts:
         raw = task.scope_json.get("object_ids", [])
         if isinstance(raw, list):
             values.extend(str(value) for value in raw)
     return list(dict.fromkeys(values))[:500]
+
+
+def _result_items(payload: object) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [dict(item) for item in payload if isinstance(item, Mapping)]
+    if not isinstance(payload, Mapping):
+        return []
+    for key in ("items", "results", "posts", "structured_content"):
+        found = _result_items(payload.get(key))
+        if found:
+            return found
+    return []
+
+
+def _dependency_items(artifacts: list[AgentStepArtifact]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        items.extend(_result_items(artifact.payload_json))
+    return list(
+        {
+            str(item.get("id") or item.get("post_id") or index): item
+            for index, item in enumerate(items)
+        }.values()
+    )
 
 
 def _execute_content_analysis(
@@ -95,6 +119,8 @@ def _execute_content_analysis(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     object_ids = _scope_ids(task, artifacts)
     if not object_ids:
+        if any(artifact.artifact_type == "missing_tag_posts" for artifact in artifacts):
+            return [], {"object_type": "post", "object_ids": [], "failures": []}
         raise ValidationError(
             "Analysis step has no object scope", code="agent_analysis_scope_required"
         )
@@ -147,7 +173,7 @@ def _execute_content_analysis(
     ]
     step.progress_current = len(outcome.results)
     step.progress_total = len(items)
-    if not results:
+    if items and not results:
         raise ValidationError("All analysis items failed", code="agent_analysis_failed")
     return results, {
         "object_type": "post",
@@ -200,7 +226,32 @@ def execute_step(session: Session, step_id: uuid.UUID) -> uuid.UUID:
     dependency_artifacts = _dependency_artifacts(session, step)
     context = ToolContext(user_id=task.user_id, task_id=task.id, run_id=run.id, session=session)
 
-    if step.tool_name == "content.extract_metadata":
+    if step.tool_name == "posts.filter_missing_tags":
+        checked = _dependency_items(dependency_artifacts)
+        missing = [
+            item
+            for item in checked
+            if not isinstance(item.get("tags"), list) or not item.get("tags")
+        ]
+        missing_ids = [str(item["id"]) for item in missing if item.get("id")]
+        filter_payload = {
+            "items": missing,
+            "checked_count": len(checked),
+            "missing_count": len(missing),
+            "tagged_count": len(checked) - len(missing),
+        }
+        _artifact(
+            session,
+            step=step,
+            artifact_type="missing_tag_posts",
+            payload=filter_payload,
+            object_scope={"object_type": "post", "object_ids": missing_ids},
+        )
+        step.progress_current = len(checked)
+        step.progress_total = len(checked)
+        final_status = "success"
+        summary = f"已检查 {len(checked)} 篇，发现 {len(missing)} 篇没有标签"
+    elif step.tool_name == "content.extract_metadata":
         result, scope = _execute_content_analysis(
             session, task=task, step=step, run=run, artifacts=dependency_artifacts
         )
@@ -216,6 +267,19 @@ def execute_step(session: Session, step_id: uuid.UUID) -> uuid.UUID:
         summary = f"已完成 {len(result)} 篇文章分析"
         if failures:
             summary += f"，{len(failures)} 篇失败"
+    elif step.tool_name == "posts.apply_analysis" and not any(
+        artifact.artifact_type == "analysis_proposals" and artifact.payload_json
+        for artifact in dependency_artifacts
+    ):
+        _artifact(
+            session,
+            step=step,
+            artifact_type="write_result",
+            payload=[],
+            object_scope={"object_type": "post", "object_ids": []},
+        )
+        final_status = "success"
+        summary = "所有查询结果均已有标签，无需写入"
     elif tool.type == "write":
         from app.modules.agent import service as agent_service
 
@@ -227,8 +291,41 @@ def execute_step(session: Session, step_id: uuid.UUID) -> uuid.UUID:
             if isinstance(item, Mapping)
         ]
         if step.tool_name == "posts.apply_analysis":
-            from app.models.posts import Post
+            requested_fields = step.arguments_json.get("fields", ["tags", "keywords", "summary"])
+            allowed_fields = {
+                str(field)
+                for field in requested_fields
+                if str(field) in {"tags", "keywords", "summary"}
+            }
+            changes = [
+                {
+                    "post_id": item.get("post_id"),
+                    **{field: item.get(field) for field in allowed_fields if field in item},
+                }
+                for item in changes
+                if item.get("post_id")
+            ]
+            if allowed_fields == {"tags"}:
+                proposed_count = len(changes)
+                changes = [
+                    item
+                    for item in changes
+                    if isinstance(item.get("tags"), list) and item.get("tags")
+                ]
+                plan.unprocessed_count = max(plan.unprocessed_count, proposed_count - len(changes))
+            from app.models.posts import Post, PostTag
 
+            raw_ids = [str(item.get("post_id")) for item in changes if item.get("post_id")]
+            tagged_ids = {
+                str(value)
+                for value in session.scalars(
+                    select(PostTag.post_id).where(
+                        PostTag.user_id == task.user_id,
+                        PostTag.post_id.in_([uuid.UUID(value) for value in raw_ids]),
+                    )
+                ).all()
+            }
+            changes = [item for item in changes if str(item.get("post_id")) not in tagged_ids]
             raw_ids = [str(item.get("post_id")) for item in changes if item.get("post_id")]
             versions = {
                 str(post_id): version
@@ -244,6 +341,48 @@ def execute_step(session: Session, step_id: uuid.UUID) -> uuid.UUID:
             ]
         else:
             targets = []
+        if step.tool_name == "posts.apply_analysis" and not changes:
+            finished = datetime.now(UTC)
+            step.status = "success"
+            step.stage_label = "无需写入"
+            step.result_summary = "文章已有标签，无需写入"
+            step.finished_at = finished
+            run.status = "success"
+            run.current_tool = None
+            run.stage_label = step.stage_label
+            run.result_summary = step.result_summary
+            run.finished_at = finished
+            attempt.status = "success"
+            attempt.finished_at = finished
+            attempt.duration_ms = max(
+                0, int((finished - attempt.started_at).total_seconds() * 1000)
+            )
+            _artifact(
+                session,
+                step=step,
+                artifact_type="write_result",
+                payload=[],
+                object_scope={"object_type": "post", "object_ids": []},
+            )
+            write_execution_record(
+                session,
+                task_id=task.id,
+                run_id=run.id,
+                step_id=step.step_key,
+                agent_name=run.agent_name,
+                step_label=step.title,
+                tool_name=step.tool_name,
+                operation_type="update",
+                params={"plan_step_id": str(step.id), "attempt": step.attempt_count},
+                status="success",
+                result_summary=step.result_summary,
+                started_at=started,
+                finished_at=finished,
+            )
+            plan.version += 1
+            publish_status(session, task, run)
+            publish_plan_event(session, plan)
+            return plan.id
         pending = agent_service.create_pending_write(
             session,
             task=task,
@@ -293,25 +432,48 @@ def execute_step(session: Session, step_id: uuid.UUID) -> uuid.UUID:
         )
         publish_plan_event(session, plan)
         return plan.id
+    elif step.tool_name == "posts.verify_tags":
+        object_ids = _scope_ids(task, dependency_artifacts)
+        result = tool_registry.invoke(
+            step.tool_name,
+            context=context,
+            params={"post_ids": object_ids},
+        )
+        verified = [item for item in result if item.get("verified")]
+        conflicts = [item for item in result if not item.get("verified")]
+        plan.verified_count = len(verified)
+        plan.conflict_count = len(conflicts)
+        _artifact(
+            session,
+            step=step,
+            artifact_type="verification_result",
+            payload=result,
+            object_scope={"object_type": "post", "object_ids": object_ids},
+        )
+        final_status = "partial_success" if conflicts else "success"
+        summary = f"已回读验证 {len(verified)}/{len(result)} 篇文章标签"
     else:
         result = tool_registry.invoke(step.tool_name, context=context, params=step.arguments_json)
-        payload: dict | list = (
+        tool_payload: dict | list = (
             result if isinstance(result, (dict, list)) else {"value": str(result)[:4000]}
         )
-        object_ids = [
-            str(item.get("id"))
-            for item in result
-            if isinstance(result, list) and isinstance(item, Mapping) and item.get("id")
-        ]
+        result_items = _result_items(result)
+        object_ids = [str(item.get("id")) for item in result_items if item.get("id")]
         _artifact(
             session,
             step=step,
             artifact_type="tool_result",
-            payload=payload,
+            payload=tool_payload,
             object_scope={"object_type": "post", "object_ids": object_ids} if object_ids else {},
         )
         final_status = "success"
-        summary = f"已获得 {len(result)} 项结果" if isinstance(result, list) else "能力调用完成"
+        summary = (
+            f"已获得 {len(result_items)} 项结果"
+            if result_items
+            else f"已获得 {len(result)} 项结果"
+            if isinstance(result, list)
+            else "能力调用完成"
+        )
         if isinstance(result, dict) and result.get("is_error"):
             raise ValidationError("MCP tool returned an error", code="agent_mcp_tool_error")
 

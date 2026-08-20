@@ -34,7 +34,7 @@ from app.models.agent_conversation import (
 )
 from app.models.foundation import AsyncJob
 from app.modules.agent import conversation_router
-from app.modules.agent.registry import ToolContext, ToolHandler, ToolType
+from app.modules.agent.registry import ToolContext, ToolHandler, ToolType, tool_registry
 from app.modules.agent.status import (
     CONVERSATION_MESSAGE_CREATED,
     CONVERSATION_TURN_UPDATED,
@@ -68,6 +68,8 @@ def sync_mcp_connections(
     gateway: object | None = None,
 ) -> list[McpConnection]:
     """Synchronize non-secret connection/catalog metadata and runtime tools."""
+    from app.models.agent_conversation import McpToolGrant
+    from app.modules.agent.capability_snapshot_service import safe_capability_name
     from app.modules.agent.registry import ToolDefinition, tool_registry
     from app.services.mcp.base import McpError
     from app.services.mcp.config import list_safe_mcp_metadata
@@ -150,6 +152,28 @@ def sync_mcp_connections(
                     catalog_version=catalog_version,
                 )
                 session.add(snapshot)
+            if metadata.auto_grant and descriptor.available:
+                grant = session.scalar(
+                    select(McpToolGrant).where(
+                        McpToolGrant.user_id == user_id,
+                        McpToolGrant.connection_id == connection.id,
+                        McpToolGrant.tool_key == descriptor.tool_key,
+                    )
+                )
+                if grant is None:
+                    session.add(
+                        McpToolGrant(
+                            user_id=user_id,
+                            connection_id=connection.id,
+                            tool_key=descriptor.tool_key,
+                            allowed=True,
+                            granted_at=datetime.now(UTC),
+                        )
+                    )
+                else:
+                    grant.allowed = True
+                    grant.revoked_at = None
+                    grant.granted_at = grant.granted_at or datetime.now(UTC)
             tool_registry.register_or_replace(
                 ToolDefinition(
                     name=descriptor.tool_key,
@@ -166,8 +190,10 @@ def sync_mcp_connections(
                     unavailable_reason=descriptor.unavailable_reason,
                     source="mcp",
                     input_schema=descriptor.input_schema,
+                    output_schema=descriptor.output_schema,
                     risk=descriptor.risk,
-                    connection_id=connection.id,
+                    connection_id=None,
+                    safe_name=safe_capability_name(metadata.config_key, descriptor.remote_name),
                 )
             )
     session.flush()
@@ -580,6 +606,36 @@ def accept_message(
     return turn
 
 
+def begin_turn_routing(session: Session, turn_id: uuid.UUID) -> AgentTurn:
+    """Commit a visible routing phase before any remote LLM/MCP latency."""
+    turn = session.get(AgentTurn, turn_id)
+    if turn is None:
+        raise NotFoundError("Turn not found")
+    if turn.status in _ALREADY_HANDLED_TURN_STATUSES:
+        return turn
+    now = datetime.now(UTC)
+    turn.status = "routing"
+    turn.current_step = "正在理解请求"
+    turn.last_heartbeat_at = now
+    job = session.get(AsyncJob, turn.job_id)
+    if job is not None and job.status not in {"processing", "completed", "failed", "cancelled"}:
+        jobs_service.transition(
+            session,
+            job,
+            status="processing",
+            progress=10,
+            current_step="正在理解请求",
+        )
+    publish_conversation_event(
+        session,
+        turn,
+        event_type=CONVERSATION_TURN_UPDATED,
+        result_summary="正在理解请求",
+    )
+    session.flush()
+    return turn
+
+
 def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
     """Worker entry point: route and finalize exactly one Turn.
 
@@ -773,20 +829,16 @@ def execute_turn(session: Session, turn_id: uuid.UUID) -> AgentTurn:
     from app.modules.agent import service as agent_service
 
     scope = _scope_for_route(conversation.context_json, route.target_scope.model_dump(mode="json"))
-    # The model may supply semantic arguments, but only the selected built-in
-    # article query currently accepts a bounded integer limit.  This is a
-    # policy validation point, not a natural-language parser.
-    if outcome.selected_tool == "posts.list_recent":
-        requested_limit = route.semantic_arguments.get("limit")
-        if isinstance(requested_limit, int) and not isinstance(requested_limit, bool):
-            scope["tool_parameters"] = {"limit": min(max(requested_limit, 1), 100)}
+    if route.semantic_arguments:
+        scope["tool_parameters"] = dict(route.semantic_arguments)
+    selected_definition = tool_registry.get(outcome.selected_tool)
     task = agent_service.create_agent_task(
         session,
         user_id=conversation.user_id,
         request_text=route_text,
         intent_key=(
             "mcp.invoke"
-            if outcome.selected_tool.startswith("mcp.")
+            if selected_definition.source == "mcp"
             else _intent_for_selected_tool(outcome.selected_tool)
         ),
         scope=scope,

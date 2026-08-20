@@ -56,8 +56,12 @@ class ToolDefinition:
     # Free-form, safe-to-expose risk annotations (e.g. destructive/reversible
     # hints). Never populated from untrusted MCP server output without review.
     risk: dict[str, Any] = dataclass_field(default_factory=dict)
-    # Only set for source == "mcp": the owning connection, used for grant checks.
+    # Optional immutable connection binding. Runtime grant checks are user-scoped
+    # by tool key because registry definitions are process-global.
     connection_id: uuid.UUID | None = None
+    # Model-visible name. Provider/internal names remain private invocation bindings.
+    safe_name: str | None = None
+    output_schema: dict[str, Any] | None = None
 
     def safe_manifest(self) -> dict[str, str | bool | None]:
         """Return only fields allowed by agent-tool-manifest.v1."""
@@ -74,11 +78,12 @@ class ToolDefinition:
     def safe_manifest_v2_entry(self) -> dict[str, Any]:
         """Return one entry matching contracts/schemas/safe-tool-manifest.v2.json."""
         return {
-            "key": self.name,
+            "key": self.safe_name or self.name,
             "source": self.source,
             "type": self.type,
             "responsibility": self.responsibility,
             "input_schema": self.input_schema,
+            "output_schema": self.output_schema,
             "risk": self.risk,
             "required_permission": self.required_permission,
             "available": self.available,
@@ -104,6 +109,7 @@ class ToolDefinition:
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
+        self._safe_aliases: dict[str, str] = {}
 
     def register(self, definition: ToolDefinition) -> ToolDefinition:
         if not definition.name or len(definition.name) > 160:
@@ -113,12 +119,19 @@ class ToolRegistry:
                 f"Tool already registered: {definition.name}",
                 code="agent_tool_duplicate",
             )
+        if definition.safe_name and definition.safe_name in self._safe_aliases:
+            raise ConflictError(
+                f"Safe tool name already registered: {definition.safe_name}",
+                code="agent_tool_duplicate",
+            )
         if definition.timeout_seconds <= 0 or definition.max_retries not in (0, 1):
             raise ValidationError(
                 "Tool timeout must be positive and retries must be bounded to at most one",
                 code="agent_tool_policy_invalid",
             )
         self._tools[definition.name] = definition
+        if definition.safe_name:
+            self._safe_aliases[definition.safe_name] = definition.name
         return definition
 
     def register_or_replace(self, definition: ToolDefinition) -> ToolDefinition:
@@ -131,11 +144,22 @@ class ToolRegistry:
             )
         if not definition.name or len(definition.name) > 160:
             raise ValidationError("Invalid tool name", code="agent_tool_name_invalid")
+        if definition.safe_name:
+            bound = self._safe_aliases.get(definition.safe_name)
+            if bound is not None and bound != definition.name:
+                raise ConflictError(
+                    f"Safe tool name already registered: {definition.safe_name}",
+                    code="agent_tool_duplicate",
+                )
         self._tools[definition.name] = definition
+        if existing is not None and existing.safe_name:
+            self._safe_aliases.pop(existing.safe_name, None)
+        if definition.safe_name:
+            self._safe_aliases[definition.safe_name] = definition.name
         return definition
 
     def get(self, name: str) -> ToolDefinition:
-        tool = self._tools.get(name)
+        tool = self._tools.get(self._safe_aliases.get(name, name))
         if tool is None:
             raise ValidationError(
                 f"Tool is not registered: {name}",
@@ -159,11 +183,9 @@ class ToolRegistry:
         if tool.type != "write":
             tool.validate_arguments(params)
         if tool.source == "mcp" and (
-            tool.connection_id is None
-            or not check_mcp_tool_grant(
+            not check_mcp_tool_grant(
                 context.session,
                 user_id=context.user_id,
-                connection_id=tool.connection_id,
                 tool_key=tool.name,
             )
         ):
@@ -218,7 +240,18 @@ class ToolRegistry:
                 tool.validate_arguments(stored_arguments)
             else:
                 tool.validate_arguments(params)
-        return tool.handler(context, params)
+        result = tool.handler(context, params)
+        if tool.source == "mcp" and tool.output_schema is not None:
+            structured = result.get("structured_content") if isinstance(result, Mapping) else result
+            if structured is not None:
+                try:
+                    jsonschema.validate(structured, tool.output_schema)
+                except (jsonschema.ValidationError, jsonschema.SchemaError) as exc:
+                    raise ValidationError(
+                        "MCP result failed its reviewed output schema",
+                        code="agent_mcp_result_invalid",
+                    ) from exc
+        return result
 
     def safe_manifest(self) -> list[dict[str, str | bool | None]]:
         return [tool.safe_manifest() for tool in self._tools.values()]
@@ -245,11 +278,9 @@ class ToolRegistry:
                 grantable = (
                     session is not None
                     and user_id is not None
-                    and tool.connection_id is not None
                     and check_mcp_tool_grant(
                         session,
                         user_id=user_id,
-                        connection_id=tool.connection_id,
                         tool_key=tool.name,
                     )
                 )
@@ -270,8 +301,8 @@ def check_mcp_tool_grant(
     session: Session,
     *,
     user_id: uuid.UUID,
-    connection_id: uuid.UUID,
     tool_key: str,
+    connection_id: uuid.UUID | None = None,
 ) -> bool:
     """Whether ``user_id`` currently holds an active grant for one MCP tool.
 
@@ -281,19 +312,21 @@ def check_mcp_tool_grant(
     """
     from app.models.agent_conversation import McpConnection, McpToolGrant
 
-    grant = session.execute(
+    statement = (
         select(McpToolGrant)
         .join(McpConnection, McpConnection.id == McpToolGrant.connection_id)
         .where(
             McpToolGrant.user_id == user_id,
-            McpToolGrant.connection_id == connection_id,
             McpToolGrant.tool_key == tool_key,
             McpToolGrant.allowed.is_(True),
             McpToolGrant.revoked_at.is_(None),
             McpConnection.user_id == user_id,
             McpConnection.enabled.is_(True),
         )
-    ).scalar_one_or_none()
+    )
+    if connection_id is not None:
+        statement = statement.where(McpToolGrant.connection_id == connection_id)
+    grant = session.execute(statement.limit(1)).scalar_one_or_none()
     return grant is not None
 
 
@@ -440,6 +473,48 @@ def _read_post_bodies(context: ToolContext, params: Mapping[str, Any]) -> list[d
     return [{"id": str(post.id), "title": post.title, "markdown": post.markdown} for post in posts]
 
 
+def _verify_post_tags(context: ToolContext, params: Mapping[str, Any]) -> list[dict[str, Any]]:
+    from app.models.foundation import Tag
+    from app.models.posts import Post, PostTag
+
+    raw_ids = params.get("post_ids", [])
+    if not isinstance(raw_ids, list):
+        raise ValidationError("post_ids must be a list", code="agent_tool_params_invalid")
+    try:
+        post_ids = [uuid.UUID(str(value)) for value in raw_ids[:500]]
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(
+            "post_ids must contain UUID values", code="agent_tool_params_invalid"
+        ) from exc
+    if not post_ids:
+        return []
+    posts = context.session.execute(
+        select(Post.id, Post.title).where(
+            Post.user_id == context.user_id,
+            Post.id.in_(post_ids),
+            Post.deleted_at.is_(None),
+        )
+    ).all()
+    tag_rows = context.session.execute(
+        select(PostTag.post_id, Tag.name)
+        .join(Tag, Tag.id == PostTag.tag_id)
+        .where(PostTag.user_id == context.user_id, PostTag.post_id.in_(post_ids))
+    ).all()
+    tags: dict[str, list[str]] = {}
+    for post_id, tag_name in tag_rows:
+        tags.setdefault(str(post_id), []).append(tag_name)
+    return [
+        {
+            "id": str(post_id),
+            "title": title,
+            "tags": sorted(set(tags.get(str(post_id), []))),
+            "verified": bool(tags.get(str(post_id))),
+            "link": f"/blog/{post_id}/view",
+        }
+        for post_id, title in posts
+    ]
+
+
 def _analyze_post_content(context: ToolContext, params: Mapping[str, Any]) -> dict[str, Any]:
     """Analyze one already-authorized article through the provider-neutral gateway."""
     from app.modules.agent.schemas import ContentAnalysisResult
@@ -570,6 +645,36 @@ tool_registry.register(
         responsibility="检查 spec 006 Agent 与所需工具是否已注册并启用，不执行目标业务操作",
         required_permission=None,
         handler=_inspect_agent_capability,
+    )
+)
+tool_registry.register(
+    ToolDefinition(
+        name="posts.filter_missing_tags",
+        type="read",
+        responsibility="检查查询结果中的文章标签，仅输出当前没有标签的文章范围",
+        required_permission="posts:read",
+        handler=lambda _context, _params: [],
+        input_schema={"type": "object", "additionalProperties": False},
+    )
+)
+tool_registry.register(
+    ToolDefinition(
+        name="posts.verify_tags",
+        type="read",
+        responsibility="写入后回读文章标签并验证每篇文章至少有一个标签",
+        required_permission="posts:read",
+        handler=_verify_post_tags,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "post_ids": {
+                    "type": "array",
+                    "items": {"type": "string", "format": "uuid"},
+                    "maxItems": 500,
+                }
+            },
+            "additionalProperties": False,
+        },
     )
 )
 tool_registry.register(

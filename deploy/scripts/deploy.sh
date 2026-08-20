@@ -403,6 +403,91 @@ cmd_issue_blog_mcp_token() {
     python -m app.cli.main issue-blog-mcp-token --email "$email" --days "$days"
 }
 
+cmd_configure_blog_mcp() {
+  local email="${1:-}"
+  local days="${2:-90}"
+  local token
+  [ -n "$email" ] || {
+    err "Usage: $0 configure-blog-mcp EMAIL [DAYS]"
+    exit 2
+  }
+  require_compose_v2
+  check_env_and_secrets
+  export_rabbitmq_pass
+  token="$(
+    docker compose exec -T backend \
+      python -m app.cli.main issue-blog-mcp-token --email "$email" --days "$days" \
+      2>/dev/null
+  )"
+  [ -n "$token" ] || { err "Blog MCP token generation failed."; exit 1; }
+  python3 - "$SECRETS_DIR/mcp_connections.json" 3<<<"$token" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+token = os.fdopen(3).read().strip()
+payload = {
+    "connections": {
+        "roguelife-blog": {
+            "display_name": "RogueLife 博客管理",
+            "transport": "streamable_http",
+            "url": "http://backend:8000/api/v1/mcp/blog/mcp",
+            "auth": {"type": "bearer", "token": token},
+            "allowed_redirect_hosts": ["backend"],
+            "auto_grant": True,
+            "tool_policies": {
+                "blog_list_posts": {
+                    "type": "read",
+                    "responsibility": "列出当前用户的博客文章元数据",
+                    "previewable": False,
+                    "reversible": False,
+                },
+                "blog_get_post": {
+                    "type": "read",
+                    "responsibility": "读取当前用户的一篇博客文章及正文",
+                    "previewable": False,
+                    "reversible": False,
+                },
+                "blog_search_posts": {
+                    "type": "read",
+                    "responsibility": "按主题搜索当前用户的博客文章",
+                    "previewable": False,
+                    "reversible": False,
+                },
+                "blog_timeline": {
+                    "type": "read",
+                    "responsibility": "查看当前用户的博客时间轴",
+                    "previewable": False,
+                    "reversible": False,
+                },
+                "blog_list_categories": {
+                    "type": "read",
+                    "responsibility": "查看当前用户的博客分类",
+                    "previewable": False,
+                    "reversible": False,
+                },
+                "blog_list_tags": {
+                    "type": "read",
+                    "responsibility": "查看当前用户的博客标签",
+                    "previewable": False,
+                    "reversible": False,
+                },
+            },
+        }
+    }
+}
+path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  token=""
+  chmod 600 "$SECRETS_DIR/mcp_connections.json"
+  if [ "$(id -u)" -eq 0 ]; then
+    chown "$RUNTIME_UID" "$SECRETS_DIR/mcp_connections.json"
+  fi
+  log "Configured the first-party Blog MCP connection (token not displayed)."
+}
+
 case "${1:-}" in
   up)      cmd_up ;;
   fast-up) cmd_fast_up ;;
@@ -412,5 +497,6 @@ case "${1:-}" in
   logs)    export_rabbitmq_pass 2>/dev/null || true; shift || true; docker compose logs -f "$@" ;;
   create-admin) shift; cmd_create_admin "$@" ;;
   issue-blog-mcp-token) shift; cmd_issue_blog_mcp_token "$@" ;;
-  *) err "Usage: $0 {up|fast-up|restart|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]}"; exit 2 ;;
+  configure-blog-mcp) shift; cmd_configure_blog_mcp "$@" ;;
+  *) err "Usage: $0 {up|fast-up|restart|down|ps|logs|create-admin EMAIL|issue-blog-mcp-token EMAIL [DAYS]|configure-blog-mcp EMAIL [DAYS]}"; exit 2 ;;
 esac

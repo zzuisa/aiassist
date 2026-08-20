@@ -59,6 +59,7 @@ export interface AgentPlan {
   user_message_id: string | null
   objective: string
   status: AgentPlanStatus
+  phase: 'planning' | 'executing' | 'waiting_confirmation' | 'verifying' | 'reporting' | 'complete'
   version: number
   counts: { total: number; completed: number; failed: number; skipped: number }
   elapsed_ms: number | null
@@ -67,6 +68,28 @@ export interface AgentPlan {
   steps: AgentPlanStep[]
   created_at: string
   finished_at: string | null
+}
+
+export interface AgentTaskReport {
+  schema_version: 'task-report.v1'
+  report_id: string
+  plan_id: string
+  revision: number
+  source_digest: string
+  objective: string
+  executed_steps: Array<Record<string, unknown>>
+  totals: Record<string, number>
+  verified_changes: Array<Record<string, unknown>>
+  conflicts: Array<Record<string, unknown>>
+  failures: Array<Record<string, unknown>>
+  skipped: Array<Record<string, unknown>>
+  unprocessed: Array<Record<string, unknown>>
+  next_actions: string[]
+  results: Array<Record<string, unknown>>
+  markdown: string
+  report_digest: string
+  generation_method: 'deterministic' | 'llm_enhanced'
+  generated_at: string
 }
 
 export const PLAN_TERMINAL_STATUSES: readonly AgentPlanStatus[] = [
@@ -84,4 +107,6 @@ export const agentPlansApi = {
   getTurnPlan: (turnId: string) => api.get<AgentPlan>(`/agent/turns/${turnId}/plan`),
   retryPlan: (planId: string) =>
     api.post<AgentPlan>(`/agent/plans/${planId}/retry`, { mode: 'failed_chain' }),
+  getReport: (planId: string) =>
+    api.get<AgentTaskReport>(`/agent/plans/${planId}/report`),
 }

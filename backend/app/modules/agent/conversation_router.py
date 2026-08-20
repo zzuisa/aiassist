@@ -16,6 +16,7 @@ one of the known phrases, so any extra content correctly falls through.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -230,6 +231,64 @@ def _clarification_route(question: str, *, objective: str = "补充任务信息"
     )
 
 
+def _semantic_topic(text: str) -> str | None:
+    """Extract only an explicit article-search topic; never invent one."""
+    normalized = " ".join(text.strip().split())
+    patterns = (
+        r"(?:关于|有关)(.{1,80}?)(?:的)?(?:博客|文章)",
+        r"(?:搜索|查找|查询)(.{1,80}?)(?:相关|有关|关于)?(?:的)?(?:博客|文章)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, normalized, re.IGNORECASE)
+        if match:
+            topic = match.group(1).strip(" ，,。.!！？的相关")
+            topic = re.sub(r"^\d+\s*篇", "", topic).strip()
+            if topic:
+                return topic[:200]
+    return None
+
+
+def _requested_limit(text: str) -> int | None:
+    match = re.search(r"(?<!\d)(\d{1,3})\s*篇", text)
+    if match is None:
+        return None
+    return min(max(int(match.group(1)), 1), 100)
+
+
+def _schema_properties(entry: Mapping[str, Any]) -> Mapping[str, Any]:
+    schema = entry.get("input_schema")
+    properties = schema.get("properties") if isinstance(schema, Mapping) else None
+    return properties if isinstance(properties, Mapping) else {}
+
+
+def _semantic_search_candidate(
+    manifest: Mapping[str, Any], candidates: list[str], text: str
+) -> tuple[str, dict[str, Any]] | None:
+    topic = _semantic_topic(text)
+    if not topic:
+        return None
+    entries = {
+        str(item.get("key")): item
+        for item in manifest.get("tools", [])
+        if isinstance(item, Mapping) and item.get("available") is True
+    }
+    for key in candidates:
+        properties = _schema_properties(entries.get(key, {}))
+        query_field = (
+            "query" if "query" in properties else "search" if "search" in properties else None
+        )
+        if query_field is None:
+            continue
+        arguments: dict[str, Any] = {query_field: topic}
+        requested_limit = _requested_limit(text)
+        if requested_limit is not None and "limit" in properties:
+            arguments["limit"] = requested_limit
+        if "cursor" in properties:
+            arguments["cursor"] = 0
+        return key, arguments
+    return None
+
+
 def route_message(
     text: str,
     *,
@@ -255,6 +314,8 @@ def route_message(
     if not candidates:
         route = _clarification_route("我还不能确定应使用哪项已授权能力，请具体说明对象和期望结果。")
         return RoutingOutcome(route, None, ("no_candidates",))
+
+    semantic_search = _semantic_search_candidate(manifest, candidates, text)
 
     if gateway is None:
         from app.services.llm.gateway import get_llm_gateway
@@ -285,11 +346,33 @@ def route_message(
         route = _clarification_route("任务路由能力暂时不可用，请稍后重试；你的消息已经安全保存。")
         return RoutingOutcome(route, None, ("router_unavailable",))
 
-    if route.tool_call is not None:
-        defaults = config.tool_defaults.get(route.tool_call.name, {})
-        arguments = {**defaults, **route.tool_call.arguments}
+    selected_call = route.tool_call
+    if semantic_search is not None:
+        semantic_name, semantic_arguments = semantic_search
+        if selected_call is None or selected_call.name != semantic_name:
+            from app.modules.agent.conversation_schemas import ConversationToolCall
+
+            selected_call = ConversationToolCall(name=semantic_name, arguments=semantic_arguments)
+        else:
+            selected_call = selected_call.model_copy(
+                update={"arguments": {**selected_call.arguments, **semantic_arguments}}
+            )
+        route = route.model_copy(
+            update={
+                "route_kind": "task",
+                "operation_type": "query",
+                "candidate_tool_keys": [semantic_name],
+                "requires_confirmation": False,
+                "confidence": max(route.confidence, 0.95),
+                "tool_call": selected_call,
+            }
+        )
+
+    if selected_call is not None:
+        defaults = config.tool_defaults.get(selected_call.name, {})
+        arguments = {**defaults, **selected_call.arguments}
         try:
-            tool_registry.get(route.tool_call.name).validate_arguments(arguments)
+            tool_registry.get(selected_call.name).validate_arguments(arguments)
         except ValidationError:
             fallback = _clarification_route(
                 "调用参数不符合该能力的要求，请换一种方式说明范围或数量。",
@@ -298,9 +381,9 @@ def route_message(
             return RoutingOutcome(fallback, None, ("tool_arguments_invalid",))
         route = route.model_copy(
             update={
-                "candidate_tool_keys": [route.tool_call.name],
+                "candidate_tool_keys": [selected_call.name],
                 "semantic_arguments": arguments,
-                "tool_call": route.tool_call.model_copy(update={"arguments": arguments}),
+                "tool_call": selected_call.model_copy(update={"arguments": arguments}),
             }
         )
 

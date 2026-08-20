@@ -109,3 +109,24 @@ npm run test:e2e -- agent-generic-orchestration.spec.ts
   DAG。后续重构只能移动投影职责，不能引入第二套 ready-step 队列。
 - 部署必须同时更新 worker 与 backend；新 API 配合旧 worker 会导致 Graph Run
   无法恢复，禁止只滚动更新其中一个进程。
+
+## 10. 情感博客补标签参考验收
+
+先为生产用户配置第一方 Blog MCP（命令不会打印 Token）：
+
+```bash
+./deploy/scripts/deploy.sh configure-blog-mcp USER@example.com 90
+DEPLOY_COMMIT_MESSAGE='🐳 feat: 完成 MCP 博客标签编排' \
+  ./deploy/scripts/deploy.sh fast-up
+```
+
+在新的自助 Agent 页面提交：
+
+```text
+帮我查询8篇关于情感的博客，并且查看是否都有标签，如果没有则通过llm优化给每篇生成标签
+```
+
+必须观察到五个节点：搜索目标博客、检查文章标签、LLM 生成标签建议、确认并写入标签、
+回读验证标签。搜索参数必须为 `query=情感`、`limit=8`；已有标签文章不得进入正文读取或
+写入预览。确认前数据库不得变化，确认后只写 `tags`，最后 Markdown 报告中的匹配、处理、
+写入和验证数量必须能与 artifact 对账。

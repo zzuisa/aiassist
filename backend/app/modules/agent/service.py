@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -374,17 +375,26 @@ def decide_pending_write(
         )
     publish_status(session, task, run)
     _complete_plan_step_after_confirmation(
-        session, run=run, decision="approved", summary=run.result_summary
+        session,
+        run=run,
+        decision="approved",
+        summary=run.result_summary,
+        saved=saved if isinstance(saved, list) else [saved],
     )
     session.flush()
     return pending
 
 
 def _complete_plan_step_after_confirmation(
-    session: Session, *, run: AgentRun, decision: str, summary: str | None
+    session: Session,
+    *,
+    run: AgentRun,
+    decision: str,
+    summary: str | None,
+    saved: Sequence[Mapping[str, Any]] = (),
 ) -> None:
     """Resume a collaborative plan when an existing PendingWrite is decided."""
-    from app.models.agent import AgentExecutionPlan, AgentPlanStep
+    from app.models.agent import AgentExecutionPlan, AgentPlanStep, AgentStepArtifact
     from app.modules.agent.status import publish_plan_event
 
     step = session.scalar(select(AgentPlanStep).where(AgentPlanStep.run_id == run.id))
@@ -397,6 +407,25 @@ def _complete_plan_step_after_confirmation(
     step.stage_label = "确认写入完成" if decision == "approved" else "用户已拒绝写入"
     step.result_summary = summary
     step.finished_at = datetime.now(UTC)
+    if decision == "approved":
+        object_ids = [
+            str(item.get("post_id") or item.get("id"))
+            for item in saved
+            if item.get("post_id") or item.get("id")
+        ]
+        payload = [dict(item) for item in saved]
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        session.add(
+            AgentStepArtifact(
+                plan_id=plan.id,
+                step_id=step.id,
+                artifact_type="write_result",
+                schema_version="agent-step-artifact.v1",
+                payload_json=payload,
+                object_scope_json={"object_type": "post", "object_ids": object_ids},
+                content_digest=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            )
+        )
     plan.status = "running"
     plan.runtime_state = "checkpointed"
     plan.version += 1

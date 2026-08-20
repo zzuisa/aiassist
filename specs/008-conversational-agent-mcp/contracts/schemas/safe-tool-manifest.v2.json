@@ -13,13 +13,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["key", "source", "type", "responsibility", "input_schema", "risk", "required_permission", "available"],
+        "required": ["key", "source", "type", "responsibility", "input_schema", "output_schema", "risk", "required_permission", "available"],
         "properties": {
           "key": { "type": "string", "maxLength": 160 },
           "source": { "enum": ["internal_api", "mcp"] },
           "type": { "enum": ["read", "write"] },
           "responsibility": { "type": "string", "maxLength": 500 },
           "input_schema": { "type": "object" },
+          "output_schema": { "type": ["object", "null"] },
           "risk": { "type": "object" },
           "required_permission": { "type": ["string", "null"], "maxLength": 120 },
           "available": { "type": "boolean" },

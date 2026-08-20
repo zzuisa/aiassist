@@ -124,6 +124,14 @@ class AgentPlanView(BaseModel):
     user_message_id: uuid.UUID | None = None
     objective: str
     status: str
+    phase: Literal[
+        "planning",
+        "executing",
+        "waiting_confirmation",
+        "verifying",
+        "reporting",
+        "complete",
+    ]
     runtime_state: Literal["checkpointed", "running", "interrupted", "completed", "failed"]
     graph_run_id: str | None = None
     version: int

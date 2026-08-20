@@ -85,6 +85,7 @@ def validate_plan_graph(proposal: AgentTaskPlanProposal, *, max_depth: int) -> N
 def _agent_for_tool(tool_name: str) -> tuple[str, str, str]:
     from app.modules.posts.agent_manifest import resolve_builtin_agent
 
+    tool = tool_registry.get(tool_name)
     agent_key = (
         "article-query-agent"
         if tool_name in {"posts.list_recent", "taxonomy.categories", "taxonomy.tags"}
@@ -92,7 +93,7 @@ def _agent_for_tool(tool_name: str) -> tuple[str, str, str]:
         if tool_name == "content.extract_metadata"
         else "coordinator-agent"
     )
-    if tool_name.startswith("mcp."):
+    if tool.source == "mcp":
         return "mcp-tool-agent", "外部能力 Agent", "agent-task-plan.v1"
     binding = resolve_builtin_agent(agent_key)
     return binding.agent_key, binding.agent_name, binding.version_ref
@@ -169,7 +170,7 @@ def _validate_scope_flow(proposal: AgentTaskPlanProposal, *, has_context_scope: 
         if (
             step.tool_name == "content.extract_metadata"
             and not has_context_scope
-            and "posts.list_recent" not in upstream
+            and not {"posts.list_recent", "posts.filter_missing_tags"}.intersection(upstream)
         ):
             raise ValidationError(
                 "Analysis step has no authorized object scope",
@@ -180,6 +181,96 @@ def _validate_scope_flow(proposal: AgentTaskPlanProposal, *, has_context_scope: 
                 "Write step has no analysis proposal dependency",
                 code="agent_plan_write_input_missing",
             )
+
+
+def _missing_tag_workflow(
+    *,
+    objective: str,
+    request_text: str,
+    search_tool_name: str,
+    search_arguments: Mapping[str, Any],
+    search_tool: ToolDefinition,
+) -> AgentTaskPlanProposal | None:
+    """Build the reviewed reference DAG for semantic search + missing-tag repair."""
+    normalized = request_text.casefold()
+    asks_for_tags = any(marker in normalized for marker in ("标签", "tag"))
+    asks_to_fill = any(
+        marker in normalized
+        for marker in ("如果没有", "没有则", "无标签", "生成标签", "添加标签", "补标签")
+    )
+    properties = search_tool.input_schema.get("properties", {})
+    is_semantic_search = (
+        search_tool.type == "read"
+        and isinstance(properties, Mapping)
+        and any(field in properties for field in ("query", "search"))
+    )
+    if not (asks_for_tags and asks_to_fill and is_semantic_search):
+        return None
+    return AgentTaskPlanProposal(
+        objective=objective[:500] or "查询博客并为无标签文章生成标签",
+        steps=[
+            PlanStepProposal(
+                step_key="step_search",
+                title="搜索目标博客",
+                responsibility="按用户给出的主题和数量调用已授权的博客搜索 MCP",
+                tool_name=search_tool_name,
+                operation_type="query",
+                arguments=dict(search_arguments),
+                depends_on=[],
+                input_source="current_message",
+                expected_output="最多返回用户要求数量的博客及现有标签",
+                requires_confirmation=False,
+            ),
+            PlanStepProposal(
+                step_key="step_check_tags",
+                title="检查文章标签",
+                responsibility="逐篇检查搜索结果，只保留没有标签的文章",
+                tool_name="posts.filter_missing_tags",
+                operation_type="query",
+                arguments={},
+                depends_on=["step_search"],
+                input_source="dependency",
+                expected_output="无标签文章 ID、标题及检查统计",
+                requires_confirmation=False,
+            ),
+            PlanStepProposal(
+                step_key="step_generate_tags",
+                title="LLM 生成标签建议",
+                responsibility="仅为无标签文章读取正文并生成适配的标签建议",
+                tool_name="content.extract_metadata",
+                operation_type="analyze",
+                arguments={},
+                depends_on=["step_check_tags"],
+                input_source="dependency",
+                expected_output="每篇无标签文章的结构化标签建议",
+                requires_confirmation=False,
+            ),
+            PlanStepProposal(
+                step_key="step_apply_tags",
+                title="确认并写入标签",
+                responsibility="展示批量修改预览，经用户明确确认后写入标签",
+                tool_name="posts.apply_analysis",
+                operation_type="update",
+                arguments={"fields": ["tags"]},
+                depends_on=["step_generate_tags"],
+                input_source="dependency",
+                expected_output="待用户确认的标签写入预览",
+                requires_confirmation=True,
+            ),
+            PlanStepProposal(
+                step_key="step_verify_tags",
+                title="回读验证标签",
+                responsibility="写入完成后回读受影响文章并核对标签存在",
+                tool_name="posts.verify_tags",
+                operation_type="query",
+                arguments={},
+                depends_on=["step_apply_tags"],
+                input_source="dependency",
+                expected_output="逐篇标签回读验证结果",
+                requires_confirmation=False,
+            ),
+        ],
+    )
 
 
 def _seed_proposal(
@@ -304,6 +395,20 @@ def propose_plan(
         can_query="posts.list_recent" in available,
         query_arguments=query_arguments,
     )
+    reviewed_workflow = _missing_tag_workflow(
+        objective=objective,
+        request_text=request_text,
+        search_tool_name=seed_tool_name,
+        search_arguments={
+            **config.tool_defaults.get(seed_tool_name, {}),
+            **seed_arguments,
+        },
+        search_tool=seed_tool,
+    )
+    if reviewed_workflow is not None:
+        _validate_scope_flow(reviewed_workflow, has_context_scope=bool(context.get("object_ids")))
+        validate_plan_proposal(reviewed_workflow, available_tools=available)
+        return reviewed_workflow
     compound = any(
         marker in request_text.casefold()
         for marker in (
@@ -397,6 +502,9 @@ def persist_plan(
     )
     if existing is not None:
         return existing
+    from app.modules.agent.capability_snapshot_service import create_snapshot
+
+    capability_snapshot = create_snapshot(session, task=task)
     plan = AgentExecutionPlan(
         user_id=task.user_id,
         task_id=task.id,
@@ -406,12 +514,15 @@ def persist_plan(
         status="pending",
         version=1,
         step_count=len(proposal.steps),
+        capability_snapshot_id=capability_snapshot.id,
+        phase="planning",
     )
     session.add(plan)
     session.flush()
     # LangGraph uses the durable plan identity as its resumable thread key.
     plan.graph_thread_id = str(plan.id)
     plan.runtime_state = "checkpointed"
+    plan.phase = "executing"
     step_rows: dict[str, AgentPlanStep] = {}
     for position, step in enumerate(proposal.steps, start=1):
         agent_key, agent_name, agent_version = _agent_for_tool(step.tool_name)
@@ -652,6 +763,7 @@ def serialize_plan(session: Session, plan: AgentExecutionPlan) -> AgentPlanView:
         user_message_id=turn.user_message_id if turn else None,
         objective=plan.objective,
         status=plan.status,
+        phase=plan.phase,
         runtime_state=plan.runtime_state,
         graph_run_id=plan.graph_run_id,
         version=plan.version,

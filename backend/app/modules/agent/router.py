@@ -18,6 +18,7 @@ from app.modules.agent import (
     conversation_service,
     planning_schemas,
     planning_service,
+    report_service,
     schemas,
     service,
 )
@@ -191,6 +192,28 @@ def decide_confirmation(
         if plan_step is not None:
             coordinate_plan.delay(str(plan_step.plan_id))
     return schemas.PendingWrite.model_validate(pending)
+
+
+@router.get("/plans/{plan_id}/report", response_model=schemas.AgentTaskReport)
+def get_plan_report(
+    plan_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> schemas.AgentTaskReport:
+    report = report_service.get_latest_owned_report(db, user_id=user.id, plan_id=plan_id)
+    return schemas.AgentTaskReport.model_validate(report_service.report_payload(report))
+
+
+@router.post("/plans/{plan_id}/report/regenerate", response_model=schemas.AgentTaskReport)
+def regenerate_plan_report(
+    plan_id: uuid.UUID,
+    user: CurrentUser = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> schemas.AgentTaskReport:
+    report = report_service.regenerate_owned_report(db, user_id=user.id, plan_id=plan_id)
+    db.commit()
+    db.refresh(report)
+    return schemas.AgentTaskReport.model_validate(report_service.report_payload(report))
 
 
 # -- Conversations -------------------------------------------------------

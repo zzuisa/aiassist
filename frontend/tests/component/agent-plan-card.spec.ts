@@ -12,6 +12,7 @@ function plan(status: AgentPlan['status'], version = 1): AgentPlan {
     user_message_id: 'message-1',
     objective: '查询并分析文章',
     status,
+    phase: status === 'success' ? 'complete' : 'executing',
     version,
     counts: { total: 2, completed: status === 'success' ? 2 : 0, failed: 0, skipped: 0 },
     elapsed_ms: status === 'success' ? 1200 : null,

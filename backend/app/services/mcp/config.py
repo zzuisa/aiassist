@@ -49,6 +49,7 @@ class ConnectionSecret:
     auth_token: str | None
     allowed_redirect_hosts: frozenset[str]
     tool_policies: dict[str, dict[str, Any]]
+    auto_grant: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,7 @@ class ConnectionSafeMetadata:
     display_name: str
     transport: str
     host: str
+    auto_grant: bool = False
 
 
 def _host_of(url: str) -> str:
@@ -129,6 +131,10 @@ def _validate_entry(config_key: str, raw: Any) -> ConnectionSecret:
             "reversible": bool(policy.get("reversible", False)),
         }
 
+    auto_grant = raw.get("auto_grant", False)
+    if not isinstance(auto_grant, bool):
+        raise McpConfigError(f"MCP connection '{config_key}' auto_grant must be a boolean")
+
     return ConnectionSecret(
         config_key=config_key,
         display_name=display_name.strip(),
@@ -138,6 +144,7 @@ def _validate_entry(config_key: str, raw: Any) -> ConnectionSecret:
         auth_token=auth_token,
         allowed_redirect_hosts=allowed_redirect_hosts,
         tool_policies=tool_policies,
+        auto_grant=auto_grant,
     )
 
 
@@ -194,6 +201,7 @@ class McpSecretsConfig:
             display_name=secret.display_name,
             transport=secret.transport,
             host=_host_of(secret.url),
+            auto_grant=secret.auto_grant,
         )
 
     def list_safe_metadata(self) -> list[ConnectionSafeMetadata]:

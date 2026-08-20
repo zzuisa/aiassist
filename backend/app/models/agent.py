@@ -62,6 +62,82 @@ class AgentTask(Base, TimestampMixin):
     )
 
 
+class AgentCapabilitySnapshot(Base):
+    """Immutable safe capability catalog considered for one task."""
+
+    __tablename__ = "agent_capability_snapshots"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    schema_version: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="capability-snapshot.v1"
+    )
+    manifest_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    capability_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("task_id", name="uq_agent_capability_snapshots_task_id"),
+        CheckConstraint(
+            "capability_count >= 0 and capability_count <= 100",
+            name="agent_capability_snapshot_count",
+        ),
+        Index("ix_agent_capability_snapshots_user_created", "user_id", "created_at"),
+    )
+
+
+class AgentCapabilitySnapshotItem(Base):
+    """One safe definition plus its private provider binding."""
+
+    __tablename__ = "agent_capability_snapshot_items"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_capability_snapshots.id", ondelete="CASCADE"), nullable=False
+    )
+    safe_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    definition_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    catalog_version: Mapped[str | None] = mapped_column(String(64))
+    tool_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    responsibility: Mapped[str] = mapped_column(String(500), nullable=False)
+    input_schema_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    output_schema_json: Mapped[dict | None] = mapped_column(JSONB)
+    risk_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    required_permission: Mapped[str | None] = mapped_column(String(120))
+    available: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    unavailable_reason: Mapped[str | None] = mapped_column(String(500))
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("mcp_connections.id", ondelete="SET NULL")
+    )
+    provider_tool_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    verification_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id", "safe_name", name="uq_agent_capability_snapshot_items_safe_name"
+        ),
+        CheckConstraint("source in ('internal_api','mcp')", name="agent_capability_source"),
+        CheckConstraint("tool_type in ('read','write')", name="agent_capability_tool_type"),
+        CheckConstraint("max_retries >= 0 and max_retries <= 2", name="agent_capability_retries"),
+        Index("ix_agent_capability_snapshot_items_snapshot", "snapshot_id"),
+    )
+
+
 class AgentRun(Base):
     """One bound Agent configuration executing within a task."""
 
@@ -229,6 +305,24 @@ class AgentExecutionPlan(Base, TimestampMixin):
     runtime_state: Mapped[str] = mapped_column(
         String(24), nullable=False, default="checkpointed", server_default="checkpointed"
     )
+    capability_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agent_capability_snapshots.id", ondelete="SET NULL")
+    )
+    phase: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="planning", server_default="planning"
+    )
+    verified_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    conflict_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    unprocessed_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    waiting_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -242,6 +336,11 @@ class AgentExecutionPlan(Base, TimestampMixin):
         CheckConstraint(
             "runtime_state in ('checkpointed','running','interrupted','completed','failed')",
             name="agent_execution_plan_runtime_state",
+        ),
+        CheckConstraint(
+            "phase in ('planning','executing','waiting_confirmation',"
+            "'verifying','reporting','complete')",
+            name="agent_execution_plan_phase",
         ),
         CheckConstraint("step_count >= 1 and step_count <= 12", name="agent_plan_step_count"),
         UniqueConstraint("task_id", name="uq_agent_execution_plans_task_id"),
@@ -376,4 +475,49 @@ class AgentStepAttempt(Base):
         ),
         UniqueConstraint("step_id", "attempt_number", name="uq_agent_step_attempt_number"),
         UniqueConstraint("idempotency_key", name="uq_agent_step_attempt_idempotency"),
+    )
+
+
+class AgentTaskReport(Base):
+    """Versioned Markdown report derived only from persisted terminal facts."""
+
+    __tablename__ = "agent_task_reports"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_execution_plans.id", ondelete="CASCADE"), nullable=False
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="task-report.v1"
+    )
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="generating")
+    totals_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    facts_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    markdown: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    short_summary: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
+    generation_method: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="deterministic"
+    )
+    validation_status: Mapped[str] = mapped_column(String(16), nullable=False, default="valid")
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("plan_id", "revision", name="uq_agent_task_reports_plan_revision"),
+        CheckConstraint("revision >= 1", name="agent_task_report_revision"),
+        CheckConstraint(
+            "status in ('generating','ready','failed')", name="agent_task_report_status"
+        ),
+        CheckConstraint(
+            "generation_method in ('deterministic','llm_enhanced')",
+            name="agent_task_report_generation_method",
+        ),
+        CheckConstraint(
+            "validation_status in ('valid','invalid')", name="agent_task_report_validation"
+        ),
+        Index("ix_agent_task_reports_plan_created", "plan_id", "created_at"),
     )

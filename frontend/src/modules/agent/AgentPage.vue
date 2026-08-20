@@ -17,20 +17,19 @@ import CapabilityGapNotice from '@/components/agent/CapabilityGapNotice.vue'
 import ConfirmationCard from '@/components/agent/ConfirmationCard.vue'
 import ConversationPanel from '@/components/agent/ConversationPanel.vue'
 import ExecutionRecordList from '@/components/agent/ExecutionRecordList.vue'
+import TaskReportCard from '@/components/agent/TaskReportCard.vue'
+import AgentProgressStrip from '@/components/agent/AgentProgressStrip.vue'
+import { agentPlansApi, type AgentTaskReport } from '@/api/agentPlans'
 
 const conversation = useAgentConversationsStore()
 
-// Existing single-task result/confirmation surfacing (execution records,
-// pending writes, capability-gap notices). Nothing populates these from a
-// conversation Turn yet — wiring task results INTO the chat timeline is
-// Phase 6/US4; these components are kept mounted and working so that phase
-// only needs to start feeding them data.
 const task = ref<AgentTaskDetail | null>(null)
 const taskError = ref('')
 const confirmations = ref<PendingWrite[]>([])
 const records = ref<ExecutionRecord[]>([])
 const decidingId = ref<string | null>(null)
 const retryingPlanId = ref<string | null>(null)
+const report = ref<AgentTaskReport | null>(null)
 let linkedTaskId: string | null = null
 let linkedPlanVersion = -1
 
@@ -52,6 +51,7 @@ const retryableTurns = computed(() =>
     .sort((left, right) => right.created_at.localeCompare(left.created_at))
     .slice(0, 1),
 )
+const latestPlan = computed(() => conversation.plans.at(-1) ?? null)
 
 async function decide(confirmation: PendingWrite, decision: ConfirmationDecision): Promise<void> {
   if (!task.value || decidingId.value) return
@@ -105,9 +105,19 @@ watch(
     const latest = planTaskId ?? messageTaskId
     const planAdvanced = latestPlan !== undefined && latestPlan.version > linkedPlanVersion
     if (latest && (latest !== linkedTaskId || planAdvanced)) {
+      if (latest !== linkedTaskId) report.value = null
       linkedTaskId = latest
       linkedPlanVersion = latestPlan?.version ?? linkedPlanVersion
       void refreshLinkedTask(latest)
+    }
+    if (
+      latestPlan
+      && ['success', 'partial_success'].includes(latestPlan.status)
+      && report.value?.plan_id !== latestPlan.plan_id
+    ) {
+      void agentPlansApi.getReport(latestPlan.plan_id).then((value) => {
+        report.value = value
+      }).catch(() => undefined)
     }
   },
   { deep: true },
@@ -145,6 +155,8 @@ async function retryPlan(planId: string): Promise<void> {
       @retry-plan="retryPlan"
     />
 
+    <AgentProgressStrip :plan="latestPlan" />
+
     <AgentTurnRetry
       :turns="retryableTurns"
       @retry="conversation.retryTurn"
@@ -175,6 +187,11 @@ async function retryPlan(planId: string): Promise<void> {
     </section>
 
     <ExecutionRecordList :records="records" />
+
+    <TaskReportCard
+      v-if="report"
+      :report="report"
+    />
 
     <CapabilityGapNotice
       v-if="capabilityGap"

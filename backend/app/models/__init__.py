@@ -20,6 +20,8 @@ from app.models import search as search
 from app.models import tasks as tasks
 from app.models import voice as voice
 from app.models.agent import (
+    AgentCapabilitySnapshot,
+    AgentCapabilitySnapshotItem,
     AgentExecutionPlan,
     AgentPlanStep,
     AgentRun,
@@ -27,6 +29,7 @@ from app.models.agent import (
     AgentStepAttempt,
     AgentStepDependency,
     AgentTask,
+    AgentTaskReport,
     ExecutionRecord,
     PendingWrite,
 )
@@ -43,6 +46,8 @@ from app.models.agent_conversation import (
 metadata = Base.metadata
 
 __all__ = [
+    "AgentCapabilitySnapshot",
+    "AgentCapabilitySnapshotItem",
     "AgentConversation",
     "AgentExecutionPlan",
     "AgentMessage",
@@ -53,6 +58,7 @@ __all__ = [
     "AgentStepAttempt",
     "AgentStepDependency",
     "AgentTask",
+    "AgentTaskReport",
     "AgentTurn",
     "Base",
     "ExecutionRecord",

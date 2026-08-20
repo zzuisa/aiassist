@@ -147,3 +147,29 @@ HTML dashboard with the existing E2E diagnostics artifact.
 2. Update image digests / lockfiles; run migrations in staging.
 3. Run smoke + failure-injection tests.
 4. Deploy; verify `/health/ready`, migration head, publisher + worker heartbeats.
+
+## First-party Blog MCP orchestration
+
+Provision the reviewed internal connection for one active user without printing
+or committing its token:
+
+```bash
+./deploy/scripts/deploy.sh configure-blog-mcp USER@example.com 90
+./deploy/scripts/deploy.sh fast-up
+```
+
+The connection points to the Compose service endpoint
+`http://backend:8000/api/v1/mcp/blog/mcp`. `auto_grant` is allowed only for this
+operator-reviewed first-party secret. Third-party MCP connections remain unavailable
+until the exact user/tool grant exists.
+
+Safe diagnostics:
+
+```bash
+./deploy/scripts/deploy.sh logs worker-fast | rg 'conversation_turn|MCP|ERROR|exception'
+./deploy/scripts/deploy.sh logs worker-heavy | rg 'agent_graph|agent_plan|ERROR|exception'
+./deploy/scripts/deploy.sh logs backend | rg '/api/v1/mcp/blog/mcp|task-report|ERROR|exception'
+```
+
+Do not print or query the secret file. Inspect only connection health, catalog version,
+safe tool name, grant state, plan/task IDs, phases, and report totals.

@@ -37,7 +37,7 @@ def test_mcp_manifest_contains_only_safe_v2_fields(db_session, make_user, monkey
     entry = next(
         item
         for item in tool_registry.safe_manifest_v2(session=db_session, user_id=user.id)["tools"]
-        if item["key"] == "mcp.notes-main.notes"
+        if item["key"] == "notes-main-notes"
     )
     assert set(entry) == {
         "key",
@@ -45,6 +45,7 @@ def test_mcp_manifest_contains_only_safe_v2_fields(db_session, make_user, monkey
         "type",
         "responsibility",
         "input_schema",
+        "output_schema",
         "risk",
         "required_permission",
         "available",

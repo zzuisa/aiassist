@@ -140,4 +140,14 @@ Token 只显示一次，不得写入仓库、日志、Prompt 或普通配置文�
 Token 过期、用户被停用或 Token 类型/作用域不符时，
 入口统一返回 `401`；普通网页登录 Access Token 不能用于该入口。
 
+若要让 AI Assist 自身的 Agent 把这组博客能力作为第一方 MCP 使用，执行：
+
+```bash
+./deploy/scripts/deploy.sh configure-blog-mcp USER@example.com 90
+```
+
+该命令会直接更新仅容器可读的 MCP secret，Token 不会输出到终端；随后运行
+`fast-up` 使所有 Agent 进程重新加载连接。配置中的 `auto_grant` 只适用于运维已审查的
+第一方连接，普通第三方 MCP 默认仍必须逐工具授权。
+
 常见检查顺序：先确认 `LLM_PROVIDER` 与密钥文件是否匹配；再检查容器健康状态；最后检查 MCP 文件是否为有效 JSON（或保持为空/`{"connections": {}}`）。

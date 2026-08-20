@@ -241,6 +241,11 @@ def _finish_plan(
         separators=(",", ":"),
     )
     task.finished_at = now
+    plan.phase = "reporting"
+    from app.modules.agent.report_service import generate_report
+
+    generate_report(session, plan)
+    plan.phase = "complete"
     if status == "failed":
         jobs_service.transition(
             session,
@@ -317,6 +322,7 @@ def coordinate_plan(session: Session, plan_id: uuid.UUID) -> list[uuid.UUID]:
         turn.last_heartbeat_at = now
     if waiting:
         plan.status = "waiting_user"
+        plan.phase = "waiting_confirmation"
         task.status = "waiting_confirmation"
         if turn is not None:
             turn.status = "waiting_confirmation"
@@ -331,6 +337,11 @@ def coordinate_plan(session: Session, plan_id: uuid.UUID) -> list[uuid.UUID]:
                 )
     elif ready or running_count:
         plan.status = "running"
+        plan.phase = (
+            "verifying"
+            if any(step.tool_name == "posts.verify_tags" for step in ready)
+            else "executing"
+        )
         task.status = "running"
         if task.job.status not in {"processing", "completed", "cancelled"}:
             jobs_service.transition(

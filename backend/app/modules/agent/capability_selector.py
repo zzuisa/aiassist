@@ -69,6 +69,7 @@ _QUERY_SIGNALS = (
     "post",
     "article",
 )
+_SEMANTIC_SEARCH_SIGNALS = ("关于", "有关", "搜索", "查找", "包含", "search", "about")
 
 
 def infer_operation_type(text: str) -> str:
@@ -106,6 +107,8 @@ def reduce_candidates(
         tool_type = str(tool.get("type") or "")
         responsibility = str(tool.get("responsibility") or "").casefold()
         haystack = f"{key.casefold()} {responsibility}"
+        input_schema = tool.get("input_schema")
+        properties = input_schema.get("properties", {}) if isinstance(input_schema, Mapping) else {}
         score = 0
         if operation in {"create", "update", "delete", "publish", "rollback", "external_effect"}:
             score += 8 if tool_type == "write" else 1
@@ -118,6 +121,13 @@ def reduce_candidates(
                 score += 24
         if any(signal in normalized for signal in _QUERY_SIGNALS) and key == "posts.list_recent":
             score += 18
+        if any(signal in normalized for signal in _SEMANTIC_SEARCH_SIGNALS):
+            if isinstance(properties, Mapping) and any(
+                field in properties for field in ("query", "search")
+            ):
+                score += 28
+            if key == "posts.list_recent":
+                score -= 16
         if "标签" in normalized and operation == "query" and key == "taxonomy.tags":
             score += 16
         for token in set(normalized.replace("，", " ").replace(",", " ").split()):
