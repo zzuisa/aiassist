@@ -10,7 +10,16 @@ from app.services.llm.providers.http import llm_http_timeout
 
 
 class AnthropicProvider:
-    def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int) -> str:
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        reasoning_budget: int | None = None,
+    ) -> str:
+        _ = reasoning_budget
         settings = get_settings()
         key = settings.resolved_llm_provider_key
         if not key:

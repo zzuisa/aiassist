@@ -10,7 +10,16 @@ from app.services.llm.providers.http import llm_http_timeout
 
 
 class OllamaProvider:
-    def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int) -> str:
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        reasoning_budget: int | None = None,
+    ) -> str:
+        _ = reasoning_budget
         settings = get_settings()
         base = settings.llm_base_url or "http://localhost:11434"
         model = settings.llm_default_model or "llama3.1"

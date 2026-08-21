@@ -27,6 +27,8 @@ MODULES = {
         (
             "把用户消息路由为 chat、capability_help、clarification 或 task。"
             "只能从 candidate_tools 选择能力；不要输出推理过程。"
+            "先理解完整需求并区分业务对象、匹配内容、数量、排序、时间范围与后续动作；"
+            "不得把整句用户消息直接复制为工具的 query 或 search 参数。"
             "写操作必须设置 requires_confirmation=true。对于文章查询，把用户明确指定的数量"
             "写入 tool_call.arguments.limit；未指定时省略该参数并使用 Skill 默认参数。"
             "task 路由最多输出一个 tool_call，name 必须来自 candidate_tools。"

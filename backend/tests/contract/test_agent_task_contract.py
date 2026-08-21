@@ -43,7 +43,7 @@ def test_create_and_get_agent_task_contract(client, make_user, monkeypatch) -> N
         "finished_at",
     }
     assert body["request_text"] == "给我最近 10 篇文章"
-    assert body["intent_key"] == "articles.list_recent"
+    assert body["intent_key"] == "llm.route"
     assert body["status"] == "pending"
 
     detail = client.get(f"/api/v1/agent/tasks/{body['task_id']}")

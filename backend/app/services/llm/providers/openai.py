@@ -10,27 +10,41 @@ from app.services.llm.providers.http import llm_http_timeout
 
 
 class OpenAIProvider:
-    def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int) -> str:
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        reasoning_budget: int | None = None,
+    ) -> str:
         settings = get_settings()
         key = settings.resolved_llm_provider_key
         if not key:
             raise LLMError("authentication_failed", "OpenAI API key not configured")
         base = settings.llm_base_url or "https://api.openai.com/v1"
         model = settings.llm_default_model or "gpt-4o-mini"
+        payload = {
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if reasoning_budget is not None and "siliconflow" in base.casefold():
+            payload.update(
+                enable_thinking=True,
+                thinking_budget=min(max(reasoning_budget, 128), 32768),
+            )
         try:
             resp = httpx.post(
                 f"{base}/chat/completions",
                 headers={"Authorization": f"Bearer {key}"},
-                json={
-                    "model": model,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "response_format": {"type": "json_object"},
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                },
+                json=payload,
                 timeout=llm_http_timeout(),
             )
         except httpx.TimeoutException as exc:
@@ -44,4 +58,7 @@ class OpenAIProvider:
         if resp.status_code >= 400:
             raise LLMError("provider_unavailable", f"OpenAI {resp.status_code}")
         data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"].get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise LLMError("invalid_structured_output", "Provider returned empty content")
+        return content

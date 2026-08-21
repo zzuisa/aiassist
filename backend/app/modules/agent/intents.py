@@ -27,12 +27,6 @@ class IntentPlan:
     execution_kind: Literal["query", "analysis", "capability_gap", "assistant_compat"] = "query"
 
 
-@dataclass(frozen=True, slots=True)
-class IntentRule:
-    key: str
-    signals: tuple[str, ...]
-
-
 class IntentRegistry:
     """Maps stable intent keys to handlers without a central branch chain."""
 
@@ -122,20 +116,3 @@ def plan_legacy_assistant(_request_text: str) -> IntentPlan:
         params={},
         execution_kind="assistant_compat",
     )
-
-
-_CLASSIFICATION_RULES = (
-    IntentRule("articles.analyze", ("提取标签", "关键词", "内容分析", "总结", "优化", "比较")),
-    IntentRule("taxonomy.categories", ("类别", "分类")),
-    IntentRule("taxonomy.tags", ("标签",)),
-    IntentRule("articles.list_recent", ("文章", "博客")),
-)
-
-
-def classify_request(request_text: str) -> str:
-    """Data-driven keyword classifier; dispatch remains registry-based."""
-    normalized = request_text.casefold()
-    for rule in _CLASSIFICATION_RULES:
-        if any(signal in normalized for signal in rule.signals):
-            return rule.key
-    return "capability.unknown"

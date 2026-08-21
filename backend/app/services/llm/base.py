@@ -69,6 +69,7 @@ class StructuredRequest[T: BaseModel]:
     temperature: float = 0.0
     max_tokens: int = 2048
     repair_attempts: int = 1
+    reasoning_budget: int | None = None
 
 
 class LLMGateway(Protocol):

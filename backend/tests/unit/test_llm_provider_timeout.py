@@ -44,3 +44,32 @@ def test_llm_timeout_defaults_are_bounded() -> None:
     assert settings.llm_connect_timeout_seconds == 10.0
     assert settings.llm_read_timeout_seconds == 300.0
     assert settings.llm_max_output_tokens == 6144
+
+
+def test_siliconflow_request_enables_bounded_thinking(monkeypatch) -> None:
+    from app.services.llm.providers import openai
+
+    settings = SimpleNamespace(
+        resolved_llm_provider_key="test-key",
+        llm_base_url="https://api.siliconflow.cn/v1",
+        llm_default_model="Pro/deepseek-ai/DeepSeek-V3.2",
+        llm_connect_timeout_seconds=10.0,
+        llm_read_timeout_seconds=300.0,
+    )
+    monkeypatch.setattr(openai, "get_settings", lambda: settings)
+    captured: dict = {}
+
+    def fake_post(*_args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {"choices": [{"message": {"content": '{"ok":true}'}}]},
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    openai.OpenAIProvider().complete_json(
+        "system", "user", temperature=0, max_tokens=1200, reasoning_budget=512
+    )
+
+    assert captured["json"]["enable_thinking"] is True
+    assert captured["json"]["thinking_budget"] == 512

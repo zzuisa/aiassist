@@ -33,7 +33,13 @@ class StructuredProvider(Protocol):
     """Adapter interface returning raw text for a structured prompt."""
 
     def complete_json(
-        self, system: str, user: str, *, temperature: float, max_tokens: int
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        reasoning_budget: int | None = None,
     ) -> str: ...
 
 
@@ -45,7 +51,15 @@ class FakeProvider:
     malformed output) without a network call, while production uses real adapters.
     """
 
-    def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int) -> str:
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        reasoning_budget: int | None = None,
+    ) -> str:
         # Tests embed the desired provider output after a marker: <<JSON>> for
         # structured scenarios, <<TEXT>> for free-form chat (e.g. blog Markdown).
         for marker in ("<<JSON>>", "<<TEXT>>"):
@@ -106,12 +120,13 @@ class LLMGatewayImpl:
         # the exact field names/shape (the FakeProvider ignores the system prompt
         # and echoes the user marker, so tests are unaffected).
         system = self._augment_system(request.system, request.schema)
-        raw = provider.complete_json(
-            system,
-            request.user,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
-        )
+        call_options: dict[str, Any] = {
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+        }
+        if request.reasoning_budget is not None:
+            call_options["reasoning_budget"] = request.reasoning_budget
+        raw = provider.complete_json(system, request.user, **call_options)
         try:
             return self._validate(raw, request.schema)
         except (ValidationError, json.JSONDecodeError) as first_err:
@@ -123,12 +138,7 @@ class LLMGatewayImpl:
                 f"{request.user}\n\n上一次输出无法通过校验：{first_err}. "
                 "只返回符合 schema 的 JSON。"
             )
-            raw2 = provider.complete_json(
-                system,
-                repair_user,
-                temperature=request.temperature,
-                max_tokens=request.max_tokens,
-            )
+            raw2 = provider.complete_json(system, repair_user, **call_options)
             try:
                 return self._validate(raw2, request.schema)
             except (ValidationError, json.JSONDecodeError) as second_err:

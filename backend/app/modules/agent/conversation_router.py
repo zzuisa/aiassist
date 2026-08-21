@@ -16,7 +16,6 @@ one of the known phrases, so any extra content correctly falls through.
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -26,11 +25,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
-from app.modules.agent.capability_selector import reduce_candidates, validate_route
+from app.modules.agent.capability_selector import validate_route
 from app.modules.agent.conversation_schemas import (
     ConversationRoute,
-    RouteKind,
-    RouteOperationType,
     TargetScope,
 )
 from app.modules.agent.registry import tool_registry
@@ -39,6 +36,15 @@ from app.services.llm.base import LLMError, StructuredRequest
 # Punctuation/whitespace stripped from both ends before matching. Deliberately
 # NOT stripped from the middle — "你 好" and "你好" are treated differently.
 _STRIP_CHARS = " \t\r\n!?~。！？，,.·、…～-–—:：;；\"'“”‘’()（）"
+
+_ROUTING_ANALYSIS_INSTRUCTION = (
+    "先理解用户的完整目标，再选择工具并生成参数。把业务对象、搜索条件、数量、排序、时间范围和"
+    "后续动作拆开表达，不得用字符串截取或直接把整句用户消息复制成 query/search。对于搜索能力，"
+    "query/search 只填写用户要匹配的语义内容；把‘最近/最新/前 N 篇/内容含有/正文包含/标题包含’"
+    "等限制分别映射到工具 schema 已声明的参数。若现有工具 schema 无法准确表达关键限制，返回"
+    "clarification，不得悄悄改变语义。例如‘查询最近3篇内容含有女人的文章’应选择文章搜索能力，"
+    "query 为‘女人’、limit 为 3。只输出最终结构化决策，不输出推理过程。"
+)
 
 
 def _normalize(text: str) -> str:
@@ -236,76 +242,6 @@ def _clarification_route(question: str, *, objective: str = "补充任务信息"
     )
 
 
-def _semantic_topic(text: str) -> str | None:
-    """Extract only an explicit article-search topic; never invent one."""
-    normalized = " ".join(text.strip().split())
-    patterns = (
-        r"(?:关于|有关)(.{1,80}?)(?:的)?(?:博客|文章)",
-        r"(?:搜索|查找|查询)(.{1,80}?)(?:相关|有关|关于)?(?:的)?(?:博客|文章)",
-    )
-    for pattern in patterns:
-        match = re.search(pattern, normalized, re.IGNORECASE)
-        if match:
-            topic = match.group(1).strip(" ，,。.!！？的相关")
-            topic = re.sub(r"^\d+\s*篇", "", topic).strip()
-            if topic:
-                return topic[:200]
-    return None
-
-
-def _requested_limit(text: str) -> int | None:
-    match = re.search(r"(?<!\d)(\d{1,3})\s*篇", text)
-    if match is None:
-        return None
-    return min(max(int(match.group(1)), 1), 100)
-
-
-def _schema_properties(entry: Mapping[str, Any]) -> Mapping[str, Any]:
-    schema = entry.get("input_schema")
-    properties = schema.get("properties") if isinstance(schema, Mapping) else None
-    return properties if isinstance(properties, Mapping) else {}
-
-
-def _semantic_search_candidate(
-    manifest: Mapping[str, Any], candidates: list[str], text: str
-) -> tuple[str, dict[str, Any]] | None:
-    topic = _semantic_topic(text)
-    if not topic:
-        return None
-    entries = {
-        str(item.get("key")): item
-        for item in manifest.get("tools", [])
-        if isinstance(item, Mapping) and item.get("available") is True
-    }
-    # Prefer a capability explicitly advertised as search over a generic list
-    # endpoint that happens to expose a search filter.  Candidate reduction can
-    # otherwise put the generic tool first when both have equal relevance.
-    ordered_candidates = sorted(
-        enumerate(candidates),
-        key=lambda item: (
-            0
-            if any(marker in item[1].casefold() for marker in ("search", "semantic", "搜索"))
-            else 1,
-            item[0],
-        ),
-    )
-    for _, key in ordered_candidates:
-        properties = _schema_properties(entries.get(key, {}))
-        query_field = (
-            "query" if "query" in properties else "search" if "search" in properties else None
-        )
-        if query_field is None:
-            continue
-        arguments: dict[str, Any] = {query_field: topic}
-        requested_limit = _requested_limit(text)
-        if requested_limit is not None and "limit" in properties:
-            arguments["limit"] = requested_limit
-        if "cursor" in properties:
-            arguments["cursor"] = 0
-        return key, arguments
-    return None
-
-
 def route_message(
     text: str,
     *,
@@ -323,16 +259,15 @@ def route_message(
         "query_conditions": dict((context or {}).get("query_conditions", {})),
         "pending_write_ids": list((context or {}).get("pending_write_ids", []))[:50],
     }
-    candidates = reduce_candidates(
-        manifest,
-        text,
-        scope_object_type=str(safe_context.get("object_type") or "") or None,
-    )
+    available_tools = [
+        item
+        for item in manifest.get("tools", [])
+        if isinstance(item, Mapping) and item.get("available") is True and item.get("key")
+    ]
+    candidates = [str(item["key"]) for item in available_tools]
     if not candidates:
-        route = _clarification_route("我还不能确定应使用哪项已授权能力，请具体说明对象和期望结果。")
+        route = _clarification_route("当前没有可供模型选择的已授权能力，请先连接或授权 MCP。")
         return RoutingOutcome(route, None, ("no_candidates",))
-
-    semantic_search = _semantic_search_candidate(manifest, candidates, text)
 
     if gateway is None:
         from app.services.llm.gateway import get_llm_gateway
@@ -344,19 +279,20 @@ def route_message(
     prompt_payload = {
         "message": text,
         "conversation_context": safe_context,
-        "candidate_tools": [item for item in manifest["tools"] if item.get("key") in candidates],
+        "candidate_tools": available_tools,
         "skill_tool_defaults": config.tool_defaults,
     }
     try:
         route = gateway.structured(
             StructuredRequest(
                 scenario="conversation_route",
-                system=config.system_instruction,
+                system=f"{config.system_instruction}\n\n{_ROUTING_ANALYSIS_INSTRUCTION}",
                 user=json.dumps(prompt_payload, ensure_ascii=False),
                 schema=ConversationRoute,
                 temperature=0.0,
                 max_tokens=1200,
                 repair_attempts=1,
+                reasoning_budget=512,
             )
         )
     except LLMError:
@@ -364,30 +300,6 @@ def route_message(
         return RoutingOutcome(route, None, ("router_unavailable",))
 
     selected_call = route.tool_call
-    if semantic_search is not None:
-        semantic_name, semantic_arguments = semantic_search
-        if selected_call is None or selected_call.name != semantic_name:
-            from app.modules.agent.conversation_schemas import ConversationToolCall
-
-            selected_call = ConversationToolCall(name=semantic_name, arguments=semantic_arguments)
-        else:
-            selected_call = selected_call.model_copy(
-                update={"arguments": {**selected_call.arguments, **semantic_arguments}}
-            )
-        route = route.model_copy(
-            update={
-                # ``model_copy(update=...)`` deliberately skips Pydantic
-                # validation.  Keep enum-typed fields enum-typed so the
-                # persistence boundary can safely read ``.value``.
-                "route_kind": RouteKind.task,
-                "operation_type": RouteOperationType.query,
-                "candidate_tool_keys": [semantic_name],
-                "requires_confirmation": False,
-                "confidence": max(route.confidence, 0.95),
-                "tool_call": selected_call,
-            }
-        )
-
     if selected_call is not None:
         defaults = config.tool_defaults.get(selected_call.name, {})
         arguments = {**defaults, **selected_call.arguments}

@@ -183,96 +183,6 @@ def _validate_scope_flow(proposal: AgentTaskPlanProposal, *, has_context_scope: 
             )
 
 
-def _missing_tag_workflow(
-    *,
-    objective: str,
-    request_text: str,
-    search_tool_name: str,
-    search_arguments: Mapping[str, Any],
-    search_tool: ToolDefinition,
-) -> AgentTaskPlanProposal | None:
-    """Build the reviewed reference DAG for semantic search + missing-tag repair."""
-    normalized = request_text.casefold()
-    asks_for_tags = any(marker in normalized for marker in ("标签", "tag"))
-    asks_to_fill = any(
-        marker in normalized
-        for marker in ("如果没有", "没有则", "无标签", "生成标签", "添加标签", "补标签")
-    )
-    properties = search_tool.input_schema.get("properties", {})
-    is_semantic_search = (
-        search_tool.type == "read"
-        and isinstance(properties, Mapping)
-        and any(field in properties for field in ("query", "search"))
-    )
-    if not (asks_for_tags and asks_to_fill and is_semantic_search):
-        return None
-    return AgentTaskPlanProposal(
-        objective=objective[:500] or "查询博客并为无标签文章生成标签",
-        steps=[
-            PlanStepProposal(
-                step_key="step_search",
-                title="搜索目标博客",
-                responsibility="按用户给出的主题和数量调用已授权的博客搜索 MCP",
-                tool_name=search_tool_name,
-                operation_type="query",
-                arguments=dict(search_arguments),
-                depends_on=[],
-                input_source="current_message",
-                expected_output="最多返回用户要求数量的博客及现有标签",
-                requires_confirmation=False,
-            ),
-            PlanStepProposal(
-                step_key="step_check_tags",
-                title="检查文章标签",
-                responsibility="逐篇检查搜索结果，只保留没有标签的文章",
-                tool_name="posts.filter_missing_tags",
-                operation_type="query",
-                arguments={},
-                depends_on=["step_search"],
-                input_source="dependency",
-                expected_output="无标签文章 ID、标题及检查统计",
-                requires_confirmation=False,
-            ),
-            PlanStepProposal(
-                step_key="step_generate_tags",
-                title="LLM 生成标签建议",
-                responsibility="仅为无标签文章读取正文并生成适配的标签建议",
-                tool_name="content.extract_metadata",
-                operation_type="analyze",
-                arguments={},
-                depends_on=["step_check_tags"],
-                input_source="dependency",
-                expected_output="每篇无标签文章的结构化标签建议",
-                requires_confirmation=False,
-            ),
-            PlanStepProposal(
-                step_key="step_apply_tags",
-                title="确认并写入标签",
-                responsibility="展示批量修改预览，经用户明确确认后写入标签",
-                tool_name="posts.apply_analysis",
-                operation_type="update",
-                arguments={"fields": ["tags"]},
-                depends_on=["step_generate_tags"],
-                input_source="dependency",
-                expected_output="待用户确认的标签写入预览",
-                requires_confirmation=True,
-            ),
-            PlanStepProposal(
-                step_key="step_verify_tags",
-                title="回读验证标签",
-                responsibility="写入完成后回读受影响文章并核对标签存在",
-                tool_name="posts.verify_tags",
-                operation_type="query",
-                arguments={},
-                depends_on=["step_apply_tags"],
-                input_source="dependency",
-                expected_output="逐篇标签回读验证结果",
-                requires_confirmation=False,
-            ),
-        ],
-    )
-
-
 def _seed_proposal(
     *,
     objective: str,
@@ -395,42 +305,6 @@ def propose_plan(
         can_query="posts.list_recent" in available,
         query_arguments=query_arguments,
     )
-    reviewed_workflow = _missing_tag_workflow(
-        objective=objective,
-        request_text=request_text,
-        search_tool_name=seed_tool_name,
-        search_arguments={
-            **config.tool_defaults.get(seed_tool_name, {}),
-            **seed_arguments,
-        },
-        search_tool=seed_tool,
-    )
-    if reviewed_workflow is not None:
-        _validate_scope_flow(reviewed_workflow, has_context_scope=bool(context.get("object_ids")))
-        validate_plan_proposal(reviewed_workflow, available_tools=available)
-        return reviewed_workflow
-    compound = any(
-        marker in request_text.casefold()
-        for marker in (
-            "然后",
-            "再",
-            "最后",
-            "分别",
-            "并",
-            "同时",
-            "汇总",
-            " and ",
-            " then ",
-        )
-    ) or (
-        seed_tool_name in {"content.extract_metadata", "posts.apply_analysis"}
-        and not context.get("object_ids")
-    )
-    if not compound:
-        _validate_scope_flow(fallback, has_context_scope=bool(context.get("object_ids")))
-        validate_plan_proposal(fallback, available_tools=available)
-        return fallback
-
     if gateway is None:
         from app.services.llm.gateway import get_llm_gateway
 
@@ -459,6 +333,7 @@ def propose_plan(
                 temperature=0.0,
                 max_tokens=2400,
                 repair_attempts=1,
+                reasoning_budget=1024,
             )
         )
     except LLMError:
@@ -563,13 +438,45 @@ def persist_plan(
 
 def persist_legacy_task_plan(session: Session, task: AgentTask) -> AgentExecutionPlan:
     """Build the same durable plan representation for the legacy task entry point."""
-    from app.modules.agent.intents import IntentPlan, dispatch_intent
-
     existing = session.scalar(
         select(AgentExecutionPlan).where(AgentExecutionPlan.task_id == task.id)
     )
     if existing is not None:
         return existing
+
+    if task.intent_key == "llm.route":
+        from app.modules.agent.conversation_router import route_message
+        from app.modules.agent.conversation_service import sync_mcp_connections
+
+        sync_mcp_connections(session, user_id=task.user_id)
+        outcome = route_message(
+            task.request_text,
+            session=session,
+            user_id=task.user_id,
+            context=task.scope_json,
+            run_reference=f"agent-task-route:{task.id}",
+        )
+        selected_tool = outcome.selected_tool or "agent.capabilities"
+        arguments = outcome.route.semantic_arguments if outcome.selected_tool else {}
+        task.scope_json = {
+            **task.scope_json,
+            "llm_selected_tool": selected_tool,
+            "tool_parameters": dict(arguments),
+        }
+        proposal = propose_plan(
+            session,
+            user_id=task.user_id,
+            request_text=task.request_text,
+            objective=outcome.route.objective,
+            seed_tool_name=selected_tool,
+            seed_arguments=arguments,
+            context=task.scope_json,
+            run_reference=f"agent-task:{task.id}",
+        )
+        return persist_plan(session, task=task, proposal=proposal)
+
+    from app.modules.agent.intents import IntentPlan, dispatch_intent
+
     intent = dispatch_intent(task.intent_key, task.request_text)
     if not isinstance(intent, IntentPlan):
         raise ValidationError("Intent produced an invalid plan", code="agent_intent_plan_invalid")

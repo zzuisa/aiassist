@@ -23,7 +23,6 @@ from app.modules.agent import (
     service,
 )
 from app.modules.agent.audit import list_execution_records
-from app.modules.agent.intents import classify_request
 from app.workers.tasks.agent import coordinate_plan, execute_conversation_turn, execute_task
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -79,7 +78,6 @@ def create_task(
     user: CurrentUser = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> schemas.AgentTask:
-    intent_key = classify_request(body.request_text)
     scope: dict | None = None
     if body.previous_task_id is not None:
         previous = service.get_owned_task(db, user.id, body.previous_task_id)
@@ -93,7 +91,7 @@ def create_task(
         db,
         user_id=user.id,
         request_text=body.request_text,
-        intent_key=intent_key,
+        intent_key="llm.route",
         scope=scope,
     )
     db.commit()
