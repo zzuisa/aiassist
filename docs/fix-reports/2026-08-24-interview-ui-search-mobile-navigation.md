@@ -44,6 +44,9 @@
 - `vue-tsc` 类型检查通过。
 - Vite 生产构建成功，PWA Service Worker 与预缓存清单正常生成。
 - 定向回归确认：`q` 参数会回填搜索框并调用搜索 API；移动菜单关闭态为 `inert`，打开时锁定 `body`，Tab 在菜单内循环，关闭后焦点回到菜单按钮。
+- 修复提交 `e8a0485` 已通过快速部署进入生产；backend、frontend、worker-fast、worker-heavy 与 nginx 网关健康检查全部通过，数据库迁移保持在当前 head。
+- 生产 Chromium 在 390px 视口验证：打开和关闭导航前后 `scrollY` 均为 500、文档高度均为 2895；搜索页正确回填“情感文章”，关闭导航后焦点回到触发按钮，Interview 链接为 `https://roguelife.de/interview/`。
+- 本复盘已通过 AI Assist API 归档为内部草稿，业务对象 ID 为 `0b19f0ed-7386-4d1e-ac45-f1377ada018e`，分类为“AI Assist 修复复盘”，未调用公开发布接口。
 
 ## 日志检索方式
 
