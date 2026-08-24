@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import type { AgentMessage } from '@/api/agentConversations'
 import ConversationTimeline from '@/components/agent/ConversationTimeline.vue'
 import type { AgentPlan } from '@/api/agentPlans'
+import BaseButton from '@/components/base/BaseButton.vue'
+import BaseTextarea from '@/components/base/BaseTextarea.vue'
 
 export interface ConversationPanelMessage extends AgentMessage {
   pending?: boolean
@@ -94,7 +96,7 @@ function onKeydown(event: KeyboardEvent): void {
         for="conversation-input"
         class="sr-only"
       >跟我说点什么</label>
-      <textarea
+      <BaseTextarea
         id="conversation-input"
         v-model="draft"
         rows="1"
@@ -103,12 +105,13 @@ function onKeydown(event: KeyboardEvent): void {
         :disabled="sending"
         @keydown="onKeydown"
       />
-      <button
+      <BaseButton
         type="submit"
+        variant="primary"
         :disabled="sending || !draft.trim()"
       >
         {{ sending ? '发送中…' : '发送' }}
-      </button>
+      </BaseButton>
     </form>
   </section>
 </template>
@@ -116,15 +119,26 @@ function onKeydown(event: KeyboardEvent): void {
 <style scoped>
 .conversation-panel {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  padding: var(--space-6);
 }
 .messages {
   display: grid;
-  gap: var(--space-2);
-  min-height: 4rem;
+  gap: var(--space-3);
+  min-height: 12rem;
+  max-height: min(54vh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  scrollbar-color: #a5afa9 transparent;
 }
 .state-message {
+  display: grid;
+  min-height: 10rem;
+  margin: 0;
+  place-items: center;
   color: var(--color-text-muted);
+  text-align: center;
 }
 .message {
   padding: var(--space-2) var(--space-3);
@@ -152,20 +166,24 @@ function onKeydown(event: KeyboardEvent): void {
   display: flex;
   gap: var(--space-2);
   align-items: flex-end;
-}
-textarea {
-  flex: 1;
-  resize: vertical;
   padding: var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
+  border-radius: var(--radius-lg);
+  background: #f7f6f0;
 }
-button {
-  min-height: var(--tap-target);
+.composer :deep(.base-textarea) {
+  flex: 1;
+  min-width: 0;
+}
+.composer :deep(textarea) {
+  max-height: 12rem;
 }
 .error-banner {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid #efb5a0;
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-soft);
   color: var(--status-overdue);
 }
 .sr-only {
@@ -174,5 +192,26 @@ button {
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+}
+
+@media (max-width: 700px) {
+  .conversation-panel {
+    padding: var(--space-4);
+  }
+
+  .messages {
+    max-height: 52vh;
+    min-height: 15rem;
+    padding: 0;
+  }
+
+  .composer {
+    position: sticky;
+    bottom: var(--space-2);
+    z-index: 2;
+    padding: var(--space-2) calc(var(--space-2) + 4.25rem) var(--space-2) var(--space-2);
+    border-radius: var(--radius-md);
+    box-shadow: 0 14px 40px rgba(24, 48, 41, 0.12);
+  }
 }
 </style>

@@ -7,7 +7,8 @@ vi.mock('vue-router', () => ({
     template: '<a :href="to"><slot /></a>',
   },
   RouterView: { template: '<div class="router-view-stub" />' },
-  useRoute: () => ({ path: '/today' }),
+  useRoute: () => ({ path: '/today', fullPath: '/today' }),
+  useRouter: () => ({ push: vi.fn() }),
 }))
 
 vi.mock('@/stores/jobs', () => ({
@@ -49,14 +50,14 @@ const release = {
   migration_head: null,
 }
 
-describe('AppShell mobile navigation', () => {
+describe('AppShell Interview-derived navigation', () => {
   beforeEach(() => {
     window.localStorage.clear()
     vi.clearAllMocks()
     vi.mocked(releasesApi.history).mockResolvedValue({ releases: [release] } as never)
   })
 
-  it('exposes every primary route through the bottom navigation', () => {
+  it('exposes every primary route through the responsive jump menu', () => {
     const wrapper = mount(AppShell, {
       global: {
         stubs: {
@@ -68,15 +69,16 @@ describe('AppShell mobile navigation', () => {
         },
       },
     })
-    const nav = wrapper.find('.bottom-nav')
+    const nav = wrapper.find('.side-nav')
 
-    expect(nav.attributes('aria-label')).toBe('主导航')
-    expect(nav.findAll('.bottom-item')).toHaveLength(9)
+    expect(wrapper.find('aside[aria-label="主导航"]').exists()).toBe(true)
+    expect(nav.findAll('.nav-item')).toHaveLength(9)
     expect(nav.text()).toContain('今日')
     expect(nav.text()).toContain('博客')
-    expect(nav.text()).toContain('AI 助手')
-    expect(nav.text()).toContain('自助 Agent')
+    expect(nav.text()).toContain('助手')
+    expect(nav.text()).toContain('Agent')
     expect(nav.text()).toContain('设置')
+    expect(wrapper.find('.mobile-nav-toggle').attributes('aria-controls')).toBe('primary-navigation')
   })
 
   it('shows the update dialog once for an unseen release and links to history', async () => {

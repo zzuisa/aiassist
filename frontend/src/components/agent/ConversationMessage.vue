@@ -48,13 +48,29 @@ const resultPreview = computed(() => {
 </template>
 
 <style scoped>
-.message { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); max-width: 80%; }
-.role-user { justify-self: end; background: var(--color-surface-2); }
+.message {
+  min-width: 0;
+  max-width: min(82%, 42rem);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+.message p { margin: 0 0 var(--space-1); line-height: 1.65; overflow-wrap: anywhere; }
+.role-user { justify-self: end; border-color: #cad6c7; background: var(--color-surface-2); }
+.role-assistant { border-inline-start: 3px solid var(--color-accent); }
 .pending { opacity: .7; }
 .error { color: var(--status-overdue); }
-time { display: block; color: var(--color-text-muted); font-size: .75rem; }
+time { display: block; color: var(--color-text-muted); font-size: var(--text-xs); }
 .result-message { width: min(100%, 38rem); }
-.result-message summary { cursor: pointer; display: grid; gap: .2rem; }
+.result-message summary { cursor: pointer; display: grid; gap: .2rem; list-style: none; }
+.result-message summary::-webkit-details-marker { display: none; }
 .result-message summary span { color: var(--color-text-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result-message p { max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 700px) {
+  .message { max-width: 92%; padding: var(--space-3); }
+  .result-message { width: 100%; max-width: 100%; }
+}
 </style>

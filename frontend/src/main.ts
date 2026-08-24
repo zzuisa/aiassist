@@ -4,6 +4,8 @@ import App from '@/app/App.vue'
 import { router } from '@/router'
 import { setupPwa } from '@/pwa/register'
 import '@/styles/tokens.css'
+import '@/styles/base.css'
+import '@/styles/responsive.css'
 
 const app = createApp(App)
 app.use(createPinia())

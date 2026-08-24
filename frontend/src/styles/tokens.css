@@ -1,155 +1,83 @@
-/* Semantic design tokens. Status colors follow FR-092 and never encode meaning
-   by color alone; components pair them with an icon or text label. */
+/* Interview OS is the visual source of truth for AI Assist.
+   Source: /appHome/bwl/interview/assets/style.css */
 :root {
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-surface-2: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-text-muted: #64748b;
+  color: #14211e;
+  background: #f4f1e9;
+  font-family: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  font-synthesis: none;
 
-  /* Status palette (FR-092) */
-  --status-urgent: #dc2626; /* red: urgent / conflict */
-  --status-due-soon: #ea580c; /* orange: approaching deadline */
-  --status-done: #16a34a; /* green: completed */
-  --status-ai: #7c3aed; /* purple: AI suggestion */
-  --status-normal: #2563eb; /* blue: normal task */
-  --status-muted: #94a3b8; /* gray: fixed / cancelled / secondary */
-  --status-important-bg: #fdecec; /* soft red: important event background */
-  --status-important-text: #7f1d1d; /* readable text on soft-red */
-  --status-elapsed-bg: rgba(100, 116, 139, 0.12); /* gray: elapsed time grid */
+  --color-bg: #f4f1e9;
+  --color-background: #f4f1e9;
+  --color-bg-subtle: #f0f0e8;
+  --color-surface: #fffdf8;
+  --color-surface-2: #e8eee3;
+  --color-surface-muted: #f0f0e8;
+  --color-border: #d9ded8;
+  --color-text: #14211e;
+  --color-text-muted: #60706b;
+  --color-primary: #173d33;
+  --color-accent: #2b6655;
+  --color-accent-soft: #d9ee9f;
+  --color-code-text: #d8f0e8;
+  --color-danger: #a43b24;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --status-urgent: #d35a3b;
+  --status-overdue: #a43b24;
+  --status-danger: #a43b24;
+  --status-danger-soft: #fff0ec;
+  --status-due-soon: #e46f3d;
+  --status-warning: #e46f3d;
+  --status-warn-soft: #fff1e9;
+  --status-done: #36a36e;
+  --status-success: #24734f;
+  --status-done-soft: #e4f0e8;
+  --status-ai: #2b6655;
+  --status-normal: #2b6655;
+  --status-info: #23638d;
+  --status-info-soft: #eaf6ff;
+  --status-normal-soft: #e8eee3;
+  --status-muted: #91a09b;
+  --status-important-bg: #fff1e9;
+  --status-important-text: #7b2d19;
+  --status-elapsed-bg: rgba(96, 112, 107, 0.12);
+
+  --font-sans: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --font-serif: Georgia, "Noto Serif SC", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --text-xs: 0.68rem;
+  --text-sm: 0.78rem;
+  --text-body: 0.9rem;
+  --text-title: clamp(2rem, 4vw, 3.4rem);
+  --line-body: 1.65;
+  --tracking-label: 0.18em;
+
+  --radius-sm: 10px;
+  --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+  --shadow-card: 0 4px 0 rgba(23, 61, 51, 0.04);
+  --shadow-elevated: 0 14px 40px rgba(24, 48, 41, 0.09);
+  --shadow: var(--shadow-elevated);
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --layout-max: 1500px;
+  --sidebar-width: 230px;
+  --header-height: 76px;
+  --page-padding: clamp(2rem, 5vw, 5rem);
   --tap-target: 44px;
   --mobile-swipe-threshold: 72px;
   --mobile-row-action-width: 76px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-:root[data-theme='dark'] {
-  --color-bg: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-2: #334155;
-  --status-important-bg: #4c1d1d; /* soft red on dark */
-  --status-important-text: #fecaca;
-  --status-elapsed-bg: rgba(148, 163, 184, 0.14);
-  --color-border: #334155;
-  --color-text: #f1f5f9;
-  --color-text-muted: #94a3b8;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#app {
-  margin: 0;
-  min-height: 100%;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    'PingFang SC',
-    'Microsoft YaHei',
-    sans-serif;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* ---------------------------------------------------- shared motion helpers */
-
-/* Route/page transition (used by the app shell). */
-.page-enter-active,
-.page-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-}
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-.page-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-/* List entrance/move/leave for cards (Today, habits, captures). */
-.list-enter-active {
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
-}
-.list-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-  position: absolute;
-  width: 100%;
-}
-.list-enter-from {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-.list-leave-to {
-  opacity: 0;
-  transform: translateX(24px);
-}
-.list-move {
-  transition: transform 0.25s ease;
-}
-
-/* Tap feedback for interactive cards/buttons. */
-.tappable {
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.15s ease;
-}
-.tappable:active {
-  transform: scale(0.98);
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-.pop-in {
-  animation: pop-in 0.2s ease both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .page-enter-active,
-  .page-leave-active,
-  .list-enter-active,
-  .list-leave-active,
-  .list-move,
-  .tappable,
-  .pop-in {
-    transition: none !important;
-    animation: none !important;
-  }
 }

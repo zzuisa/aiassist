@@ -20,6 +20,7 @@ import AgentProgressStrip from '@/components/agent/AgentProgressStrip.vue'
 import AgentResultList from '@/components/agent/AgentResultList.vue'
 import { presentAgentResult } from '@/components/agent/resultPresentation'
 import { agentPlansApi, type AgentTaskReport } from '@/api/agentPlans'
+import BaseCard from '@/components/base/BaseCard.vue'
 
 const conversation = useAgentConversationsStore()
 
@@ -139,28 +140,43 @@ async function retryPlan(planId: string): Promise<void> {
 
 <template>
   <main class="agent-page">
-    <header>
-      <h1>自助 Agent</h1>
-      <p>用自然语言和我聊聊，或者直接说说你想让我处理什么。</p>
+    <header class="page-heading">
+      <p class="eyebrow">
+        AI WORKSPACE · AGENT ORCHESTRATION
+      </p>
+      <h1>把任务交给<br>Agent 协作完成。</h1>
+      <p>用自然语言查询、分析和处理你的内容。所有写入操作都会先展示预览并等待确认。</p>
     </header>
 
-    <ConversationPanel
-      :messages="conversation.messages"
-      :sending="conversation.sending"
-      :error="conversation.error"
-      :plans="conversation.plans"
-      :retrying-plan-id="retryingPlanId"
-      @send="(text) => conversation.sendMessage(text)"
-      @retry-plan="retryPlan"
+    <BaseCard
+      class="workspace-card"
+      elevated
     >
-      <template #status>
-        <AgentProgressStrip
-          :plan="latestPlan"
-          :turn="latestTurn"
-          :sending="conversation.sending"
-        />
-      </template>
-    </ConversationPanel>
+      <div class="workspace-card__head">
+        <div>
+          <span>CONVERSATION</span>
+          <h2>当前协作会话</h2>
+        </div>
+        <span class="privacy-badge">内部会话</span>
+      </div>
+      <ConversationPanel
+        :messages="conversation.messages"
+        :sending="conversation.sending"
+        :error="conversation.error"
+        :plans="conversation.plans"
+        :retrying-plan-id="retryingPlanId"
+        @send="(text) => conversation.sendMessage(text)"
+        @retry-plan="retryPlan"
+      >
+        <template #status>
+          <AgentProgressStrip
+            :plan="latestPlan"
+            :turn="latestTurn"
+            :sending="conversation.sending"
+          />
+        </template>
+      </ConversationPanel>
+    </BaseCard>
 
     <AgentTurnRetry
       :turns="retryableTurns"
@@ -221,11 +237,62 @@ async function retryPlan(planId: string): Promise<void> {
 
 <style scoped>
 .agent-page {
-  max-width: 760px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: var(--space-4);
+  padding: 4.5rem var(--page-padding) 6rem;
   display: grid;
+  gap: var(--space-6);
+}
+.page-heading {
+  max-width: 820px;
+}
+.eyebrow {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+}
+.page-heading h1 {
+  margin: var(--space-3) 0 var(--space-5);
+  font: 700 clamp(2.8rem, 6vw, 5.5rem) / 0.95 var(--font-serif);
+  letter-spacing: -0.045em;
+}
+.page-heading > p:last-child {
+  max-width: 680px;
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+.workspace-card {
+  padding: 0;
+  overflow: hidden;
+}
+.workspace-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+.workspace-card__head span:first-child {
+  color: var(--color-accent);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.workspace-card__head h2 {
+  margin: 0.2rem 0 0;
+  font: 700 1.5rem var(--font-serif);
+}
+.privacy-badge {
+  flex: none;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-accent);
+  font-size: var(--text-xs);
 }
 .confirmations {
   display: grid;
@@ -236,11 +303,27 @@ async function retryPlan(planId: string): Promise<void> {
   gap: var(--space-2);
   padding: var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 .result-panel h2 { margin: 0; font-size: 1rem; }
 .error {
   color: var(--status-overdue);
+}
+
+@media (max-width: 700px) {
+  .agent-page {
+    padding-top: 3.5rem;
+    padding-bottom: calc(6rem + var(--safe-bottom));
+    gap: var(--space-4);
+  }
+
+  .page-heading h1 {
+    font-size: 3.25rem;
+  }
+
+  .workspace-card__head {
+    padding: var(--space-4);
+  }
 }
 </style>
