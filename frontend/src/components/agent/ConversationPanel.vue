@@ -130,7 +130,7 @@ function onKeydown(event: KeyboardEvent): void {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-2);
-  scrollbar-color: #a5afa9 transparent;
+  scrollbar-color: var(--color-scrollbar) transparent;
 }
 .state-message {
   display: grid;
@@ -169,7 +169,7 @@ function onKeydown(event: KeyboardEvent): void {
   padding: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: #f7f6f0;
+  background: var(--color-composer);
 }
 .composer :deep(.base-textarea) {
   flex: 1;
@@ -181,7 +181,7 @@ function onKeydown(event: KeyboardEvent): void {
 .error-banner {
   margin: 0;
   padding: var(--space-3);
-  border: 1px solid #efb5a0;
+  border: 1px solid var(--color-danger-border);
   border-radius: var(--radius-sm);
   background: var(--status-danger-soft);
   color: var(--status-overdue);
@@ -209,9 +209,9 @@ function onKeydown(event: KeyboardEvent): void {
     position: sticky;
     bottom: var(--space-2);
     z-index: 2;
-    padding: var(--space-2) calc(var(--space-2) + 4.25rem) var(--space-2) var(--space-2);
+    padding: var(--space-2) calc(var(--space-2) + var(--mobile-nav-clearance)) var(--space-2) var(--space-2);
     border-radius: var(--radius-md);
-    box-shadow: 0 14px 40px rgba(24, 48, 41, 0.12);
+    box-shadow: var(--shadow-composer);
   }
 }
 </style>

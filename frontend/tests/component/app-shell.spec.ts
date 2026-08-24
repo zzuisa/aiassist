@@ -53,6 +53,16 @@ const release = {
 describe('AppShell Interview-derived navigation', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(max-width: 1050px)',
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
     vi.clearAllMocks()
     vi.mocked(releasesApi.history).mockResolvedValue({ releases: [release] } as never)
   })
@@ -95,10 +105,51 @@ describe('AppShell Interview-derived navigation', () => {
     })
     await flushPromises()
 
-    expect(wrapper.find('[role="dialog"]').text()).toContain('本次更新内容')
+    expect(wrapper.find('.release-dialog').text()).toContain('本次更新内容')
     expect(wrapper.find('a[href="/settings/updates"]').text()).toContain('查看更新历史')
     await wrapper.find('.secondary').trigger('click')
     expect(window.localStorage.getItem('aiassist:last-seen-release')).toBe(release.id)
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.find('.release-dialog').exists()).toBe(false)
+  })
+
+  it('locks body scroll and keeps keyboard focus inside the open mobile navigation', async () => {
+    window.localStorage.setItem('aiassist:last-seen-release', release.id)
+    const wrapper = mount(AppShell, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+          RouterView: { template: '<div class="router-view-stub" />' },
+        },
+      },
+    })
+    const toggle = wrapper.get<HTMLButtonElement>('.mobile-nav-toggle')
+    const sidebar = wrapper.get<HTMLElement>('#primary-navigation')
+    await flushPromises()
+
+    expect(sidebar.attributes('aria-hidden')).toBe('true')
+    expect(sidebar.attributes()).toHaveProperty('inert')
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(document.body.classList.contains('mobile-nav-open')).toBe(true)
+    expect(sidebar.attributes('aria-modal')).toBe('true')
+    expect(sidebar.attributes('aria-hidden')).toBeUndefined()
+    expect(sidebar.attributes()).not.toHaveProperty('inert')
+    expect(document.activeElement).toBe(sidebar.find('.nav-item.active').element)
+
+    const navItems = sidebar.findAll<HTMLAnchorElement>('.nav-item')
+    navItems.at(-1)?.element.focus()
+    await navItems.at(-1)?.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(navItems[0].element)
+
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(document.body.classList.contains('mobile-nav-open')).toBe(false)
+    expect(document.activeElement).toBe(toggle.element)
+    wrapper.unmount()
   })
 })

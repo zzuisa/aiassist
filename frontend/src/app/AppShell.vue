@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useJobsStore } from '@/stores/jobs'
 import TaskCenterDrawer from '@/components/jobs/TaskCenterDrawer.vue'
@@ -8,6 +8,7 @@ import { releasesApi, type ReleaseEntry } from '@/api/releases'
 import ReleaseUpdateDialog from '@/modules/releases/ReleaseUpdateDialog.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppNavigation, { type NavigationItem } from '@/components/layout/AppNavigation.vue'
+import { SHELL_COMPACT_MEDIA_QUERY, useMediaQuery } from '@/composables/useMediaQuery'
 
 const jobs = useJobsStore()
 const route = useRoute()
@@ -15,6 +16,8 @@ const router = useRouter()
 const taskCenterOpen = ref(false)
 const notifOpen = ref(false)
 const navigationOpen = ref(false)
+const navigationToggle = ref<HTMLButtonElement | null>(null)
+const compactNavigation = useMediaQuery(SHELL_COMPACT_MEDIA_QUERY)
 const currentRelease = ref<ReleaseEntry | null>(null)
 const updateNoticeOpen = ref(false)
 
@@ -36,6 +39,11 @@ watch(() => route.fullPath, () => {
   navigationOpen.value = false
 })
 
+watch([navigationOpen, compactNavigation], ([open, compact], [wasOpen]) => {
+  document.body.classList.toggle('mobile-nav-open', open && compact)
+  if (wasOpen && !open && compact) void nextTick(() => navigationToggle.value?.focus())
+})
+
 onMounted(() => {
   jobs.connect()
   window.addEventListener('keydown', onKeydown)
@@ -45,6 +53,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   jobs.disconnect()
   window.removeEventListener('keydown', onKeydown)
+  document.body.classList.remove('mobile-nav-open')
 })
 
 function onKeydown(event: KeyboardEvent): void {
@@ -77,10 +86,7 @@ function acknowledgeRelease(): void {
 </script>
 
 <template>
-  <div
-    class="shell"
-    :class="{ 'navigation-open': navigationOpen }"
-  >
+  <div class="shell">
     <AppHeader
       :active-count="activeCount"
       :unread-count="jobs.unreadCount"
@@ -96,6 +102,7 @@ function acknowledgeRelease(): void {
         :active-path="route.path"
         :active-count="activeCount"
         :open="navigationOpen"
+        :compact="compactNavigation"
         @close="navigationOpen = false"
       />
 
@@ -127,6 +134,7 @@ function acknowledgeRelease(): void {
     />
 
     <button
+      ref="navigationToggle"
       type="button"
       class="mobile-nav-toggle"
       :class="{ active: navigationOpen }"
@@ -164,11 +172,6 @@ function acknowledgeRelease(): void {
 }
 
 @media (max-width: 1050px) {
-  .navigation-open {
-    height: 100vh;
-    overflow: hidden;
-  }
-
   .app-shell {
     grid-template-columns: 1fr;
   }
@@ -183,11 +186,11 @@ function acknowledgeRelease(): void {
     height: 64px;
     padding: 0;
     place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--color-nav-border);
     border-radius: 50%;
     background: linear-gradient(145deg, var(--color-accent), var(--color-primary));
     color: var(--color-accent-soft);
-    box-shadow: 0 16px 36px rgba(10, 45, 35, 0.35), 0 0 0 6px rgba(244, 241, 233, 0.8);
+    box-shadow: var(--shadow-nav-toggle);
     cursor: pointer;
     transition: transform 0.35s cubic-bezier(0.2, 1.4, 0.35, 1), box-shadow 0.25s ease;
   }
@@ -196,12 +199,12 @@ function acknowledgeRelease(): void {
   .mobile-nav-toggle:focus-visible {
     outline: 0;
     transform: translateY(-3px) scale(1.04);
-    box-shadow: 0 20px 42px rgba(10, 45, 35, 0.42), 0 0 0 6px rgba(217, 238, 159, 0.58);
+    box-shadow: var(--shadow-nav-toggle-hover);
   }
 
   .mobile-nav-toggle.active {
     transform: rotate(45deg);
-    background: linear-gradient(145deg, #315f53, #102e26);
+    background: var(--gradient-nav-toggle-active);
   }
 
   .mobile-nav-icon {
@@ -218,7 +221,7 @@ function acknowledgeRelease(): void {
     height: 7px;
     border-radius: 50%;
     background: currentColor;
-    box-shadow: 0 0 12px rgba(217, 238, 159, 0.38);
+    box-shadow: var(--shadow-nav-icon);
   }
 
   .mobile-nav-toggle.active .mobile-nav-icon {

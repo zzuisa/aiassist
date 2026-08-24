@@ -68,7 +68,7 @@ defineProps<{ item: AgentResultItemView }>()
 .result-item { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border); border-inline-start: 3px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
 .result-item:hover { border-color: var(--color-primary); }
 .tone-success { border-inline-start-color: var(--status-done); }
-.tone-warning { border-inline-start-color: var(--status-warning, #b7791f); }
+.tone-warning { border-inline-start-color: var(--status-warning); }
 .tone-danger { border-inline-start-color: var(--status-overdue); }
 header { display: flex; align-items: center; gap: var(--space-2); }
 header strong { min-width: 0; overflow-wrap: anywhere; }

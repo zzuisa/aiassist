@@ -36,7 +36,7 @@ function submitSearch(): void {
       class="app-switch"
       aria-label="应用切换"
     >
-      <a href="/interview/">Interview</a>
+      <a href="https://roguelife.de/interview/">Interview</a>
       <RouterLink
         to="/today"
         class="active"
@@ -113,7 +113,7 @@ function submitSearch(): void {
   gap: var(--space-8);
   padding: var(--safe-top) var(--space-8) 0;
   border-bottom: 1px solid var(--color-border);
-  background: rgba(244, 241, 233, 0.94);
+  background: var(--color-header-glass);
   backdrop-filter: blur(15px);
 }
 
@@ -189,7 +189,7 @@ function submitSearch(): void {
 
 .search:focus-within {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(43, 102, 85, 0.1);
+  box-shadow: var(--shadow-focus-soft);
 }
 
 .search input {
@@ -213,8 +213,8 @@ function submitSearch(): void {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #e7a534;
-  box-shadow: 0 0 0 4px rgba(231, 165, 52, 0.15);
+  background: var(--color-running);
+  box-shadow: var(--shadow-running);
 }
 
 .header-button {

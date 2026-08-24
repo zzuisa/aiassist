@@ -45,12 +45,12 @@ textarea {
 }
 
 textarea:hover:not(:disabled) {
-  border-color: #86a596;
+  border-color: var(--color-border-strong);
 }
 
 textarea:focus-visible {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(43, 102, 85, 0.12);
+  box-shadow: var(--shadow-focus);
 }
 
 textarea:disabled {

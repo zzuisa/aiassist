@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { searchApi, TYPE_LABELS, type SearchResponse } from '@/api/search'
 import SearchResults from '@/modules/search/SearchResults.vue'
 
 const query = ref('')
+const route = useRoute()
 const typeFilter = ref<string>('')
 const results = ref<SearchResponse | null>(null)
 const loading = ref(false)
@@ -28,6 +30,15 @@ async function run(): Promise<void> {
 watch([query, typeFilter], () => {
   if (debounce) clearTimeout(debounce)
   debounce = setTimeout(run, 250)
+})
+
+watch(() => route.query.q, (value) => {
+  const nextQuery = Array.isArray(value) ? value[0] ?? '' : typeof value === 'string' ? value : ''
+  if (query.value !== nextQuery) query.value = nextQuery
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  if (debounce) clearTimeout(debounce)
 })
 
 function reset(): void {

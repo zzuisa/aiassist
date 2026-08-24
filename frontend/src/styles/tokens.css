@@ -20,6 +20,27 @@
   --color-accent-soft: #d9ee9f;
   --color-code-text: #d8f0e8;
   --color-danger: #a43b24;
+  --color-border-strong: #86a596;
+  --color-danger-border: #efb5a0;
+  --color-user-border: #cad6c7;
+  --color-scrollbar: #a5afa9;
+  --color-composer: #f7f6f0;
+  --color-header-glass: rgba(244, 241, 233, 0.94);
+  --color-running: #e7a534;
+  --color-mask-opaque: #000;
+  --color-nav-hover: rgba(232, 238, 227, 0.55);
+  --color-nav-active: #e8ebdf;
+  --color-on-primary-muted: #c7d8d2;
+  --color-nav-backdrop: rgba(10, 25, 21, 0.38);
+  --color-nav-border: rgba(255, 255, 255, 0.2);
+  --color-nav-border-soft: rgba(255, 255, 255, 0.16);
+  --color-nav-label: #a7c4bb;
+  --color-accent-border: rgba(217, 238, 159, 0.3);
+  --color-nav-item: rgba(255, 255, 255, 0.045);
+  --color-nav-item-hover: rgba(255, 255, 255, 0.1);
+  --color-nav-progress: rgba(0, 0, 0, 0.16);
+  --gradient-nav-panel: linear-gradient(150deg, rgba(23, 61, 51, 0.98), rgba(16, 39, 33, 0.97));
+  --gradient-nav-toggle-active: linear-gradient(145deg, #315f53, #102e26);
 
   --status-urgent: #d35a3b;
   --status-overdue: #a43b24;
@@ -59,6 +80,15 @@
   --shadow-card: 0 4px 0 rgba(23, 61, 51, 0.04);
   --shadow-elevated: 0 14px 40px rgba(24, 48, 41, 0.09);
   --shadow: var(--shadow-elevated);
+  --shadow-focus: 0 0 0 3px rgba(43, 102, 85, 0.12);
+  --shadow-focus-soft: 0 0 0 3px rgba(43, 102, 85, 0.1);
+  --shadow-running: 0 0 0 4px rgba(231, 165, 52, 0.15);
+  --shadow-composer: 0 14px 40px rgba(24, 48, 41, 0.12);
+  --shadow-nav-toggle: 0 16px 36px rgba(10, 45, 35, 0.35), 0 0 0 6px rgba(244, 241, 233, 0.8);
+  --shadow-nav-toggle-hover: 0 20px 42px rgba(10, 45, 35, 0.42), 0 0 0 6px rgba(217, 238, 159, 0.58);
+  --shadow-nav-icon: 0 0 12px rgba(217, 238, 159, 0.38);
+  --shadow-nav-panel: 0 28px 80px rgba(5, 23, 18, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --shadow-nav-active: 0 8px 22px rgba(217, 238, 159, 0.15);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -78,6 +108,7 @@
   --tap-target: 44px;
   --mobile-swipe-threshold: 72px;
   --mobile-row-action-width: 76px;
+  --mobile-nav-clearance: 68px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }

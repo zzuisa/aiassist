@@ -189,7 +189,7 @@ const progressLabel = computed(() => {
   padding-block: .2rem;
   border-block: 1px solid var(--color-border);
   white-space: nowrap;
-  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, var(--color-mask-opaque) 5%, var(--color-mask-opaque) 95%, transparent);
 }
 .marquee-content {
   display: inline-block;

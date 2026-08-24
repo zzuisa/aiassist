@@ -58,7 +58,7 @@ const resultPreview = computed(() => {
   box-shadow: var(--shadow-card);
 }
 .message p { margin: 0 0 var(--space-1); line-height: 1.65; overflow-wrap: anywhere; }
-.role-user { justify-self: end; border-color: #cad6c7; background: var(--color-surface-2); }
+.role-user { justify-self: end; border-color: var(--color-user-border); background: var(--color-surface-2); }
 .role-assistant { border-inline-start: 3px solid var(--color-accent); }
 .pending { opacity: .7; }
 .error { color: var(--status-overdue); }

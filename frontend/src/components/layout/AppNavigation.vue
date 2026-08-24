@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 
 export interface NavigationItem {
@@ -8,14 +9,45 @@ export interface NavigationItem {
   icon: string
 }
 
-defineProps<{
+const props = defineProps<{
   items: NavigationItem[]
   activePath: string
   activeCount: number
   open: boolean
+  compact: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
+const sidebar = ref<HTMLElement | null>(null)
+
+const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+watch(() => props.open, (open) => {
+  if (open && props.compact) {
+    void nextTick(() => sidebar.value?.querySelector<HTMLElement>('.nav-item.active, .nav-item')?.focus())
+  }
+})
+
+function onKeydown(event: KeyboardEvent): void {
+  if (!props.compact || !props.open) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    emit('close')
+    return
+  }
+  if (event.key !== 'Tab' || !sidebar.value) return
+  const focusable = [...sidebar.value.querySelectorAll<HTMLElement>(focusableSelector)]
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last?.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first?.focus()
+  }
+}
 </script>
 
 <template>
@@ -27,9 +59,15 @@ const emit = defineEmits<{ close: [] }>()
   />
   <aside
     id="primary-navigation"
+    ref="sidebar"
     class="sidebar"
     :class="{ open }"
+    :inert="compact && !open ? true : undefined"
+    :aria-hidden="compact && !open ? 'true' : undefined"
+    :role="compact ? 'dialog' : undefined"
+    :aria-modal="compact && open ? 'true' : undefined"
     aria-label="主导航"
+    @keydown="onKeydown"
   >
     <p class="nav-label">
       PERSONAL OPERATING SYSTEM
@@ -54,12 +92,9 @@ const emit = defineEmits<{ close: [] }>()
       <span>正在运行</span>
       <strong>{{ activeCount }}</strong>
       <small>后台任务</small>
-      <button
-        type="button"
-        @click="$emit('close')"
-      >
+      <p>
         保持专注，任务会在后台继续 →
-      </button>
+      </p>
     </section>
   </aside>
 </template>
@@ -115,13 +150,13 @@ const emit = defineEmits<{ close: [] }>()
 }
 
 .nav-item:hover {
-  background: rgba(232, 238, 227, 0.55);
+  background: var(--color-nav-hover);
   color: var(--color-primary);
 }
 
 .nav-item.active {
   border-left-color: var(--color-accent);
-  background: #e8ebdf;
+  background: var(--color-nav-active);
   color: var(--color-primary);
   font-weight: 700;
 }
@@ -137,7 +172,7 @@ const emit = defineEmits<{ close: [] }>()
 .side-progress span,
 .side-progress small {
   display: block;
-  color: #c7d8d2;
+  color: var(--color-on-primary-muted);
   font-size: 0.75rem;
 }
 
@@ -148,14 +183,12 @@ const emit = defineEmits<{ close: [] }>()
   font: 700 2.5rem var(--font-serif);
 }
 
-.side-progress button {
+.side-progress p {
+  margin: 0;
   padding: 0.7rem 0 0;
-  border: 0;
-  background: transparent;
   color: var(--color-accent-soft);
   font-weight: 700;
   text-align: left;
-  cursor: pointer;
 }
 
 @media (max-width: 1050px) {
@@ -164,7 +197,7 @@ const emit = defineEmits<{ close: [] }>()
     z-index: 49;
     inset: 0;
     display: block;
-    background: rgba(10, 25, 21, 0.38);
+    background: var(--color-nav-backdrop);
     opacity: 0;
     pointer-events: none;
     backdrop-filter: blur(0);
@@ -190,10 +223,10 @@ const emit = defineEmits<{ close: [] }>()
     overflow: auto;
     overscroll-behavior: contain;
     padding: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid var(--color-nav-border-soft);
     border-radius: 26px;
-    background: linear-gradient(150deg, rgba(23, 61, 51, 0.98), rgba(16, 39, 33, 0.97));
-    box-shadow: 0 28px 80px rgba(5, 23, 18, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    background: var(--gradient-nav-panel);
+    box-shadow: var(--shadow-nav-panel);
     opacity: 0;
     pointer-events: none;
     transform: translateY(28px) scale(0.9) rotate(2deg);
@@ -212,13 +245,13 @@ const emit = defineEmits<{ close: [] }>()
     align-items: center;
     justify-content: space-between;
     margin: 0.2rem 0.4rem 0.8rem;
-    color: #a7c4bb;
+    color: var(--color-nav-label);
   }
 
   .nav-label::after {
     content: 'JUMP MENU';
     padding: 0.25rem 0.45rem;
-    border: 1px solid rgba(217, 238, 159, 0.3);
+    border: 1px solid var(--color-accent-border);
     border-radius: var(--radius-pill);
     color: var(--color-accent-soft);
     font-size: 0.56rem;
@@ -239,8 +272,8 @@ const emit = defineEmits<{ close: [] }>()
     place-items: center;
     border: 0;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.045);
-    color: #d8e5e1;
+    background: var(--color-nav-item);
+    color: var(--color-code-text);
     font-size: 0.54rem;
     line-height: 1;
     white-space: nowrap;
@@ -248,7 +281,7 @@ const emit = defineEmits<{ close: [] }>()
 
   .nav-item:hover,
   .nav-item:focus-visible {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-nav-item-hover);
     color: white;
     transform: translateY(-1px);
   }
@@ -257,7 +290,7 @@ const emit = defineEmits<{ close: [] }>()
     border: 0;
     background: var(--color-accent-soft);
     color: var(--color-primary);
-    box-shadow: 0 8px 22px rgba(217, 238, 159, 0.15);
+    box-shadow: var(--shadow-nav-active);
   }
 
   .side-progress {
@@ -266,7 +299,7 @@ const emit = defineEmits<{ close: [] }>()
     align-items: center;
     margin-top: 0.65rem;
     padding: 0.85rem 1rem;
-    background: rgba(0, 0, 0, 0.16);
+    background: var(--color-nav-progress);
   }
 
   .side-progress strong {
@@ -275,7 +308,7 @@ const emit = defineEmits<{ close: [] }>()
     font-size: 2rem;
   }
 
-  .side-progress button {
+  .side-progress p {
     grid-column: 1 / -1;
   }
 }

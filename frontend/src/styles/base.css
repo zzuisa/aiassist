@@ -22,6 +22,10 @@ body {
   line-height: var(--line-body);
 }
 
+body.mobile-nav-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select,

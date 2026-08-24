@@ -67,7 +67,7 @@ const duration = computed(() => {
 .plan-step + .plan-step { border-top: 1px solid var(--color-border); }
 .status-icon { font-weight: 700; text-align: center; }
 .status-running .status-icon { color: var(--color-primary); animation: pulse 1.2s ease-in-out infinite; }
-.status-success .status-icon { color: var(--status-success, #2f855a); }
+.status-success .status-icon { color: var(--status-success); }
 .status-failed .status-icon, .error { color: var(--status-overdue); }
 .step-main { min-width: 0; display: grid; gap: .2rem; }
 .step-heading { display: flex; justify-content: space-between; gap: var(--space-2); }
