@@ -221,7 +221,7 @@ test('一键验证 Agent API 只读任务全流程', async ({ page, context }, t
     })
     expect(response.status()).toBe(202)
     created = await json<AgentTask>(response)
-    expect(created.intent_key).toBe('articles.list_recent')
+    expect(created.intent_key).toBe('llm.route')
     expect(created.status).toBe('pending')
   })
 
